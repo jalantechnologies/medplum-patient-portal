@@ -6,6 +6,7 @@
   "scripts": {
     "serve": "vite",
     "build": "tsc -b && vite build",
+    "test": "vitest run",
     "lint": "oxlint",
     "lint:markdown": "remark . --frail --quiet",
     "format": "prettier --write .",
@@ -14,15 +15,31 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@hookform/resolvers": "^7.0.1",
+    "@medplum/core": "^5.2.13",
+    "@medplum/react-hooks": "^5.2.13",
+    "baseui": "^18.2.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.91.0",
+    "react-router": "^7.18.5",
+    "styletron-engine-monolithic": "^1.0.0",
+    "styletron-react": "^6.1.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@medplum/fhirtypes": "^5.2.13",
+    "@medplum/mock": "^5.2.13",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
     "@types/node": "^26.6.6",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^6.1.2",
     "husky": "^9.1.7",
+    "jsdom": "^30.1.3",
     "lint-staged": "^17.6.0",
     "oxlint": "^1.89.0",
     "prettier": "^3.9.10",
@@ -30,6 +47,7 @@
     "remark-gfm": "^4.0.1",
     "remark-preset-lint-recommended": "^7.0.1",
     "typescript": "~7.0.2",
-    "vite": "^8.3.5"
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
   }
 }
