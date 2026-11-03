@@ -6,20 +6,29 @@ A patient signs in on a phone or a laptop and sees their own health record, mana
 
 ## Status
 
-Early development. The project is set up; the first screens come next.
+Early development. A patient can sign in with their Medplum account and sign out; the screens for their health record come next.
 
 ## Prerequisites
 
 - Node.js 26.13.0, the version in `.nvmrc`. With nvm, run `nvm use` in the project folder.
+- A Medplum server with a project and a patient account in it. For local development, [run Medplum locally](https://www.medplum.com/docs/contributing/run-the-stack).
 
 ## Getting started
 
 ```sh
 npm install
+cp .env.example .env.local
 npm run serve
 ```
 
-Then open the address the development server prints.
+Fill in `.env.local` before starting:
+
+| Variable                          | What it holds                                                                                                                  |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `VITE_MEDPLUM_SERVER_ADDRESS`     | The Medplum server's address, for example `http://localhost:8103/`                                                             |
+| `VITE_MEDPLUM_PROJECT_IDENTIFIER` | The identifier of the Medplum project the patients belong to. Patient accounts belong to a single project, so sign-in needs it |
+
+Then open the address the development server prints, and sign in with a patient account.
 
 ## Scripts
 
@@ -27,6 +36,7 @@ Then open the address the development server prints.
 | ----------------------- | ------------------------------------------------------- |
 | `npm run serve`         | Starts the development server                           |
 | `npm run build`         | Checks types and builds for production into `dist/`     |
+| `npm test`              | Runs the tests once with Vitest                         |
 | `npm run preview`       | Serves the production build                             |
 | `npm run lint`          | Lints the TypeScript and JavaScript code with oxlint    |
 | `npm run lint:markdown` | Lints the Markdown files with remark                    |

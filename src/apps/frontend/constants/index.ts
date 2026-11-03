@@ -1,0 +1,10 @@
+const constant = {
+  PATIENT_RESOURCE_TYPE: "Patient",
+  DEFAULT_ERROR_MESSAGE: "Something went wrong. Please try again.",
+  EMAIL_VALIDATION_ERROR: "Please enter a valid email",
+  PASSWORD_VALIDATION_ERROR: "Please enter your password",
+  UNSUPPORTED_SIGN_IN_STEP_ERROR:
+    "This account needs a sign-in step that the portal does not support yet.",
+};
+
+export default constant;
