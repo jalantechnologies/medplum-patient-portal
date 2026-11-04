@@ -28,6 +28,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@medplum/definitions": "^5.2.13",
     "@medplum/fhirtypes": "^5.2.13",
     "@medplum/mock": "^5.2.13",
     "@testing-library/dom": "^10.4.2",

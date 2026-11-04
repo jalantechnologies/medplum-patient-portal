@@ -3,13 +3,7 @@ import { HeadingMedium, ParagraphSmall } from "baseui/typography";
 
 export default function NotFound() {
   return (
-    <Block
-      as="main"
-      padding="scale800"
-      display="grid"
-      gridGap="scale300"
-      data-testid="not-found"
-    >
+    <Block display="grid" gridGap="scale300" data-testid="not-found">
       <HeadingMedium as="h1" margin="0">
         Page not found
       </HeadingMedium>
