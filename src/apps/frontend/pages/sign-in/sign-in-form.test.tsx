@@ -1,30 +1,22 @@
 import { HomerSimpson, MockClient } from "@medplum/mock";
-import { MedplumProvider } from "@medplum/react-hooks";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { BaseProvider, LightTheme } from "baseui";
-import type { PropsWithChildren } from "react";
-import { Client as Styletron } from "styletron-engine-monolithic";
-import { Provider as StyletronProvider } from "styletron-react";
 import { describe, expect, it, vi } from "vitest";
 
 import constant from "../../constants";
+import { RESOURCE_TYPE } from "../../constants/fhir";
 import { AuthenticationProvider } from "../../providers";
+import { TestProviders } from "../../test-providers";
 import SignInForm from "./sign-in-form";
 
-const renderForm = (medplum: MockClient) => {
-  const wrapper = ({ children }: PropsWithChildren) => (
-    <StyletronProvider value={new Styletron()}>
-      <BaseProvider theme={LightTheme}>
-        <MedplumProvider medplum={medplum}>
-          <AuthenticationProvider>{children}</AuthenticationProvider>
-        </MedplumProvider>
-      </BaseProvider>
-    </StyletronProvider>
+const renderForm = (medplum: MockClient) =>
+  render(
+    <TestProviders medplum={medplum}>
+      <AuthenticationProvider>
+        <SignInForm />
+      </AuthenticationProvider>
+    </TestProviders>,
   );
-
-  return render(<SignInForm />, { wrapper });
-};
 
 const submitCredentials = async (
   user: ReturnType<typeof userEvent.setup>,
@@ -72,7 +64,7 @@ describe("SignInForm", () => {
         email: "patient@example.com",
         password: "password",
         projectId: "test-project",
-        resourceType: "Patient",
+        resourceType: RESOURCE_TYPE.PATIENT,
       }),
     );
     expect(screen.queryByTestId("sign-in-error")).not.toBeInTheDocument();

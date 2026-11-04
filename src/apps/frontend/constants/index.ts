@@ -1,5 +1,5 @@
 const constant = {
-  PATIENT_RESOURCE_TYPE: "Patient",
+  LOCALE: "en-US",
   DEFAULT_ERROR_MESSAGE: "Something went wrong. Please try again.",
   EMAIL_VALIDATION_ERROR: "Please enter a valid email",
   PASSWORD_VALIDATION_ERROR: "Please enter your password",

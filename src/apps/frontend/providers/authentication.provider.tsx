@@ -7,7 +7,7 @@ import {
   type PropsWithChildren,
 } from "react";
 
-import constant from "../constants";
+import { RESOURCE_TYPE } from "../constants/fhir";
 import { AuthenticationContext } from "../contexts";
 import { useAsynchronous } from "../hooks";
 import { AuthenticationService } from "../services";
@@ -34,8 +34,7 @@ export const AuthenticationProvider: FC<PropsWithChildren> = ({ children }) => {
   const { asynchronousCallback: signOut, isLoading: isSignOutLoading } =
     useAsynchronous(authenticationService.signOut);
 
-  const isUserAuthenticated =
-    profile?.resourceType === constant.PATIENT_RESOURCE_TYPE;
+  const isUserAuthenticated = profile?.resourceType === RESOURCE_TYPE.PATIENT;
 
   const value = useMemo(
     () => ({

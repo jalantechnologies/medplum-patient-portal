@@ -2,6 +2,7 @@ import type { ProfileResource } from "@medplum/core";
 
 import { configuration } from "../../configuration";
 import constant from "../../constants";
+import { RESOURCE_TYPE } from "../../constants/fhir";
 import { AsynchronousOperationError, ServiceResponse } from "../../types";
 import MedplumService from "../medplum/medplum.service";
 
@@ -23,7 +24,7 @@ export default class AuthenticationService extends MedplumService {
       email,
       password,
       projectId: configuration.medplumProjectIdentifier,
-      resourceType: constant.PATIENT_RESOURCE_TYPE,
+      resourceType: RESOURCE_TYPE.PATIENT,
     });
     if (!loginResponse.code) {
       throw new AsynchronousOperationError(
