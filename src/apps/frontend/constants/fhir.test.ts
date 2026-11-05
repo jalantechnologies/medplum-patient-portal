@@ -6,10 +6,17 @@ import {
   satisfiedAccessPolicy,
   type WithId,
 } from "@medplum/core";
+import { readJson } from "@medplum/definitions";
 import type {
   AccessPolicy,
+  AllergyIntolerance,
   Appointment,
+  Bundle,
   CarePlan,
+  CodeSystem,
+  CodeSystemConcept,
+  Condition,
+  Observation,
   Patient,
   Reference,
   Resource,
@@ -18,13 +25,61 @@ import { describe, expect, it } from "vitest";
 
 import patientAccessPolicy from "../../../../data/core/patient-access-policy.json";
 import {
+  ALLERGY_INTOLERANCE_CLINICAL_STATUS,
+  ALLERGY_INTOLERANCE_VERIFICATION_STATUS,
   APPOINTMENT_PARTICIPANT_STATUS,
   APPOINTMENT_STATUS,
   CARE_PLAN_INTENT,
   CARE_PLAN_STATUS,
+  CODE_SYSTEM,
+  CONDITION_CLINICAL_STATUS,
+  CONDITION_VERIFICATION_STATUS,
+  OBSERVATION_CATEGORY,
+  OBSERVATION_STATUS,
   RESOURCE_TYPE,
   SEARCH_PARAMETER,
 } from "./fhir";
+
+describe("CODE_SYSTEM", () => {
+  const terminologyBundle = readJson(
+    "fhir/r4/valuesets.json",
+  ) as Bundle<CodeSystem>;
+
+  const listConceptCodes = (concepts: CodeSystemConcept[] = []): string[] =>
+    concepts.flatMap((concept) => [
+      concept.code,
+      ...listConceptCodes(concept.concept),
+    ]);
+
+  const listCodeSystemCodes = (system: string) =>
+    listConceptCodes(
+      terminologyBundle.entry?.find((entry) => entry.resource?.url === system)
+        ?.resource?.concept,
+    );
+
+  it.each([
+    [
+      CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL,
+      ALLERGY_INTOLERANCE_CLINICAL_STATUS,
+    ],
+    [
+      CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
+      ALLERGY_INTOLERANCE_VERIFICATION_STATUS,
+    ],
+    [CODE_SYSTEM.CONDITION_CLINICAL, CONDITION_CLINICAL_STATUS],
+    [CODE_SYSTEM.CONDITION_VERIFICATION, CONDITION_VERIFICATION_STATUS],
+  ])("names every code of %s, and only those", (system, codes) => {
+    expect(Object.values(codes).toSorted()).toEqual(
+      listCodeSystemCodes(system).toSorted(),
+    );
+  });
+
+  it("names only observation categories that FHIR defines", () => {
+    expect(listCodeSystemCodes(CODE_SYSTEM.OBSERVATION_CATEGORY)).toEqual(
+      expect.arrayContaining(Object.values(OBSERVATION_CATEGORY)),
+    );
+  });
+});
 
 describe("SEARCH_PARAMETER", () => {
   it("names only search parameters that FHIR defines for the portal's resource types", () => {
@@ -66,6 +121,20 @@ describe("patient access policy", () => {
       resourceType: RESOURCE_TYPE.CARE_PLAN,
       status: CARE_PLAN_STATUS.ACTIVE,
       intent: CARE_PLAN_INTENT.PLAN,
+      subject: patient,
+    }),
+    [RESOURCE_TYPE.ALLERGY_INTOLERANCE]: (patient): AllergyIntolerance => ({
+      resourceType: RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+      patient,
+    }),
+    [RESOURCE_TYPE.CONDITION]: (patient): Condition => ({
+      resourceType: RESOURCE_TYPE.CONDITION,
+      subject: patient,
+    }),
+    [RESOURCE_TYPE.OBSERVATION]: (patient): Observation => ({
+      resourceType: RESOURCE_TYPE.OBSERVATION,
+      status: OBSERVATION_STATUS.FINAL,
+      code: { text: "Blood pressure" },
       subject: patient,
     }),
   };

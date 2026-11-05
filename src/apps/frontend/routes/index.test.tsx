@@ -345,6 +345,23 @@ describe("ApplicationRoutes", () => {
     );
   });
 
+  it("takes a patient to Health records from the sidebar and marks it as the current page", async () => {
+    const user = userEvent.setup();
+    const router = renderRoutes(new MockClient({ profile: HomerSimpson }));
+
+    const sidebar = await screen.findByTestId("sidebar");
+    await user.click(getNavigationLink(sidebar, routes.HEALTH_RECORDS));
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Health records" }),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(routes.HEALTH_RECORDS);
+    expect(getNavigationLink(sidebar, routes.HEALTH_RECORDS)).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
   it("takes a patient from another page to Home with the keyboard", async () => {
     const user = userEvent.setup();
     const router = renderRoutes(

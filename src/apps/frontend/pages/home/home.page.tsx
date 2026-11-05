@@ -37,7 +37,7 @@ const describeNextVisit = (appointment: Nullable<Appointment>) => {
 };
 
 const Home: FC = () => {
-  const { fullName, givenName } = usePatientName();
+  const { givenName, recordOwner } = usePatientName();
   const {
     activeCarePlanCount,
     hasActiveCarePlanCountFailed,
@@ -50,7 +50,6 @@ const Home: FC = () => {
   } = useHomeOverview();
 
   const greeting = givenName ? `Hello, ${givenName}` : "Hello";
-  const recordOwner = fullName ? `Your record · ${fullName}` : "Your record";
 
   return (
     <Block data-testid="home">

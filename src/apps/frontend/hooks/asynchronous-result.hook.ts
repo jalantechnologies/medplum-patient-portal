@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import type {
   AsynchronousOperationError,
@@ -10,6 +10,7 @@ import useAsynchronous from "./asynchronous.hook";
 interface AsynchronousResultState<Result> {
   error: Nullable<AsynchronousOperationError>;
   isLoading: boolean;
+  isRequesting: boolean;
   result: Nullable<Result>;
 }
 
@@ -23,6 +24,7 @@ interface UseAsynchronousResultResponse<
 const initialState = {
   error: null,
   isLoading: true,
+  isRequesting: false,
   result: null,
 };
 
@@ -34,24 +36,40 @@ const useAsynchronousResult = <Result, FunctionParameters extends unknown[]>(
   const { asynchronousCallback } = useAsynchronous(asynchronousFunction);
   const [state, setState] =
     useState<AsynchronousResultState<Result>>(initialState);
+  const latestRequestNumber = useRef(0);
 
   const load = useCallback(
     async (...parameters: FunctionParameters) => {
+      latestRequestNumber.current += 1;
+      const requestNumber = latestRequestNumber.current;
+      const isLatestRequest = () =>
+        requestNumber === latestRequestNumber.current;
       setState((previousState) => ({
         ...previousState,
         error: null,
         isLoading: previousState.isLoading || previousState.error !== null,
+        isRequesting: true,
       }));
       try {
         const result = await asynchronousCallback(...parameters);
-        setState({ error: null, isLoading: false, result });
+        if (isLatestRequest()) {
+          setState({
+            error: null,
+            isLoading: false,
+            isRequesting: false,
+            result,
+          });
+        }
         return result;
       } catch (error) {
-        setState({
-          error: error as AsynchronousOperationError,
-          isLoading: false,
-          result: null,
-        });
+        if (isLatestRequest()) {
+          setState({
+            error: error as AsynchronousOperationError,
+            isLoading: false,
+            isRequesting: false,
+            result: null,
+          });
+        }
         throw error;
       }
     },

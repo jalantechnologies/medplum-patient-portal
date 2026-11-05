@@ -1,5 +1,6 @@
 const constant = {
   LOCALE: "en-US",
+  SEARCH_PAGE_SIZE: 100,
   DEFAULT_ERROR_MESSAGE: "Something went wrong. Please try again.",
   EMAIL_VALIDATION_ERROR: "Please enter a valid email",
   PASSWORD_VALIDATION_ERROR: "Please enter your password",

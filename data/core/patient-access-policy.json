@@ -3,6 +3,11 @@
   "name": "Patient Portal Access Policy",
   "resource": [
     {
+      "resourceType": "AllergyIntolerance",
+      "criteria": "AllergyIntolerance?patient=%patient",
+      "interaction": ["search"]
+    },
+    {
       "resourceType": "Appointment",
       "criteria": "Appointment?patient=%patient",
       "interaction": ["search"]
@@ -10,6 +15,16 @@
     {
       "resourceType": "CarePlan",
       "criteria": "CarePlan?subject=%patient",
+      "interaction": ["search"]
+    },
+    {
+      "resourceType": "Condition",
+      "criteria": "Condition?patient=%patient",
+      "interaction": ["search"]
+    },
+    {
+      "resourceType": "Observation",
+      "criteria": "Observation?patient=%patient",
       "interaction": ["search"]
     }
   ]
