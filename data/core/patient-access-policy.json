@@ -1,0 +1,16 @@
+{
+  "resourceType": "AccessPolicy",
+  "name": "Patient Portal Access Policy",
+  "resource": [
+    {
+      "resourceType": "Appointment",
+      "criteria": "Appointment?patient=%patient",
+      "interaction": ["search"]
+    },
+    {
+      "resourceType": "CarePlan",
+      "criteria": "CarePlan?subject=%patient",
+      "interaction": ["search"]
+    }
+  ]
+}
