@@ -5,7 +5,10 @@ import routes from "../../constants/routes";
 import { useAuthenticationContext } from "../../contexts";
 import { usePatientName } from "../../hooks";
 
-const navigationItems = [{ title: "Home", itemId: routes.HOME }];
+const navigationItems = [
+  { title: "Home", itemId: routes.HOME },
+  { title: "Health records", itemId: routes.HEALTH_RECORDS },
+];
 
 const ApplicationLayout: FC<PropsWithChildren> = ({ children }) => {
   const { fullName } = usePatientName();

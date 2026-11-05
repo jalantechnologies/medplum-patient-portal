@@ -6,7 +6,7 @@ A patient signs in on a phone or a laptop and sees their own health record, mana
 
 ## Status
 
-Early development. A patient can sign in with their Medplum account, see Home with their ongoing care plans and their next visit, move around the portal on a phone or a laptop, and sign out. The screens for the rest of their health record come next.
+Early development. A patient can sign in with their Medplum account, see Home with their ongoing care plans and their next visit, see their conditions, allergies and measurements in Health records, move around the portal on a phone or a laptop, and sign out. The screens for the rest of their health record come next.
 
 ## Prerequisites
 
@@ -32,7 +32,7 @@ Then open the address the development server prints, and sign in with a patient 
 
 ## Patient access
 
-Each patient may see only their own care plans and the appointments they take part in. Medplum enforces this with an [access policy](https://www.medplum.com/docs/access/access-policies) on the patient's project membership; the portal does not filter what it shows. The portal's policy is [`data/core/patient-access-policy.json`](data/core/patient-access-policy.json). It lets a patient search those two resource types and do nothing else: no other resource types, and no changes. The patient's own profile comes with their sign-in, so the policy does not grant `Patient`. An appointment shared by several patients, such as a group visit, shows each of them every participant.
+Each patient may see only their own care plans, conditions, allergies and observations, and the appointments they take part in. Observations cover every kind, such as lab results, even though the portal shows only measurements so far. Medplum enforces this with an [access policy](https://www.medplum.com/docs/access/access-policies) on the patient's project membership, not the portal: a patient can call Medplum's API directly, so what the portal's screens leave out is not hidden from them. The portal's policy is [`data/core/patient-access-policy.json`](data/core/patient-access-policy.json). It lets a patient search those resource types and do nothing else: no other resource types, and no changes. The patient's own profile comes with their sign-in, so the policy does not grant `Patient`. An appointment shared by several patients, such as a group visit, shows each of them every participant.
 
 As a project admin in Medplum's app:
 

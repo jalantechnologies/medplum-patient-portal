@@ -3,12 +3,16 @@ import type {
   Appointment,
   AppointmentParticipant,
   CarePlan,
+  Observation,
   ResourceType,
 } from "@medplum/fhirtypes";
 
 export const RESOURCE_TYPE = {
+  ALLERGY_INTOLERANCE: "AllergyIntolerance",
   APPOINTMENT: "Appointment",
   CARE_PLAN: "CarePlan",
+  CONDITION: "Condition",
+  OBSERVATION: "Observation",
   PATIENT: "Patient",
 } as const satisfies Record<string, ResourceType>;
 
@@ -49,11 +53,74 @@ export const CARE_PLAN_STATUS = {
   UNKNOWN: "unknown",
 } as const satisfies Record<string, CarePlan["status"]>;
 
+export const OBSERVATION_STATUS = {
+  AMENDED: "amended",
+  CANCELLED: "cancelled",
+  CORRECTED: "corrected",
+  ENTERED_IN_ERROR: "entered-in-error",
+  FINAL: "final",
+  PRELIMINARY: "preliminary",
+  REGISTERED: "registered",
+  UNKNOWN: "unknown",
+} as const satisfies Record<string, Observation["status"]>;
+
+export const CODE_SYSTEM = {
+  ALLERGY_INTOLERANCE_CLINICAL:
+    "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+  ALLERGY_INTOLERANCE_VERIFICATION:
+    "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification",
+  CONDITION_CLINICAL:
+    "http://terminology.hl7.org/CodeSystem/condition-clinical",
+  CONDITION_VERIFICATION:
+    "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+  OBSERVATION_CATEGORY:
+    "http://terminology.hl7.org/CodeSystem/observation-category",
+} as const;
+
+export const OBSERVATION_CATEGORY = {
+  LABORATORY: "laboratory",
+  VITAL_SIGNS: "vital-signs",
+} as const;
+
+export const CONDITION_CLINICAL_STATUS = {
+  ACTIVE: "active",
+  INACTIVE: "inactive",
+  RECURRENCE: "recurrence",
+  RELAPSE: "relapse",
+  REMISSION: "remission",
+  RESOLVED: "resolved",
+} as const;
+
+export const CONDITION_VERIFICATION_STATUS = {
+  CONFIRMED: "confirmed",
+  DIFFERENTIAL: "differential",
+  ENTERED_IN_ERROR: "entered-in-error",
+  PROVISIONAL: "provisional",
+  REFUTED: "refuted",
+  UNCONFIRMED: "unconfirmed",
+} as const;
+
+export const ALLERGY_INTOLERANCE_CLINICAL_STATUS = {
+  ACTIVE: "active",
+  INACTIVE: "inactive",
+  RESOLVED: "resolved",
+} as const;
+
+export const ALLERGY_INTOLERANCE_VERIFICATION_STATUS = {
+  CONFIRMED: "confirmed",
+  ENTERED_IN_ERROR: "entered-in-error",
+  REFUTED: "refuted",
+  UNCONFIRMED: "unconfirmed",
+} as const;
+
 export const SEARCH_PARAMETER = {
+  CATEGORY: "category",
   DATE: "date",
   PATIENT: "patient",
+  RECORDED_DATE: "recorded-date",
   STATUS: "status",
   SUBJECT: "subject",
+  VERIFICATION_STATUS: "verification-status",
 } as const;
 
 export const SEARCH_TOTAL = {

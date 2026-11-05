@@ -3,10 +3,12 @@ import { useMedplumProfile } from "@medplum/react-hooks";
 
 const usePatientName = () => {
   const name = useMedplumProfile()?.name?.[0];
+  const fullName = name ? formatHumanName(name) : "";
 
   return {
-    fullName: name ? formatHumanName(name) : "",
+    fullName,
     givenName: name ? formatGivenName(name) : "",
+    recordOwner: fullName ? `Your record · ${fullName}` : "Your record",
   };
 };
 

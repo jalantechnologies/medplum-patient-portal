@@ -1,8 +1,20 @@
 import { Outlet } from "react-router";
 
 import routes from "../constants/routes";
-import { ApplicationLayout, Home, NotFound, SignIn } from "../pages";
-import { AppointmentProvider, CarePlanProvider } from "../providers";
+import {
+  ApplicationLayout,
+  HealthRecords,
+  Home,
+  NotFound,
+  SignIn,
+} from "../pages";
+import {
+  AllergyIntoleranceProvider,
+  AppointmentProvider,
+  CarePlanProvider,
+  ConditionProvider,
+  ObservationProvider,
+} from "../providers";
 import { ProtectedRoute } from "./guards/protected-route";
 import { PublicRoute } from "./guards/public-route";
 
@@ -26,6 +38,18 @@ export const routeObjects = [
         ),
         children: [
           { path: routes.HOME, element: <Home /> },
+          {
+            path: routes.HEALTH_RECORDS,
+            element: (
+              <ConditionProvider>
+                <AllergyIntoleranceProvider>
+                  <ObservationProvider>
+                    <HealthRecords />
+                  </ObservationProvider>
+                </AllergyIntoleranceProvider>
+              </ConditionProvider>
+            ),
+          },
           { path: "*", element: <NotFound /> },
         ],
       },
