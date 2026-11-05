@@ -11,7 +11,7 @@ Early development. A patient can sign in with their Medplum account, see Home wi
 ## Prerequisites
 
 - Node.js 26.13.0, the version in `.nvmrc`. With nvm, run `nvm use` in the project folder.
-- A Medplum server with a project and a patient account in it. For local development, [run Medplum locally](https://www.medplum.com/docs/contributing/run-the-stack).
+- A Medplum server with a project and a patient account in it, set up as in [Patient access](#patient-access). For local development, [run Medplum locally](https://www.medplum.com/docs/contributing/run-the-stack).
 
 ## Getting started
 
@@ -29,6 +29,22 @@ Fill in `.env.local` before starting:
 | `VITE_MEDPLUM_PROJECT_IDENTIFIER` | The identifier of the Medplum project the patients belong to. Patient accounts belong to a single project, so sign-in needs it |
 
 Then open the address the development server prints, and sign in with a patient account.
+
+## Patient access
+
+Each patient may see only their own care plans and the appointments they take part in. Medplum enforces this with an [access policy](https://www.medplum.com/docs/access/access-policies) on the patient's project membership; the portal does not filter what it shows. The portal's policy is [`data/core/patient-access-policy.json`](data/core/patient-access-policy.json). It lets a patient search those two resource types and do nothing else: no other resource types, and no changes. The patient's own profile comes with their sign-in, so the policy does not grant `Patient`. An appointment shared by several patients, such as a group visit, shows each of them every participant.
+
+As a project admin in Medplum's app:
+
+1. **Create the policy.** Open `/AccessPolicy/new/json`, paste the contents of the file and save.
+2. **Make it the default for invited patients.** Open `/Project/<project identifier>/json`. In `defaultAccessPolicies`, set the `Patient` entry, or add it, to `{ "profileType": "Patient", "accessPolicy": { "reference": "AccessPolicy/<policy identifier>" } }`, and save. Patients you then [invite](https://www.medplum.com/docs/app/invite) without choosing a policy get it.
+3. **Move patients invited earlier.** In `/admin/users`, open each patient, choose "Go to ProjectMembership", and on its Edit tab set the access policy to the new policy and remove every entry under "Access". Medplum adds those entries to the access policy, so an entry left in place keeps everything it granted.
+
+A patient membership with no access policy and no "Access" entries can read and change every record in the project, so make sure none is left that way.
+
+A project that sets `defaultPatientAccessPolicy` lets patients register themselves, and gives them that policy instead. Medplum sets it on projects created with versions 5.1.17 to 5.2.2. The portal has no self-registration yet, so remove the field on the project's JSON page. If the clinic creates patients through SCIM, which needs the field, point it at the portal's policy instead; patients can then still register themselves, with the portal's policy.
+
+When an update to the portal changes the policy file, open the policy's JSON page (`/AccessPolicy/<policy identifier>/json`), replace its `name` and `resource` with the file's, keep its `id`, and save. Medplum needs the `id` to update the policy in place.
 
 ## Scripts
 
