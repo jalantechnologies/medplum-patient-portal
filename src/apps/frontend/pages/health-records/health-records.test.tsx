@@ -639,6 +639,45 @@ describe("Health records", () => {
     ).toHaveTextContent("Penicillin");
   });
 
+  it("keeps the records already listed when the next page cannot be read, and reads that page when the patient tries again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const conditionCount = constant.SEARCH_PAGE_SIZE + 1;
+    for (let index = 0; index < conditionCount; index += 1) {
+      await createCondition(
+        medplum,
+        `Condition ${index + 1}`,
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+      );
+    }
+    let isRecordReachable = true;
+    failSearches(medplum, () => !isRecordReachable);
+
+    renderHealthRecords(medplum);
+    const list = await screen.findByTestId("conditions-list");
+    isRecordReachable = false;
+    await user.click(screen.getByTestId("conditions-more"));
+
+    const error = await screen.findByTestId("health-records-error");
+    expect(within(list).getAllByTestId("conditions-record")).toHaveLength(
+      constant.SEARCH_PAGE_SIZE,
+    );
+    expect(
+      screen.queryByTestId("conditions-unavailable"),
+    ).not.toBeInTheDocument();
+    isRecordReachable = true;
+    await user.click(within(error).getByRole("button"));
+
+    await waitFor(() =>
+      expect(within(list).getAllByTestId("conditions-record")).toHaveLength(
+        conditionCount,
+      ),
+    );
+    expect(
+      screen.queryByTestId("health-records-error"),
+    ).not.toBeInTheDocument();
+  });
+
   it("reads the records again when the patient chooses to try again", async () => {
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });

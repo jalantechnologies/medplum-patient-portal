@@ -47,7 +47,7 @@ const useAsynchronousResult = <Result, FunctionParameters extends unknown[]>(
       setState((previousState) => ({
         ...previousState,
         error: null,
-        isLoading: previousState.isLoading || previousState.error !== null,
+        isLoading: previousState.result === null,
         isRequesting: true,
       }));
       try {
@@ -63,12 +63,12 @@ const useAsynchronousResult = <Result, FunctionParameters extends unknown[]>(
         return result;
       } catch (error) {
         if (isLatestRequest()) {
-          setState({
+          setState((previousState) => ({
             error: error as AsynchronousOperationError,
             isLoading: false,
             isRequesting: false,
-            result: null,
-          });
+            result: previousState.result,
+          }));
         }
         throw error;
       }
