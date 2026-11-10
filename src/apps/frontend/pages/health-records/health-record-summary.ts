@@ -1,6 +1,5 @@
 import {
   capitalize,
-  formatCodeableConcept,
   formatDate,
   formatDateTime,
   formatObservationValue,
@@ -34,6 +33,11 @@ const TIME_SEPARATOR = "T";
 
 const humanizeCode = (code: string | undefined): string =>
   code ? capitalize(code.replaceAll(CODE_WORD_SEPARATOR, " ")) : "";
+
+const nameCodeableConcept = (concept: CodeableConcept | undefined): string =>
+  concept?.text ||
+  concept?.coding?.find(({ display }) => display)?.display ||
+  "";
 
 const humanizeStatus = (
   status: CodeableConcept | undefined,
@@ -72,7 +76,7 @@ export const summarizeCondition = (
     condition.clinicalStatus,
     CODE_SYSTEM.CONDITION_CLINICAL,
   ),
-  title: formatCodeableConcept(condition.code) || "Condition",
+  title: nameCodeableConcept(condition.code) || "Condition",
   value: "",
   verification: humanizeStatus(
     condition.verificationStatus,
@@ -90,7 +94,7 @@ export const summarizeAllergyIntolerance = (
     allergyIntolerance.clinicalStatus,
     CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL,
   ),
-  title: formatCodeableConcept(allergyIntolerance.code) || "Allergy",
+  title: nameCodeableConcept(allergyIntolerance.code) || "Allergy",
   value: "",
   verification: humanizeStatus(
     allergyIntolerance.verificationStatus,
@@ -109,7 +113,7 @@ export const summarizeVitalSign = (
   ),
   identifier: vitalSign.id,
   status: humanizeCode(vitalSign.status),
-  title: formatCodeableConcept(vitalSign.code) || "Measurement",
+  title: nameCodeableConcept(vitalSign.code) || "Measurement",
   value: formatObservationValue(vitalSign),
   verification: "",
 });
