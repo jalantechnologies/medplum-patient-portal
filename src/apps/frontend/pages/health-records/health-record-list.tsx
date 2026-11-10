@@ -13,12 +13,13 @@ import {
 } from "baseui/typography";
 import type { FC } from "react";
 
+import { RecordListTabContent } from "../../components";
+import type { RecordListTab } from "../../types";
 import type { HealthRecordSummary } from "./health-record-summary";
-import type { HealthRecordTab } from "./health-record-tab.hook";
 
 interface HealthRecordListProperties {
   onViewRecord: (record: HealthRecordSummary) => void;
-  tab: HealthRecordTab;
+  tab: RecordListTab<HealthRecordSummary>;
 }
 
 interface HealthRecordRowProperties {
@@ -75,83 +76,24 @@ const HealthRecordRow: FC<HealthRecordRowProperties> = ({
   </Block>
 );
 
-const HealthRecordRows: FC<HealthRecordListProperties> = ({
-  onViewRecord,
-  tab,
-}) => (
-  <>
-    <Block as="ul" margin="0" padding="0" data-testid={`${tab.key}-list`}>
-      {tab.records.map((record) => (
-        <HealthRecordRow
-          key={record.identifier}
-          record={record}
-          testIdentifier={`${tab.key}-record`}
-          onViewRecord={onViewRecord}
-        />
-      ))}
-    </Block>
-    {tab.hasMoreRecords ? (
-      <Block paddingTop="scale600">
-        <Button
-          kind={BUTTON_KIND.secondary}
-          size={BUTTON_SIZE.compact}
-          isLoading={tab.isRequesting}
-          onClick={tab.listMoreRecords}
-          data-testid={`${tab.key}-more`}
-        >
-          Show more
-        </Button>
-      </Block>
-    ) : null}
-  </>
-);
-
-const HealthRecordTabContent: FC<HealthRecordListProperties> = ({
-  onViewRecord,
-  tab,
-}) => {
-  if (tab.isLoading) {
-    return (
-      <ParagraphSmall
-        margin="0"
-        color="contentSecondary"
-        data-testid={`${tab.key}-loading`}
-      >
-        Loading…
-      </ParagraphSmall>
-    );
-  }
-  if (tab.hasFailed) {
-    return (
-      <ParagraphSmall
-        margin="0"
-        color="contentSecondary"
-        data-testid={`${tab.key}-unavailable`}
-      >
-        Could not load
-      </ParagraphSmall>
-    );
-  }
-  if (tab.records.length === 0) {
-    return (
-      <Block display="grid" gridGap="scale100" data-testid={`${tab.key}-empty`}>
-        <LabelMedium>{tab.emptyTitle}</LabelMedium>
-        <ParagraphSmall margin="0" color="contentSecondary">
-          {tab.emptyDescription}
-        </ParagraphSmall>
-      </Block>
-    );
-  }
-  return <HealthRecordRows tab={tab} onViewRecord={onViewRecord} />;
-};
-
 const HealthRecordList: FC<HealthRecordListProperties> = ({
   onViewRecord,
   tab,
 }) => (
-  <Block aria-live="polite" data-testid={`${tab.key}-content`}>
-    <HealthRecordTabContent tab={tab} onViewRecord={onViewRecord} />
-  </Block>
+  <RecordListTabContent tab={tab}>
+    {(records) => (
+      <Block as="ul" margin="0" padding="0" data-testid={`${tab.key}-list`}>
+        {records.map((record) => (
+          <HealthRecordRow
+            key={record.identifier}
+            record={record}
+            testIdentifier={`${tab.key}-record`}
+            onViewRecord={onViewRecord}
+          />
+        ))}
+      </Block>
+    )}
+  </RecordListTabContent>
 );
 
 export default HealthRecordList;

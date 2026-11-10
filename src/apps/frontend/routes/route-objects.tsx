@@ -5,6 +5,7 @@ import {
   ApplicationLayout,
   HealthRecords,
   Home,
+  Medications,
   NotFound,
   SignIn,
 } from "../pages";
@@ -13,6 +14,7 @@ import {
   AppointmentProvider,
   CarePlanProvider,
   ConditionProvider,
+  MedicationRequestProvider,
   ObservationProvider,
 } from "../providers";
 import { ProtectedRoute } from "./guards/protected-route";
@@ -38,6 +40,14 @@ export const routeObjects = [
         ),
         children: [
           { path: routes.HOME, element: <Home /> },
+          {
+            path: routes.MEDICATIONS,
+            element: (
+              <MedicationRequestProvider>
+                <Medications />
+              </MedicationRequestProvider>
+            ),
+          },
           {
             path: routes.HEALTH_RECORDS,
             element: (

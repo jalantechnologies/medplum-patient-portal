@@ -23,6 +23,11 @@
       "interaction": ["search"]
     },
     {
+      "resourceType": "MedicationRequest",
+      "criteria": "MedicationRequest?patient=%patient",
+      "interaction": ["search"]
+    },
+    {
       "resourceType": "Observation",
       "criteria": "Observation?patient=%patient",
       "interaction": ["search"]

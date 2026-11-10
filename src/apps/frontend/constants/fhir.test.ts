@@ -16,6 +16,7 @@ import type {
   CodeSystem,
   CodeSystemConcept,
   Condition,
+  MedicationRequest,
   Observation,
   Patient,
   Reference,
@@ -34,6 +35,8 @@ import {
   CODE_SYSTEM,
   CONDITION_CLINICAL_STATUS,
   CONDITION_VERIFICATION_STATUS,
+  MEDICATION_REQUEST_INTENT,
+  MEDICATION_REQUEST_STATUS,
   OBSERVATION_CATEGORY,
   OBSERVATION_STATUS,
   RESOURCE_TYPE,
@@ -129,6 +132,13 @@ describe("patient access policy", () => {
     }),
     [RESOURCE_TYPE.CONDITION]: (patient): Condition => ({
       resourceType: RESOURCE_TYPE.CONDITION,
+      subject: patient,
+    }),
+    [RESOURCE_TYPE.MEDICATION_REQUEST]: (patient): MedicationRequest => ({
+      resourceType: RESOURCE_TYPE.MEDICATION_REQUEST,
+      status: MEDICATION_REQUEST_STATUS.ACTIVE,
+      intent: MEDICATION_REQUEST_INTENT.ORDER,
+      medicationCodeableConcept: { text: "Triamcinolone 0.1% cream" },
       subject: patient,
     }),
     [RESOURCE_TYPE.OBSERVATION]: (patient): Observation => ({

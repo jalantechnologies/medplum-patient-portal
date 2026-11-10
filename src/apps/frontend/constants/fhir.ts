@@ -3,8 +3,10 @@ import type {
   Appointment,
   AppointmentParticipant,
   CarePlan,
+  MedicationRequest,
   Observation,
   ResourceType,
+  TimingRepeat,
 } from "@medplum/fhirtypes";
 
 export const RESOURCE_TYPE = {
@@ -12,6 +14,8 @@ export const RESOURCE_TYPE = {
   APPOINTMENT: "Appointment",
   CARE_PLAN: "CarePlan",
   CONDITION: "Condition",
+  MEDICATION: "Medication",
+  MEDICATION_REQUEST: "MedicationRequest",
   OBSERVATION: "Observation",
   PATIENT: "Patient",
 } as const satisfies Record<string, ResourceType>;
@@ -52,6 +56,28 @@ export const CARE_PLAN_STATUS = {
   REVOKED: "revoked",
   UNKNOWN: "unknown",
 } as const satisfies Record<string, CarePlan["status"]>;
+
+export const MEDICATION_REQUEST_INTENT = {
+  FILLER_ORDER: "filler-order",
+  INSTANCE_ORDER: "instance-order",
+  OPTION: "option",
+  ORDER: "order",
+  ORIGINAL_ORDER: "original-order",
+  PLAN: "plan",
+  PROPOSAL: "proposal",
+  REFLEX_ORDER: "reflex-order",
+} as const satisfies Record<string, MedicationRequest["intent"]>;
+
+export const MEDICATION_REQUEST_STATUS = {
+  ACTIVE: "active",
+  CANCELLED: "cancelled",
+  COMPLETED: "completed",
+  DRAFT: "draft",
+  ENTERED_IN_ERROR: "entered-in-error",
+  ON_HOLD: "on-hold",
+  STOPPED: "stopped",
+  UNKNOWN: "unknown",
+} as const satisfies Record<string, MedicationRequest["status"]>;
 
 export const OBSERVATION_STATUS = {
   AMENDED: "amended",
@@ -114,15 +140,25 @@ export const ALLERGY_INTOLERANCE_VERIFICATION_STATUS = {
 } as const;
 
 export const SEARCH_PARAMETER = {
+  AUTHORED_ON: "authoredon",
   CATEGORY: "category",
   DATE: "date",
   ID: "_id",
+  INTENT: "intent",
   PATIENT: "patient",
   RECORDED_DATE: "recorded-date",
   STATUS: "status",
   SUBJECT: "subject",
   VERIFICATION_STATUS: "verification-status",
 } as const;
+
+export const TIMING_PERIOD_UNIT = {
+  DAY: "d",
+} as const satisfies Record<string, TimingRepeat["periodUnit"]>;
+
+export const SEARCH_VALUE_SEPARATOR = ",";
+
+export const CONTAINED_REFERENCE_PREFIX = "#";
 
 export const SEARCH_TOTAL = {
   ACCURATE: "accurate",
