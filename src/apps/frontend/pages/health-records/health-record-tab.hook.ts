@@ -59,11 +59,6 @@ interface HealthRecordTabSource<Resource> {
   text: HealthRecordTabText;
 }
 
-const listDatedRecordsFirst = (records: HealthRecordSummary[]) => [
-  ...records.filter((record) => record.date),
-  ...records.filter((record) => !record.date),
-];
-
 const useHealthRecordTab = <Resource>({
   activeTabKey,
   error,
@@ -95,11 +90,11 @@ const useHealthRecordTab = <Resource>({
   const tab: HealthRecordTab = {
     ...text,
     hasFailed: error !== null,
-    hasMoreRecords: page?.hasNextPage ?? false,
+    hasMoreRecords: page !== null && page.nextPosition !== null,
     isLoading,
     isRequesting,
     listMoreRecords: () => void listPage(page),
-    records: listDatedRecordsFirst((page?.resources ?? []).map(summarize)),
+    records: (page?.resources ?? []).map(summarize),
   };
   return { error, retry: () => listPage(null), tab };
 };

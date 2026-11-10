@@ -19,6 +19,7 @@ export default class ObservationService extends MedplumService {
     this.searchPage(
       RESOURCE_TYPE.OBSERVATION,
       {
+        dateParameter: SEARCH_PARAMETER.DATE,
         filters: [
           {
             code: SEARCH_PARAMETER.PATIENT,
@@ -36,7 +37,6 @@ export default class ObservationService extends MedplumService {
             value: OBSERVATION_STATUS.ENTERED_IN_ERROR,
           },
         ],
-        sortRules: [{ code: SEARCH_PARAMETER.DATE, descending: true }],
       },
       previousPage,
     );

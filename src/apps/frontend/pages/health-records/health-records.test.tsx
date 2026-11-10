@@ -1,6 +1,7 @@
 import {
   createReference,
   getSearchParameter,
+  Operator,
   parseSearchRequest,
 } from "@medplum/core";
 import type {
@@ -31,6 +32,7 @@ import {
   OBSERVATION_CATEGORY,
   OBSERVATION_STATUS,
   RESOURCE_TYPE,
+  SEARCH_PARAMETER,
 } from "../../constants/fhir";
 import {
   AllergyIntoleranceProvider,
@@ -509,6 +511,71 @@ describe("Health records", () => {
     expect(screen.queryByTestId("conditions-more")).not.toBeInTheDocument();
   });
 
+  it("lists every dated record before the undated ones, even when the undated ones fill a page", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    for (let index = 0; index < constant.SEARCH_PAGE_SIZE; index += 1) {
+      await createCondition(
+        medplum,
+        `Undated condition ${index + 1}`,
+        undefined,
+      );
+    }
+    await createCondition(medplum, "Eczema", "2026-10-20");
+
+    renderHealthRecords(medplum);
+
+    const list = await screen.findByTestId("conditions-list");
+    expect(listRecordTitles(list, "conditions")[0]).toBe("Eczema");
+    await user.click(screen.getByTestId("conditions-more"));
+    await waitFor(() =>
+      expect(within(list).getAllByTestId("conditions-record")).toHaveLength(
+        constant.SEARCH_PAGE_SIZE + 1,
+      ),
+    );
+    expect(listRecordTitles(list, "conditions")[0]).toBe("Eczema");
+    expect(screen.queryByTestId("conditions-more")).not.toBeInTheDocument();
+  });
+
+  it("reads the dated records newest first, then the undated ones in a search of their own", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const searchResources = vi.spyOn(medplum, "searchResources");
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+
+    expect(
+      searchResources.mock.calls.map(([resourceType, query]) => {
+        const { filters, sortRules } = parseSearchRequest(
+          `${resourceType}${String(query)}`,
+        );
+        return {
+          dateFilter: filters?.find(
+            ({ code }) => code === SEARCH_PARAMETER.RECORDED_DATE,
+          ),
+          sortRules,
+        };
+      }),
+    ).toEqual([
+      {
+        dateFilter: {
+          code: SEARCH_PARAMETER.RECORDED_DATE,
+          operator: Operator.MISSING,
+          value: "false",
+        },
+        sortRules: [{ code: SEARCH_PARAMETER.RECORDED_DATE, descending: true }],
+      },
+      {
+        dateFilter: {
+          code: SEARCH_PARAMETER.RECORDED_DATE,
+          operator: Operator.MISSING,
+          value: "true",
+        },
+        sortRules: [{ code: SEARCH_PARAMETER.ID, descending: false }],
+      },
+    ]);
+  });
+
   it("opens a record in a dialog with its value, and closes it back onto the record", async () => {
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
@@ -614,8 +681,11 @@ describe("Health records", () => {
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
     const searchResources = vi.spyOn(medplum, "searchResources");
-    const listSearchedResourceTypes = () =>
-      searchResources.mock.calls.map(([resourceType]) => resourceType);
+    const listSearchedResourceTypes = () => [
+      ...new Set(
+        searchResources.mock.calls.map(([resourceType]) => resourceType),
+      ),
+    ];
 
     renderHealthRecords(medplum);
     await screen.findByTestId("conditions-empty");
@@ -645,7 +715,15 @@ describe("Health records", () => {
       "measurements-empty",
     );
 
-    expect(searchResources).toHaveBeenCalledTimes(3);
+    expect(
+      new Set(searchResources.mock.calls.map(([resourceType]) => resourceType)),
+    ).toEqual(
+      new Set([
+        RESOURCE_TYPE.CONDITION,
+        RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+        RESOURCE_TYPE.OBSERVATION,
+      ]),
+    );
     for (const [resourceType, query, options] of searchResources.mock.calls) {
       expect(options).toEqual(expect.objectContaining({ cache: "reload" }));
       const searchRequest = parseSearchRequest(

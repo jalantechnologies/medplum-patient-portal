@@ -3,7 +3,7 @@ import {
   type AsynchronousResult,
 } from "./asynchronous-operation";
 import type { Nullable } from "./common";
-import type { SearchPage } from "./search-page";
+import type { SearchPage, SearchPosition } from "./search-page";
 import { ServiceResponse } from "./service-response";
 
 export {
@@ -12,4 +12,5 @@ export {
   type AsynchronousResult,
   type Nullable,
   type SearchPage,
+  type SearchPosition,
 };
