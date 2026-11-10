@@ -17,6 +17,7 @@ export default class AllergyIntoleranceService extends MedplumService {
     this.searchPage(
       RESOURCE_TYPE.ALLERGY_INTOLERANCE,
       {
+        dateParameter: SEARCH_PARAMETER.DATE,
         filters: [
           {
             code: SEARCH_PARAMETER.PATIENT,
@@ -29,7 +30,6 @@ export default class AllergyIntoleranceService extends MedplumService {
             value: ALLERGY_INTOLERANCE_VERIFICATION_STATUS.ENTERED_IN_ERROR,
           },
         ],
-        sortRules: [{ code: SEARCH_PARAMETER.DATE, descending: true }],
       },
       previousPage,
     );

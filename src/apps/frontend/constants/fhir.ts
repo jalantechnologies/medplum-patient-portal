@@ -116,6 +116,7 @@ export const ALLERGY_INTOLERANCE_VERIFICATION_STATUS = {
 export const SEARCH_PARAMETER = {
   CATEGORY: "category",
   DATE: "date",
+  ID: "_id",
   PATIENT: "patient",
   RECORDED_DATE: "recorded-date",
   STATUS: "status",

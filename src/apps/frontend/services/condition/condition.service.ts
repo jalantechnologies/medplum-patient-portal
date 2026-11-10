@@ -17,6 +17,7 @@ export default class ConditionService extends MedplumService {
     this.searchPage(
       RESOURCE_TYPE.CONDITION,
       {
+        dateParameter: SEARCH_PARAMETER.RECORDED_DATE,
         filters: [
           {
             code: SEARCH_PARAMETER.PATIENT,
@@ -29,7 +30,6 @@ export default class ConditionService extends MedplumService {
             value: CONDITION_VERIFICATION_STATUS.ENTERED_IN_ERROR,
           },
         ],
-        sortRules: [{ code: SEARCH_PARAMETER.RECORDED_DATE, descending: true }],
       },
       previousPage,
     );
