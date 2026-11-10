@@ -54,6 +54,38 @@ describe("useAsynchronousResult", () => {
     });
   });
 
+  it("keeps the last answer, without loading, while it asks again and after that request fails", async () => {
+    const { firstAnswer, result, secondAnswer } = renderAnsweringHook();
+
+    await act(async () => {
+      const firstLoad = result.current.load("first");
+      firstAnswer.resolve(new ServiceResponse("first answer"));
+      await firstLoad;
+    });
+    let secondLoad: Promise<unknown> = Promise.resolve();
+    act(() => {
+      secondLoad = result.current.load("second");
+    });
+
+    expect(result.current).toMatchObject({
+      isLoading: false,
+      isRequesting: true,
+      result: "first answer",
+    });
+
+    await act(async () => {
+      secondAnswer.reject(new AsynchronousOperationError("second failed"));
+      await expect(secondLoad).rejects.toThrow("second failed");
+    });
+
+    expect(result.current).toMatchObject({
+      error: new AsynchronousOperationError("second failed"),
+      isLoading: false,
+      isRequesting: false,
+      result: "first answer",
+    });
+  });
+
   it("stays requesting until the latest request answers, whatever an earlier one answers first", async () => {
     const { firstAnswer, result, secondAnswer } = renderAnsweringHook();
 

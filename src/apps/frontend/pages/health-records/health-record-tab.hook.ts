@@ -89,14 +89,14 @@ const useHealthRecordTab = <Resource>({
 
   const tab: HealthRecordTab = {
     ...text,
-    hasFailed: error !== null,
+    hasFailed: error !== null && page === null,
     hasMoreRecords: page !== null && page.nextPosition !== null,
     isLoading,
     isRequesting,
     listMoreRecords: () => void listPage(page),
     records: (page?.resources ?? []).map(summarize),
   };
-  return { error, retry: () => listPage(null), tab };
+  return { error, retry: () => listPage(page), tab };
 };
 
 export default useHealthRecordTab;
