@@ -7,14 +7,33 @@ import {
   useConditionContext,
   useObservationContext,
 } from "../../contexts";
+import { useRecordListTab } from "../../hooks";
 import {
   summarizeAllergyIntolerance,
   summarizeCondition,
   summarizeVitalSign,
 } from "./health-record-summary";
-import useHealthRecordTab, {
-  HEALTH_RECORD_TAB_TEXT,
-} from "./health-record-tab.hook";
+
+const HEALTH_RECORD_TAB_TEXT = {
+  CONDITIONS: {
+    emptyDescription: "No condition information has been shared.",
+    emptyTitle: "No conditions available",
+    key: "conditions",
+    title: "Conditions",
+  },
+  ALLERGIES: {
+    emptyDescription: "No allergy information has been shared.",
+    emptyTitle: "No allergies available",
+    key: "allergies",
+    title: "Allergies",
+  },
+  MEASUREMENTS: {
+    emptyDescription: "No measurement information has been shared.",
+    emptyTitle: "No measurements available",
+    key: "measurements",
+    title: "Measurements",
+  },
+} as const;
 
 const useConditionTab = (
   activeTabKey: Key,
@@ -27,7 +46,7 @@ const useConditionTab = (
     isConditionPageRequesting,
     listConditions,
   } = useConditionContext();
-  return useHealthRecordTab({
+  return useRecordListTab({
     activeTabKey,
     error: conditionPageError,
     isLoading: isConditionPageLoading,
@@ -51,7 +70,7 @@ const useAllergyIntoleranceTab = (
     isAllergyIntolerancePageRequesting,
     listAllergyIntolerances,
   } = useAllergyIntoleranceContext();
-  return useHealthRecordTab({
+  return useRecordListTab({
     activeTabKey,
     error: allergyIntolerancePageError,
     isLoading: isAllergyIntolerancePageLoading,
@@ -75,7 +94,7 @@ const useVitalSignTab = (
     vitalSignPage,
     vitalSignPageError,
   } = useObservationContext();
-  return useHealthRecordTab({
+  return useRecordListTab({
     activeTabKey,
     error: vitalSignPageError,
     isLoading: isVitalSignPageLoading,
@@ -94,24 +113,13 @@ const useHealthRecords = () => {
   const [activeTabKey, setActiveTabKey] = useState<Key>(
     HEALTH_RECORD_TAB_TEXT.CONDITIONS.key,
   );
-  const healthRecordTabs = [
+  const tabs = [
     useConditionTab(activeTabKey, patientReference),
     useAllergyIntoleranceTab(activeTabKey, patientReference),
     useVitalSignTab(activeTabKey, patientReference),
   ];
-  const failedTabs = healthRecordTabs.filter(({ error }) => error !== null);
 
-  const retryFailedTabs = async () => {
-    await Promise.all(failedTabs.map(({ retry }) => retry()));
-  };
-
-  return {
-    activeTabKey,
-    errorMessage: failedTabs[0]?.error?.message,
-    openTab: setActiveTabKey,
-    retryFailedTabs,
-    tabs: healthRecordTabs.map(({ tab }) => tab),
-  };
+  return { activeTabKey, openTab: setActiveTabKey, tabs };
 };
 
 export default useHealthRecords;

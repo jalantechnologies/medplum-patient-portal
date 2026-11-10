@@ -345,21 +345,38 @@ describe("ApplicationRoutes", () => {
     );
   });
 
-  it("takes a patient to Health records from the sidebar and marks it as the current page", async () => {
-    const user = userEvent.setup();
-    const router = renderRoutes(new MockClient({ profile: HomerSimpson }));
+  it.each([
+    ["Medications", routes.MEDICATIONS],
+    ["Health records", routes.HEALTH_RECORDS],
+  ])(
+    "takes a patient to %s from the sidebar and marks it as the current page",
+    async (title, path) => {
+      const user = userEvent.setup();
+      const router = renderRoutes(new MockClient({ profile: HomerSimpson }));
+
+      const sidebar = await screen.findByTestId("sidebar");
+      await user.click(getNavigationLink(sidebar, path));
+
+      expect(
+        await screen.findByRole("heading", { level: 1, name: title }),
+      ).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(path);
+      expect(getNavigationLink(sidebar, path)).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+    },
+  );
+
+  it("lists the sections in the sidebar in the prototype's order", async () => {
+    renderRoutes(new MockClient({ profile: HomerSimpson }));
 
     const sidebar = await screen.findByTestId("sidebar");
-    await user.click(getNavigationLink(sidebar, routes.HEALTH_RECORDS));
-
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Health records" }),
-    ).toBeInTheDocument();
-    expect(router.state.location.pathname).toBe(routes.HEALTH_RECORDS);
-    expect(getNavigationLink(sidebar, routes.HEALTH_RECORDS)).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+      within(within(sidebar).getByTestId("sidebar-navigation"))
+        .getAllByTestId("navigation-link")
+        .map((link) => link.textContent),
+    ).toEqual(["Home", "Medications", "Health records"]);
   });
 
   it("takes a patient from another page to Home with the keyboard", async () => {

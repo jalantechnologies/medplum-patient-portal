@@ -10,9 +10,10 @@ import {
   SIZE as MODAL_SIZE,
 } from "baseui/modal";
 import { Tag, KIND as TAG_KIND, SIZE as TAG_SIZE } from "baseui/tag";
-import { ParagraphMedium, ParagraphSmall } from "baseui/typography";
+import { ParagraphMedium } from "baseui/typography";
 import type { FC } from "react";
 
+import { RecordDetail } from "../../components";
 import type { Nullable } from "../../types";
 import type { HealthRecordSummary } from "./health-record-summary";
 
@@ -22,23 +23,6 @@ interface HealthRecordDialogProperties {
   patientName: string;
   record: Nullable<HealthRecordSummary>;
 }
-
-interface RecordDetailProperties {
-  label: string;
-  value: string;
-}
-
-const RecordDetail: FC<RecordDetailProperties> = ({ label, value }) =>
-  value ? (
-    <>
-      <ParagraphSmall as="dt" margin="0" color="contentSecondary">
-        {label}
-      </ParagraphSmall>
-      <ParagraphSmall as="dd" margin="0">
-        {value}
-      </ParagraphSmall>
-    </>
-  ) : null;
 
 const HealthRecordDialog: FC<HealthRecordDialogProperties> = ({
   isOpen,

@@ -1,9 +1,8 @@
-import { Banner, KIND } from "baseui/banner";
 import { Block } from "baseui/block";
-import { Tab, Tabs } from "baseui/tabs-motion";
 import { HeadingMedium, ParagraphSmall } from "baseui/typography";
 import { useState, type FC } from "react";
 
+import { RecordListTabs } from "../../components";
 import { usePatientName } from "../../hooks";
 import type { Nullable } from "../../types";
 import HealthRecordDialog from "./health-record-dialog";
@@ -13,8 +12,7 @@ import useHealthRecords from "./health-records.hook";
 
 const HealthRecords: FC = () => {
   const { fullName, recordOwner } = usePatientName();
-  const { activeTabKey, errorMessage, openTab, retryFailedTabs, tabs } =
-    useHealthRecords();
+  const { activeTabKey, openTab, tabs } = useHealthRecords();
   const [viewedRecord, setViewedRecord] =
     useState<Nullable<HealthRecordSummary>>(null);
   const [isRecordOpen, setIsRecordOpen] = useState(false);
@@ -44,37 +42,15 @@ const HealthRecords: FC = () => {
       >
         Browse your available history by type.
       </ParagraphSmall>
-      {errorMessage ? (
-        <Block role="alert" data-testid="health-records-error">
-          <Banner
-            kind={KIND.negative}
-            action={{ label: "Try again", onClick: retryFailedTabs }}
-            overrides={{
-              Root: { props: { "aria-label": "Health records error" } },
-            }}
-          >
-            {errorMessage}
-          </Banner>
-        </Block>
-      ) : null}
-      <Tabs
-        activeKey={activeTabKey}
-        onChange={({ activeKey }) => openTab(activeKey)}
-        activateOnFocus
+      <RecordListTabs
+        activeTabKey={activeTabKey}
+        errorLabel="Health records error"
+        errorTestIdentifier="health-records-error"
+        onTabChange={openTab}
+        tabs={tabs}
       >
-        {tabs.map((tab) => (
-          <Tab
-            key={tab.key}
-            title={tab.title}
-            overrides={{
-              Tab: { props: { "data-testid": `${tab.key}-tab` } },
-              TabPanel: { props: { "data-testid": `${tab.key}-panel` } },
-            }}
-          >
-            <HealthRecordList tab={tab} onViewRecord={viewRecord} />
-          </Tab>
-        ))}
-      </Tabs>
+        {(tab) => <HealthRecordList tab={tab} onViewRecord={viewRecord} />}
+      </RecordListTabs>
       <HealthRecordDialog
         isOpen={isRecordOpen}
         record={viewedRecord}

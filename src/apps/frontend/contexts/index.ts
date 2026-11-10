@@ -13,6 +13,10 @@ import {
 import { CarePlanContext, useCarePlanContext } from "./care-plan.context";
 import { ConditionContext, useConditionContext } from "./condition.context";
 import {
+  MedicationRequestContext,
+  useMedicationRequestContext,
+} from "./medication-request.context";
+import {
   ObservationContext,
   useObservationContext,
 } from "./observation.context";
@@ -23,11 +27,13 @@ export {
   AuthenticationContext,
   CarePlanContext,
   ConditionContext,
+  MedicationRequestContext,
   ObservationContext,
   useAllergyIntoleranceContext,
   useAppointmentContext,
   useAuthenticationContext,
   useCarePlanContext,
   useConditionContext,
+  useMedicationRequestContext,
   useObservationContext,
 };
