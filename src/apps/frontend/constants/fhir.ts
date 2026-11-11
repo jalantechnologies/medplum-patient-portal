@@ -79,6 +79,10 @@ export const MEDICATION_REQUEST_STATUS = {
   UNKNOWN: "unknown",
 } as const satisfies Record<string, MedicationRequest["status"]>;
 
+export const MEDICATION_REQUEST_ELEMENT = {
+  DO_NOT_PERFORM: "doNotPerform",
+} as const satisfies Record<string, keyof MedicationRequest>;
+
 export const OBSERVATION_STATUS = {
   AMENDED: "amended",
   CANCELLED: "cancelled",
@@ -142,6 +146,7 @@ export const ALLERGY_INTOLERANCE_VERIFICATION_STATUS = {
 export const SEARCH_PARAMETER = {
   AUTHORED_ON: "authoredon",
   CATEGORY: "category",
+  CLINICAL_STATUS: "clinical-status",
   DATE: "date",
   ID: "_id",
   INTENT: "intent",
@@ -157,6 +162,10 @@ export const TIMING_PERIOD_UNIT = {
 } as const satisfies Record<string, TimingRepeat["periodUnit"]>;
 
 export const SEARCH_VALUE_SEPARATOR = ",";
+
+export const BUNDLE_LINK_RELATION = {
+  NEXT: "next",
+} as const;
 
 export const CONTAINED_REFERENCE_PREFIX = "#";
 

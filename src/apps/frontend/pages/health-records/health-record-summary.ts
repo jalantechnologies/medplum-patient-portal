@@ -14,6 +14,7 @@ import { CODE_SYSTEM } from "../../constants/fhir";
 import {
   formatRecordDate,
   humanizeCode,
+  nameAllergyIntolerance,
   nameCodeableConcept,
 } from "../../utilities";
 
@@ -60,7 +61,7 @@ export const summarizeAllergyIntolerance = (
     allergyIntolerance.clinicalStatus,
     CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL,
   ),
-  title: nameCodeableConcept(allergyIntolerance.code) || "Allergy",
+  title: nameAllergyIntolerance(allergyIntolerance),
   value: "",
   verification: humanizeStatus(
     allergyIntolerance.verificationStatus,

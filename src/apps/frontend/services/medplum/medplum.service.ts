@@ -4,18 +4,21 @@ import {
   Operator,
   type Filter,
   type MedplumRequestOptions,
+  type ResourceArray,
   type WithId,
 } from "@medplum/core";
-import type { ExtractResource, ResourceType } from "@medplum/fhirtypes";
+import type { Bundle, ExtractResource, ResourceType } from "@medplum/fhirtypes";
 
 import { configuration } from "../../configuration";
 import constant from "../../constants";
 import { SEARCH_PARAMETER, SEARCH_TOTAL } from "../../constants/fhir";
 import {
+  AsynchronousOperationError,
   ServiceResponse,
   type Nullable,
   type SearchPage,
   type SearchPosition,
+  type SearchPreview,
 } from "../../types";
 
 interface NewestFirstSearch {
@@ -42,6 +45,48 @@ export default class MedplumService {
     return new MedplumClient({
       baseUrl: configuration.medplumServerAddress,
     });
+  }
+
+  protected async countResources(
+    resourceType: ResourceType,
+    filters: Filter[],
+  ): Promise<number> {
+    const bundle = await this.medplumClient.search(
+      resourceType,
+      formatSearchQuery({
+        resourceType,
+        filters,
+        count: 0,
+        total: SEARCH_TOTAL.ACCURATE,
+      }),
+      MedplumService.freshRequestOptions,
+    );
+    return MedplumService.readTotal(bundle);
+  }
+
+  protected async searchPreview<PreviewResourceType extends ResourceType>(
+    resourceType: PreviewResourceType,
+    search: NewestFirstSearch,
+  ): Promise<SearchPreview<WithId<ExtractResource<PreviewResourceType>>>> {
+    const [datedResources, undatedResources] = await Promise.all(
+      [DATED_RECORDS_START, UNDATED_RECORDS_START].map((position) =>
+        this.searchAt(
+          resourceType,
+          search,
+          position,
+          constant.SEARCH_PREVIEW_SIZE,
+        ),
+      ),
+    );
+    return {
+      resources: [...datedResources, ...undatedResources].slice(
+        0,
+        constant.SEARCH_PREVIEW_SIZE,
+      ),
+      total:
+        MedplumService.readTotal(datedResources.bundle) +
+        MedplumService.readTotal(undatedResources.bundle),
+    };
   }
 
   protected async searchPage<PageResourceType extends ResourceType>(
@@ -80,14 +125,21 @@ export default class MedplumService {
     });
   }
 
+  private static readTotal(bundle: Bundle): number {
+    if (bundle.total === undefined) {
+      throw new AsynchronousOperationError(constant.DEFAULT_ERROR_MESSAGE);
+    }
+    return bundle.total;
+  }
+
   // Medplum lists the records with no date first when it sorts newest first, so those are read in a search of their own, after every dated record.
-  private async searchFrom<PageResourceType extends ResourceType>(
-    resourceType: PageResourceType,
+  private searchAt<SearchedResourceType extends ResourceType>(
+    resourceType: SearchedResourceType,
     { dateParameter, filters }: NewestFirstSearch,
     position: SearchPosition,
     count: number,
-  ): Promise<SearchPage<WithId<ExtractResource<PageResourceType>>>> {
-    const resources = await this.medplumClient.searchResources(
+  ): Promise<ResourceArray<WithId<ExtractResource<SearchedResourceType>>>> {
+    return this.medplumClient.searchResources(
       resourceType,
       formatSearchQuery({
         resourceType,
@@ -108,6 +160,20 @@ export default class MedplumService {
       }),
       MedplumService.freshRequestOptions,
     );
+  }
+
+  private async searchFrom<PageResourceType extends ResourceType>(
+    resourceType: PageResourceType,
+    search: NewestFirstSearch,
+    position: SearchPosition,
+    count: number,
+  ): Promise<SearchPage<WithId<ExtractResource<PageResourceType>>>> {
+    const resources = await this.searchAt(
+      resourceType,
+      search,
+      position,
+      count,
+    );
     const offset = position.offset + resources.length;
     if (offset < (resources.bundle.total ?? 0)) {
       return { nextPosition: { ...position, offset }, resources };
@@ -117,7 +183,7 @@ export default class MedplumService {
     }
     const undatedPage = await this.searchFrom(
       resourceType,
-      { dateParameter, filters },
+      search,
       UNDATED_RECORDS_START,
       count - resources.length,
     );

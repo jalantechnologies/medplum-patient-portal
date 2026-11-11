@@ -1,4 +1,3 @@
-import { useStyletron } from "baseui";
 import { Block } from "baseui/block";
 import { Card } from "baseui/card";
 import { Tag, KIND as TAG_KIND, SIZE as TAG_SIZE } from "baseui/tag";
@@ -10,6 +9,7 @@ import {
 import type { FC } from "react";
 
 import { RecordDetail, RecordListTabContent } from "../../components";
+import { useRecordDetailColumns } from "../../hooks";
 import type { RecordListTab } from "../../types";
 import type { MedicationSummary } from "./medication-summary";
 
@@ -26,9 +26,7 @@ const MedicationCard: FC<MedicationCardProperties> = ({
   medication,
   testIdentifier,
 }) => {
-  const [, theme] = useStyletron();
-  const smallLabelColumn = `${theme.sizing.scale3200} 1fr`;
-  const largeLabelColumn = `${theme.sizing.scale4800} 1fr`;
+  const recordDetailColumns = useRecordDetailColumns();
 
   return (
     <Block as="li" display="block" data-testid={testIdentifier}>
@@ -80,11 +78,7 @@ const MedicationCard: FC<MedicationCardProperties> = ({
           <Block
             as="dl"
             display="grid"
-            gridTemplateColumns={[
-              smallLabelColumn,
-              smallLabelColumn,
-              largeLabelColumn,
-            ]}
+            gridTemplateColumns={recordDetailColumns}
             gridGap="scale600"
             marginTop="scale800"
             marginBottom="0"

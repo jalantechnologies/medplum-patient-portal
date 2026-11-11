@@ -7,6 +7,7 @@ import { usePatientName } from "../../hooks";
 
 const navigationItems = [
   { title: "Home", itemId: routes.HOME },
+  { title: "Health profile", itemId: routes.HEALTH_PROFILE },
   { title: "Medications", itemId: routes.MEDICATIONS },
   { title: "Health records", itemId: routes.HEALTH_RECORDS },
 ];

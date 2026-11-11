@@ -8,17 +8,9 @@ import type { FC } from "react";
 import constant from "../../constants";
 import { usePatientName } from "../../hooks";
 import type { Nullable } from "../../types";
+import { describeActiveCarePlans } from "../../utilities";
 import useHomeOverview from "./home-overview.hook";
 import OverviewFact from "./overview-fact";
-
-const describeActiveCarePlans = (activeCarePlanCount: Nullable<number>) => {
-  if (!activeCarePlanCount) {
-    return "No ongoing plans";
-  }
-  return activeCarePlanCount === 1
-    ? "1 ongoing plan"
-    : `${activeCarePlanCount} ongoing plans`;
-};
 
 const describeNextVisit = (appointment: Nullable<Appointment>) => {
   if (!appointment?.start) {

@@ -44,9 +44,30 @@ export const MedicationRequestProvider: FC<PropsWithChildren> = ({
     medicationRequestService.listPastMedicationRequests,
   );
 
+  const {
+    error: activePrescriptionCountError,
+    isLoading: isActivePrescriptionCountLoading,
+    load: countActivePrescriptions,
+    result: activePrescriptionCount,
+  } = useAsynchronousResult(medicationRequestService.countActivePrescriptions);
+
   const value = useMemo(
-    () => ({ allMedicationRequests, pastMedicationRequests }),
-    [allMedicationRequests, pastMedicationRequests],
+    () => ({
+      activePrescriptionCount,
+      activePrescriptionCountError,
+      allMedicationRequests,
+      countActivePrescriptions,
+      isActivePrescriptionCountLoading,
+      pastMedicationRequests,
+    }),
+    [
+      activePrescriptionCount,
+      activePrescriptionCountError,
+      allMedicationRequests,
+      countActivePrescriptions,
+      isActivePrescriptionCountLoading,
+      pastMedicationRequests,
+    ],
   );
 
   return (

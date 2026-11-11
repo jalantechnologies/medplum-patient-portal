@@ -3,6 +3,7 @@ import { Outlet } from "react-router";
 import routes from "../constants/routes";
 import {
   ApplicationLayout,
+  HealthProfile,
   HealthRecords,
   Home,
   Medications,
@@ -40,6 +41,16 @@ export const routeObjects = [
         ),
         children: [
           { path: routes.HOME, element: <Home /> },
+          {
+            path: routes.HEALTH_PROFILE,
+            element: (
+              <MedicationRequestProvider>
+                <AllergyIntoleranceProvider>
+                  <HealthProfile />
+                </AllergyIntoleranceProvider>
+              </MedicationRequestProvider>
+            ),
+          },
           {
             path: routes.MEDICATIONS,
             element: (
