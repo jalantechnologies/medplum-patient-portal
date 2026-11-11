@@ -13,6 +13,7 @@ export const AppointmentProvider: FC<PropsWithChildren> = ({ children }) => {
   );
 
   const {
+    addReader: addNextAppointmentReader,
     error: nextAppointmentError,
     isLoading: isNextAppointmentLoading,
     load: getNextAppointment,
@@ -21,12 +22,14 @@ export const AppointmentProvider: FC<PropsWithChildren> = ({ children }) => {
 
   const value = useMemo(
     () => ({
+      addNextAppointmentReader,
       getNextAppointment,
       isNextAppointmentLoading,
       nextAppointment,
       nextAppointmentError,
     }),
     [
+      addNextAppointmentReader,
       getNextAppointment,
       isNextAppointmentLoading,
       nextAppointment,

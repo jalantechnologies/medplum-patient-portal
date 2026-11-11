@@ -9,7 +9,7 @@ import useAsynchronous from "./asynchronous.hook";
 
 interface AsynchronousResultState<Result> {
   error: Nullable<AsynchronousOperationError>;
-  isLoading: boolean;
+  hasAnswer: boolean;
   isRequesting: boolean;
   result: Nullable<Result>;
 }
@@ -17,15 +17,73 @@ interface AsynchronousResultState<Result> {
 interface UseAsynchronousResultResponse<
   Result,
   FunctionParameters extends unknown[],
-> extends AsynchronousResultState<Result> {
+> extends Omit<AsynchronousResultState<Result>, "hasAnswer"> {
+  addReader: () => () => void;
+  isLoading: boolean;
   load: (...parameters: FunctionParameters) => Promise<Nullable<Result>>;
 }
 
 const initialState = {
   error: null,
-  isLoading: true,
+  hasAnswer: false,
   isRequesting: false,
   result: null,
+};
+
+const clearFailure = <Result>(
+  previousState: AsynchronousResultState<Result>,
+): AsynchronousResultState<Result> =>
+  previousState.error === null
+    ? previousState
+    : { ...previousState, error: null };
+
+const startRequesting = <Result>(
+  previousState: AsynchronousResultState<Result>,
+): AsynchronousResultState<Result> => ({
+  ...previousState,
+  error: null,
+  isRequesting: true,
+});
+
+const useLatestRequest = () => {
+  const latestRequestNumber = useRef(0);
+
+  return useCallback(() => {
+    latestRequestNumber.current += 1;
+    const requestNumber = latestRequestNumber.current;
+    return () => requestNumber === latestRequestNumber.current;
+  }, []);
+};
+
+// A provider can outlive the pages that read it, and a failure shown again when a page comes back would be out of date.
+const useReaders = (forgetFailure: () => void) => {
+  const readerCount = useRef(0);
+  const hasEveryReaderLeft = useRef(false);
+
+  const addReader = useCallback(() => {
+    readerCount.current += 1;
+    hasEveryReaderLeft.current = false;
+    let isRemoved = false;
+    return () => {
+      if (isRemoved) {
+        return;
+      }
+      isRemoved = true;
+      readerCount.current -= 1;
+      if (readerCount.current === 0) {
+        hasEveryReaderLeft.current = true;
+        forgetFailure();
+      }
+    };
+  }, [forgetFailure]);
+
+  const failureToShow = useCallback(
+    (error: AsynchronousOperationError) =>
+      hasEveryReaderLeft.current ? null : error,
+    [],
+  );
+
+  return { addReader, failureToShow };
 };
 
 const useAsynchronousResult = <Result, FunctionParameters extends unknown[]>(
@@ -36,26 +94,20 @@ const useAsynchronousResult = <Result, FunctionParameters extends unknown[]>(
   const { asynchronousCallback } = useAsynchronous(asynchronousFunction);
   const [state, setState] =
     useState<AsynchronousResultState<Result>>(initialState);
-  const latestRequestNumber = useRef(0);
+  const startRequest = useLatestRequest();
+  const forgetFailure = useCallback(() => setState(clearFailure), []);
+  const { addReader, failureToShow } = useReaders(forgetFailure);
 
   const load = useCallback(
     async (...parameters: FunctionParameters) => {
-      latestRequestNumber.current += 1;
-      const requestNumber = latestRequestNumber.current;
-      const isLatestRequest = () =>
-        requestNumber === latestRequestNumber.current;
-      setState((previousState) => ({
-        ...previousState,
-        error: null,
-        isLoading: previousState.result === null,
-        isRequesting: true,
-      }));
+      const isLatestRequest = startRequest();
+      setState(startRequesting);
       try {
         const result = await asynchronousCallback(...parameters);
         if (isLatestRequest()) {
           setState({
             error: null,
-            isLoading: false,
+            hasAnswer: true,
             isRequesting: false,
             result,
           });
@@ -63,20 +115,27 @@ const useAsynchronousResult = <Result, FunctionParameters extends unknown[]>(
         return result;
       } catch (error) {
         if (isLatestRequest()) {
+          const shownError = failureToShow(error as AsynchronousOperationError);
           setState((previousState) => ({
-            error: error as AsynchronousOperationError,
-            isLoading: false,
+            ...previousState,
+            error: shownError,
             isRequesting: false,
-            result: previousState.result,
           }));
         }
         throw error;
       }
     },
-    [asynchronousCallback],
+    [asynchronousCallback, failureToShow, startRequest],
   );
 
-  return { ...state, load };
+  const { hasAnswer, ...shownState } = state;
+
+  return {
+    ...shownState,
+    addReader,
+    isLoading: !hasAnswer && shownState.error === null,
+    load,
+  };
 };
 
 export default useAsynchronousResult;

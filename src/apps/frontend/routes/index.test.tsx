@@ -1,13 +1,12 @@
 import {
   ClientStorage,
-  createReference,
   encodeBase64Url,
   MemoryStorage,
   ReadablePromise,
   unauthorized,
   type LoginState,
 } from "@medplum/core";
-import type { CarePlan, Patient } from "@medplum/fhirtypes";
+import type { Bundle, Patient } from "@medplum/fhirtypes";
 import { DrAliceSmith, HomerSimpson, MockClient } from "@medplum/mock";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -16,12 +15,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import constant from "../constants";
 import routes from "../constants/routes";
-import {
-  CARE_PLAN_INTENT,
-  CARE_PLAN_STATUS,
-  RESOURCE_TYPE,
-} from "../constants/fhir";
+import { CARE_PLAN_STATUS, RESOURCE_TYPE } from "../constants/fhir";
 import { AuthenticationProvider } from "../providers";
+import { createCarePlan, interceptSearches } from "../test-medplum";
 import { TestProviders } from "../test-providers";
 import { ApplicationRoutes } from "./index";
 import { routeObjects } from "./route-objects";
@@ -112,6 +108,65 @@ const createScreenWidth = () =>
     addListener: () => undefined,
     removeListener: () => undefined,
   });
+
+const watchForTestIdentifiers = async (
+  testIdentifiers: string[],
+  action: () => Promise<void>,
+) => {
+  const selector = testIdentifiers
+    .map((testIdentifier) => `[data-testid="${testIdentifier}"]`)
+    .join(", ");
+  const holdsTestIdentifier = (node: Node) =>
+    node instanceof Element &&
+    (node.matches(selector) || node.querySelector(selector) !== null);
+  const showsTestIdentifier = ({
+    addedNodes,
+    oldValue,
+    removedNodes,
+    target,
+  }: MutationRecord) =>
+    testIdentifiers.includes(oldValue ?? "") ||
+    [target, ...addedNodes, ...removedNodes].some(holdsTestIdentifier);
+  let hasTestIdentifierAppeared = false;
+  const recordChanges = (changes: MutationRecord[]) => {
+    hasTestIdentifierAppeared ||= changes.some(showsTestIdentifier);
+  };
+  const observer = new MutationObserver(recordChanges);
+  observer.observe(document.body, {
+    attributeFilter: ["data-testid"],
+    attributeOldValue: true,
+    childList: true,
+    subtree: true,
+  });
+  try {
+    await action();
+  } finally {
+    recordChanges(observer.takeRecords());
+    observer.disconnect();
+  }
+  return hasTestIdentifierAppeared;
+};
+
+const HOME_FAILURE_TEST_IDENTIFIERS = [
+  "home-overview-error",
+  "active-care-plans-unavailable",
+  "next-visit-unavailable",
+];
+
+const leaveHome = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(
+    getNavigationLink(screen.getByTestId("sidebar"), routes.MEDICATIONS),
+  );
+  await screen.findByTestId("medications");
+};
+
+const returnToHome = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(
+    getNavigationLink(screen.getByTestId("sidebar"), routes.HOME),
+  );
+  await screen.findByTestId("active-care-plans");
+  await screen.findByTestId("next-visit");
+};
 
 const tabUntilFocused = async (
   user: ReturnType<typeof userEvent.setup>,
@@ -255,12 +310,7 @@ describe("ApplicationRoutes", () => {
   it("does not show the previous patient's record to the next patient who signs in on the same device", async () => {
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
-    await medplum.createResource<CarePlan>({
-      resourceType: RESOURCE_TYPE.CARE_PLAN,
-      status: CARE_PLAN_STATUS.ACTIVE,
-      intent: CARE_PLAN_INTENT.PLAN,
-      subject: createReference(HomerSimpson),
-    });
+    await createCarePlan(medplum, CARE_PLAN_STATUS.ACTIVE);
     vi.spyOn(medplum, "signOut").mockImplementation(async () => {
       medplum.mock.setProfile(undefined);
     });
@@ -281,15 +331,11 @@ describe("ApplicationRoutes", () => {
       medplum.mock.setProfile(nextPatient);
       return nextPatient;
     });
-    const search = medplum.search.bind(medplum);
-    vi.spyOn(medplum, "search").mockImplementation(((
-      resourceType,
-      query,
-      options,
-    ) =>
+    interceptSearches(medplum, (search, resourceType) =>
       resourceType === RESOURCE_TYPE.CARE_PLAN
         ? new ReadablePromise(new Promise(() => {}))
-        : search(resourceType, query, options)) as typeof medplum.search);
+        : search(),
+    );
     await signIn(user);
 
     expect(await screen.findByTestId("home-greeting")).toHaveTextContent(
@@ -377,6 +423,99 @@ describe("ApplicationRoutes", () => {
         .getAllByTestId("navigation-link")
         .map((link) => link.textContent),
     ).toEqual(["Home", "Medications", "Health records"]);
+  });
+
+  it("shows none of Home's earlier failure when the patient comes back to Home", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    let isRecordReachable = false;
+    interceptSearches(medplum, (search) =>
+      isRecordReachable ? search() : Promise.reject(networkFailure()),
+    );
+    renderRoutes(medplum);
+    await screen.findByTestId("home-overview-error");
+    isRecordReachable = true;
+    await leaveHome(user);
+
+    expect(
+      await watchForTestIdentifiers(HOME_FAILURE_TEST_IDENTIFIERS, () =>
+        returnToHome(user),
+      ),
+    ).toBe(false);
+    expect(screen.getByTestId("active-care-plans")).toHaveTextContent(
+      "No ongoing plans",
+    );
+    expect(screen.getByTestId("next-visit")).toHaveTextContent("None booked");
+  });
+
+  it("shows none of a failure that answers after the patient left Home", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const pendingFailures: (() => void)[] = [];
+    let isRecordReachable = false;
+    interceptSearches(medplum, (search) =>
+      isRecordReachable
+        ? search()
+        : new Promise<Bundle>((_, reject) => {
+            pendingFailures.push(() => reject(networkFailure()));
+          }),
+    );
+    renderRoutes(medplum);
+    await waitFor(() => expect(pendingFailures).toHaveLength(2));
+    isRecordReachable = true;
+    await leaveHome(user);
+    await act(async () => {
+      for (const failPendingSearch of pendingFailures) {
+        failPendingSearch();
+      }
+    });
+
+    expect(
+      await watchForTestIdentifiers(HOME_FAILURE_TEST_IDENTIFIERS, () =>
+        returnToHome(user),
+      ),
+    ).toBe(false);
+    expect(screen.getByTestId("active-care-plans")).toHaveTextContent(
+      "No ongoing plans",
+    );
+    expect(screen.getByTestId("next-visit")).toHaveTextContent("None booked");
+  });
+
+  it("shows the facts that answered after the patient left Home as soon as they come back", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createCarePlan(medplum, CARE_PLAN_STATUS.ACTIVE);
+    const pendingAnswers: (() => void)[] = [];
+    let isRecordReachable = false;
+    interceptSearches(medplum, (search) => {
+      if (isRecordReachable) {
+        return search();
+      }
+      const answer = search();
+      return new Promise<Bundle>((resolve) => {
+        pendingAnswers.push(() => resolve(answer));
+      });
+    });
+    renderRoutes(medplum);
+    await waitFor(() => expect(pendingAnswers).toHaveLength(2));
+    isRecordReachable = true;
+    await leaveHome(user);
+    await act(async () => {
+      for (const answerPendingSearch of pendingAnswers) {
+        answerPendingSearch();
+      }
+    });
+
+    expect(
+      await watchForTestIdentifiers(
+        ["active-care-plans-loading", "next-visit-loading"],
+        () => returnToHome(user),
+      ),
+    ).toBe(false);
+    expect(screen.getByTestId("active-care-plans")).toHaveTextContent(
+      "1 ongoing plan",
+    );
+    expect(screen.getByTestId("next-visit")).toHaveTextContent("None booked");
   });
 
   it("takes a patient from another page to Home with the keyboard", async () => {
