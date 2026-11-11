@@ -1,24 +1,30 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 
 import { useReader } from "../hooks";
-import type { AsynchronousOperationError, Nullable } from "../types";
+import type { AsynchronousResultState, Nullable } from "../types";
 
 type CarePlanContextType = {
-  activeCarePlanCount: Nullable<number>;
-  activeCarePlanCountError: Nullable<AsynchronousOperationError>;
-  addActiveCarePlanCountReader: () => () => void;
+  activeCarePlanCountState: AsynchronousResultState<number>;
   countActiveCarePlans: (patientReference: string) => Promise<Nullable<number>>;
-  isActiveCarePlanCountLoading: boolean;
 };
 
 export const CarePlanContext =
   createContext<Nullable<CarePlanContextType>>(null);
 
-export const useCarePlanContext = (): CarePlanContextType => {
+export const useCarePlanContext = () => {
   const carePlanContext = useContext(CarePlanContext);
   if (!carePlanContext) {
     throw new Error("useCarePlanContext must be used inside CarePlanProvider");
   }
-  useReader(carePlanContext.addActiveCarePlanCountReader);
-  return carePlanContext;
+  const { activeCarePlanCountState, countActiveCarePlans } = carePlanContext;
+  const { error, isLoading, result } = useReader(activeCarePlanCountState);
+  return useMemo(
+    () => ({
+      activeCarePlanCount: result,
+      activeCarePlanCountError: error,
+      countActiveCarePlans,
+      isActiveCarePlanCountLoading: isLoading,
+    }),
+    [countActiveCarePlans, error, isLoading, result],
+  );
 };

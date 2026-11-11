@@ -12,29 +12,21 @@ export const AppointmentProvider: FC<PropsWithChildren> = ({ children }) => {
     [medplum],
   );
 
-  const {
-    addReader: addNextAppointmentReader,
-    error: nextAppointmentError,
-    isLoading: isNextAppointmentLoading,
-    load: getNextAppointment,
-    result: nextAppointment,
-  } = useAsynchronousResult(appointmentService.getNextAppointment);
+  const { error, hasAnswer, isRequesting, load, requestNumber, result } =
+    useAsynchronousResult(appointmentService.getNextAppointment);
 
   const value = useMemo(
     () => ({
-      addNextAppointmentReader,
-      getNextAppointment,
-      isNextAppointmentLoading,
-      nextAppointment,
-      nextAppointmentError,
+      getNextAppointment: load,
+      nextAppointmentState: {
+        error,
+        hasAnswer,
+        isRequesting,
+        requestNumber,
+        result,
+      },
     }),
-    [
-      addNextAppointmentReader,
-      getNextAppointment,
-      isNextAppointmentLoading,
-      nextAppointment,
-      nextAppointmentError,
-    ],
+    [error, hasAnswer, isRequesting, load, requestNumber, result],
   );
 
   return (

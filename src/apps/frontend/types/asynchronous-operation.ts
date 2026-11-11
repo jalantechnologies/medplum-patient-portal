@@ -21,3 +21,11 @@ export class AsynchronousOperationError extends Error {
     return new AsynchronousOperationError(message, { cause: thrown });
   }
 }
+
+export interface AsynchronousResultState<Result> {
+  error: Nullable<AsynchronousOperationError>;
+  hasAnswer: boolean;
+  isRequesting: boolean;
+  requestNumber: number;
+  result: Nullable<Result>;
+}

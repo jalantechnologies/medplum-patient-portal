@@ -1,6 +1,7 @@
 import {
   AsynchronousOperationError,
   type AsynchronousResult,
+  type AsynchronousResultState,
 } from "./asynchronous-operation";
 import type { Nullable } from "./common";
 import type {
@@ -16,6 +17,7 @@ export {
   AsynchronousOperationError,
   ServiceResponse,
   type AsynchronousResult,
+  type AsynchronousResultState,
   type Nullable,
   type RecordListTab,
   type RecordListTabText,
