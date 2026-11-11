@@ -1,29 +1,35 @@
 import type { Appointment } from "@medplum/fhirtypes";
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 
 import { useReader } from "../hooks";
-import type { AsynchronousOperationError, Nullable } from "../types";
+import type { AsynchronousResultState, Nullable } from "../types";
 
 type AppointmentContextType = {
-  addNextAppointmentReader: () => () => void;
   getNextAppointment: (
     patientReference: string,
   ) => Promise<Nullable<Appointment>>;
-  isNextAppointmentLoading: boolean;
-  nextAppointment: Nullable<Appointment>;
-  nextAppointmentError: Nullable<AsynchronousOperationError>;
+  nextAppointmentState: AsynchronousResultState<Appointment>;
 };
 
 export const AppointmentContext =
   createContext<Nullable<AppointmentContextType>>(null);
 
-export const useAppointmentContext = (): AppointmentContextType => {
+export const useAppointmentContext = () => {
   const appointmentContext = useContext(AppointmentContext);
   if (!appointmentContext) {
     throw new Error(
       "useAppointmentContext must be used inside AppointmentProvider",
     );
   }
-  useReader(appointmentContext.addNextAppointmentReader);
-  return appointmentContext;
+  const { getNextAppointment, nextAppointmentState } = appointmentContext;
+  const { error, isLoading, result } = useReader(nextAppointmentState);
+  return useMemo(
+    () => ({
+      getNextAppointment,
+      isNextAppointmentLoading: isLoading,
+      nextAppointment: result,
+      nextAppointmentError: error,
+    }),
+    [error, getNextAppointment, isLoading, result],
+  );
 };

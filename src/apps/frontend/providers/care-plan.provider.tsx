@@ -12,29 +12,21 @@ export const CarePlanProvider: FC<PropsWithChildren> = ({ children }) => {
     [medplum],
   );
 
-  const {
-    addReader: addActiveCarePlanCountReader,
-    error: activeCarePlanCountError,
-    isLoading: isActiveCarePlanCountLoading,
-    load: countActiveCarePlans,
-    result: activeCarePlanCount,
-  } = useAsynchronousResult(carePlanService.countActiveCarePlans);
+  const { error, hasAnswer, isRequesting, load, requestNumber, result } =
+    useAsynchronousResult(carePlanService.countActiveCarePlans);
 
   const value = useMemo(
     () => ({
-      activeCarePlanCount,
-      activeCarePlanCountError,
-      addActiveCarePlanCountReader,
-      countActiveCarePlans,
-      isActiveCarePlanCountLoading,
+      activeCarePlanCountState: {
+        error,
+        hasAnswer,
+        isRequesting,
+        requestNumber,
+        result,
+      },
+      countActiveCarePlans: load,
     }),
-    [
-      activeCarePlanCount,
-      activeCarePlanCountError,
-      addActiveCarePlanCountReader,
-      countActiveCarePlans,
-      isActiveCarePlanCountLoading,
-    ],
+    [error, hasAnswer, isRequesting, load, requestNumber, result],
   );
 
   return (

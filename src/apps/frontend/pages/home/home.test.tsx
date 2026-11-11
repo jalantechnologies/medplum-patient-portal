@@ -1,5 +1,5 @@
 import { createReference } from "@medplum/core";
-import type { Appointment, CarePlan } from "@medplum/fhirtypes";
+import type { CarePlan } from "@medplum/fhirtypes";
 import { HomerSimpson, MockClient } from "@medplum/mock";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -7,14 +7,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import constant from "../../constants";
 import {
-  APPOINTMENT_PARTICIPANT_STATUS,
   APPOINTMENT_STATUS,
   CARE_PLAN_INTENT,
   CARE_PLAN_STATUS,
   RESOURCE_TYPE,
 } from "../../constants/fhir";
 import { AppointmentProvider, CarePlanProvider } from "../../providers";
-import { createCarePlan } from "../../test-medplum";
+import { createAppointment, createCarePlan } from "../../test-medplum";
 import { TestProviders } from "../../test-providers";
 import Home from "./home.page";
 
@@ -38,24 +37,6 @@ const createCarePlanFromAnotherClient = (
     status,
     intent: CARE_PLAN_INTENT.PLAN,
     subject: createReference(HomerSimpson),
-  });
-
-const createAppointment = (
-  medplum: MockClient,
-  status: Appointment["status"],
-  start: Date,
-): Promise<Appointment> =>
-  medplum.createResource<Appointment>({
-    resourceType: RESOURCE_TYPE.APPOINTMENT,
-    status,
-    start: start.toISOString(),
-    end: new Date(start.getTime() + 30 * 60 * 1000).toISOString(),
-    participant: [
-      {
-        actor: createReference(HomerSimpson),
-        status: APPOINTMENT_PARTICIPANT_STATUS.ACCEPTED,
-      },
-    ],
   });
 
 const daysFromNow = (days: number, hours: number, minutes: number) => {
