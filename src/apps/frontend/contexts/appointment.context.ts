@@ -1,9 +1,11 @@
 import type { Appointment } from "@medplum/fhirtypes";
 import { createContext, useContext } from "react";
 
+import { useReader } from "../hooks";
 import type { AsynchronousOperationError, Nullable } from "../types";
 
 type AppointmentContextType = {
+  addNextAppointmentReader: () => () => void;
   getNextAppointment: (
     patientReference: string,
   ) => Promise<Nullable<Appointment>>;
@@ -22,5 +24,6 @@ export const useAppointmentContext = (): AppointmentContextType => {
       "useAppointmentContext must be used inside AppointmentProvider",
     );
   }
+  useReader(appointmentContext.addNextAppointmentReader);
   return appointmentContext;
 };

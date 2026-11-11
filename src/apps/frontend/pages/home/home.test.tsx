@@ -14,6 +14,7 @@ import {
   RESOURCE_TYPE,
 } from "../../constants/fhir";
 import { AppointmentProvider, CarePlanProvider } from "../../providers";
+import { createCarePlan } from "../../test-medplum";
 import { TestProviders } from "../../test-providers";
 import Home from "./home.page";
 
@@ -27,17 +28,6 @@ const homeInsideProviders = (medplum: MockClient, isHomeShown = true) => (
 
 const renderHome = (medplum: MockClient) =>
   render(homeInsideProviders(medplum));
-
-const createCarePlan = (
-  medplum: MockClient,
-  status: CarePlan["status"],
-): Promise<CarePlan> =>
-  medplum.createResource<CarePlan>({
-    resourceType: RESOURCE_TYPE.CARE_PLAN,
-    status,
-    intent: CARE_PLAN_INTENT.PLAN,
-    subject: createReference(HomerSimpson),
-  });
 
 const createCarePlanFromAnotherClient = (
   medplum: MockClient,
@@ -74,6 +64,9 @@ const daysFromNow = (days: number, hours: number, minutes: number) => {
   date.setHours(hours, minutes, 0, 0);
   return date;
 };
+
+const formatVisitDay = (start: Date) =>
+  start.toLocaleDateString(constant.LOCALE, { month: "short", day: "numeric" });
 
 const failSearches = (
   medplum: MockClient,
@@ -181,12 +174,8 @@ describe("Home", () => {
 
     renderHome(medplum);
 
-    const expectedDay = nextVisitStart.toLocaleDateString(constant.LOCALE, {
-      month: "short",
-      day: "numeric",
-    });
     expect(await screen.findByTestId("next-visit")).toHaveTextContent(
-      `${expectedDay} · 10:30 AM`,
+      `${formatVisitDay(nextVisitStart)} · 10:30 AM`,
     );
   });
 
@@ -285,6 +274,27 @@ describe("Home", () => {
     await waitFor(() =>
       expect(screen.getByTestId("active-care-plans")).toHaveTextContent(
         "2 ongoing plans",
+      ),
+    );
+  });
+
+  it("keeps an empty next visit on screen while it reads it again on a return to Home", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+
+    const { rerender } = render(homeInsideProviders(medplum));
+    expect(await screen.findByTestId("next-visit")).toHaveTextContent(
+      "None booked",
+    );
+    rerender(homeInsideProviders(medplum, false));
+    const nextVisitStart = daysFromNow(3, 10, 30);
+    await createAppointment(medplum, APPOINTMENT_STATUS.BOOKED, nextVisitStart);
+    rerender(homeInsideProviders(medplum));
+
+    expect(screen.getByTestId("next-visit")).toHaveTextContent("None booked");
+    expect(screen.queryByTestId("next-visit-loading")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("next-visit")).toHaveTextContent(
+        `${formatVisitDay(nextVisitStart)} · 10:30 AM`,
       ),
     );
   });

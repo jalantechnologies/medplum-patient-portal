@@ -13,6 +13,7 @@ export const CarePlanProvider: FC<PropsWithChildren> = ({ children }) => {
   );
 
   const {
+    addReader: addActiveCarePlanCountReader,
     error: activeCarePlanCountError,
     isLoading: isActiveCarePlanCountLoading,
     load: countActiveCarePlans,
@@ -23,12 +24,14 @@ export const CarePlanProvider: FC<PropsWithChildren> = ({ children }) => {
     () => ({
       activeCarePlanCount,
       activeCarePlanCountError,
+      addActiveCarePlanCountReader,
       countActiveCarePlans,
       isActiveCarePlanCountLoading,
     }),
     [
       activeCarePlanCount,
       activeCarePlanCountError,
+      addActiveCarePlanCountReader,
       countActiveCarePlans,
       isActiveCarePlanCountLoading,
     ],
