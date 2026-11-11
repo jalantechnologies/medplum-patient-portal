@@ -22,20 +22,37 @@ export const AllergyIntoleranceProvider: FC<PropsWithChildren> = ({
     result: allergyIntolerancePage,
   } = useAsynchronousResult(allergyIntoleranceService.listAllergyIntolerances);
 
+  const {
+    error: activeAllergyIntolerancePreviewError,
+    isLoading: isActiveAllergyIntolerancePreviewLoading,
+    load: previewActiveAllergyIntolerances,
+    result: activeAllergyIntolerancePreview,
+  } = useAsynchronousResult(
+    allergyIntoleranceService.previewActiveAllergyIntolerances,
+  );
+
   const value = useMemo(
     () => ({
+      activeAllergyIntolerancePreview,
+      activeAllergyIntolerancePreviewError,
       allergyIntolerancePage,
       allergyIntolerancePageError,
+      isActiveAllergyIntolerancePreviewLoading,
       isAllergyIntolerancePageLoading,
       isAllergyIntolerancePageRequesting,
       listAllergyIntolerances,
+      previewActiveAllergyIntolerances,
     }),
     [
+      activeAllergyIntolerancePreview,
+      activeAllergyIntolerancePreviewError,
       allergyIntolerancePage,
       allergyIntolerancePageError,
+      isActiveAllergyIntolerancePreviewLoading,
       isAllergyIntolerancePageLoading,
       isAllergyIntolerancePageRequesting,
       listAllergyIntolerances,
+      previewActiveAllergyIntolerances,
     ],
   );
 

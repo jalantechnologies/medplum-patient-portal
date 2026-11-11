@@ -4,13 +4,7 @@ import {
   Operator,
   parseSearchRequest,
 } from "@medplum/core";
-import type {
-  AllergyIntolerance,
-  CodeableConcept,
-  Condition,
-  Observation,
-  Patient,
-} from "@medplum/fhirtypes";
+import type { Condition, Observation, Patient } from "@medplum/fhirtypes";
 import { HomerSimpson, MockClient } from "@medplum/mock";
 import {
   fireEvent,
@@ -20,6 +14,11 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import {
+  createMemoryRouter,
+  RouterProvider,
+  type InitialEntry,
+} from "react-router";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import constant from "../../constants";
@@ -34,33 +33,45 @@ import {
   RESOURCE_TYPE,
   SEARCH_PARAMETER,
 } from "../../constants/fhir";
+import routes from "../../constants/routes";
 import {
   AllergyIntoleranceProvider,
   ConditionProvider,
   ObservationProvider,
 } from "../../providers";
+import { codeFrom, createAllergyIntolerance, doctor } from "../../test-medplum";
 import { TestProviders } from "../../test-providers";
 import HealthRecords from "./health-records.page";
 
 const homer = createReference(HomerSimpson);
-const doctor = { display: "Dr. Mira Synthetic" };
-
-const renderHealthRecords = (medplum: MockClient) =>
-  render(
+const renderHealthRecords = (
+  medplum: MockClient,
+  path: InitialEntry = routes.HEALTH_RECORDS,
+) => {
+  const router = createMemoryRouter(
+    [
+      {
+        path: routes.HEALTH_RECORDS,
+        element: (
+          <ConditionProvider>
+            <AllergyIntoleranceProvider>
+              <ObservationProvider>
+                <HealthRecords />
+              </ObservationProvider>
+            </AllergyIntoleranceProvider>
+          </ConditionProvider>
+        ),
+      },
+    ],
+    { initialEntries: [path] },
+  );
+  const result = render(
     <TestProviders medplum={medplum}>
-      <ConditionProvider>
-        <AllergyIntoleranceProvider>
-          <ObservationProvider>
-            <HealthRecords />
-          </ObservationProvider>
-        </AllergyIntoleranceProvider>
-      </ConditionProvider>
+      <RouterProvider router={router} />
     </TestProviders>,
   );
-
-const codeFrom = (system: string, code: string): CodeableConcept => ({
-  coding: [{ system, code }],
-});
+  return { ...result, router };
+};
 
 const createCondition = (
   medplum: MockClient,
@@ -77,29 +88,6 @@ const createCondition = (
     clinicalStatus: codeFrom(
       CODE_SYSTEM.CONDITION_CLINICAL,
       CONDITION_CLINICAL_STATUS.ACTIVE,
-    ),
-    ...overrides,
-  });
-
-const createAllergyIntolerance = (
-  medplum: MockClient,
-  substance: string,
-  recordedDate: string,
-  overrides: Partial<AllergyIntolerance> = {},
-): Promise<AllergyIntolerance> =>
-  medplum.createResource<AllergyIntolerance>({
-    resourceType: RESOURCE_TYPE.ALLERGY_INTOLERANCE,
-    patient: homer,
-    code: { text: substance },
-    recordedDate,
-    recorder: doctor,
-    clinicalStatus: codeFrom(
-      CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL,
-      ALLERGY_INTOLERANCE_CLINICAL_STATUS.ACTIVE,
-    ),
-    verificationStatus: codeFrom(
-      CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
-      ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED,
     ),
     ...overrides,
   });
@@ -284,8 +272,12 @@ describe("Health records", () => {
   it("shows whether each allergy is still current, and how sure the clinic is of it in the record", async () => {
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
-    await createAllergyIntolerance(medplum, "Penicillin", "2024-03-12");
-    await createAllergyIntolerance(medplum, "Latex", "2022-05-02", {
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2024-03-12",
+    );
+    await createAllergyIntolerance(medplum, { text: "Latex" }, "2022-05-02", {
       clinicalStatus: codeFrom(
         CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL,
         ALLERGY_INTOLERANCE_CLINICAL_STATUS.RESOLVED,
@@ -406,10 +398,14 @@ describe("Health records", () => {
         ),
       },
     );
-    await createAllergyIntolerance(medplum, "Penicillin", "2024-03-12");
     await createAllergyIntolerance(
       medplum,
-      "Peanuts, entered by mistake",
+      { text: "Penicillin" },
+      "2024-03-12",
+    );
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Peanuts, entered by mistake" },
       "2024-03-13",
       {
         clinicalStatus: undefined,
@@ -618,7 +614,11 @@ describe("Health records", () => {
   it("shows an error and marks the kind of record that could not be read, keeping the others", async () => {
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
-    await createAllergyIntolerance(medplum, "Penicillin", "2024-03-12");
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2024-03-12",
+    );
     failSearches(
       medplum,
       (resourceType) => resourceType === RESOURCE_TYPE.CONDITION,
@@ -793,5 +793,71 @@ describe("Health records", () => {
     expect(
       await within(content).findByTestId("conditions-list"),
     ).toBeInTheDocument();
+  });
+
+  it("opens the tab named in the address and reads only that tab's records", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2026-10-20",
+    );
+    const searchResources = vi.spyOn(medplum, "searchResources");
+
+    renderHealthRecords(medplum, "/health-records?tab=allergies");
+
+    expect(screen.getByTestId("allergies-tab")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    const panel = screen.getByTestId("allergies-panel");
+    expect(
+      await within(panel).findAllByTestId("allergies-record"),
+    ).toHaveLength(1);
+    expect(
+      new Set(searchResources.mock.calls.map(([resourceType]) => resourceType)),
+    ).toEqual(new Set([RESOURCE_TYPE.ALLERGY_INTOLERANCE]));
+  });
+
+  it.each([
+    ["names no tab", "/health-records"],
+    ["names a tab that does not exist", "/health-records?tab=procedures"],
+  ])("opens Conditions when the address %s", async (_, path) => {
+    renderHealthRecords(new MockClient({ profile: HomerSimpson }), path);
+
+    expect(screen.getByTestId("conditions-tab")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(await screen.findByTestId("conditions-empty")).toBeInTheDocument();
+  });
+
+  it("keeps the open tab in the address, beside the rest of the address and its history state, without adding a history entry", async () => {
+    const user = userEvent.setup();
+    const historyState = { openedFrom: routes.HEALTH_PROFILE };
+    const { router } = renderHealthRecords(
+      new MockClient({ profile: HomerSimpson }),
+      {
+        pathname: routes.HEALTH_RECORDS,
+        search: "?utm_source=reminder",
+        hash: "#records",
+        state: historyState,
+      },
+    );
+    await screen.findByTestId("conditions-empty");
+
+    await openTab(user, "measurements");
+
+    expect(router.state.location.pathname).toBe(routes.HEALTH_RECORDS);
+    expect(router.state.location.search).toBe(
+      "?utm_source=reminder&tab=measurements",
+    );
+    expect(router.state.location.hash).toBe("#records");
+    expect(router.state.location.state).toEqual(historyState);
+    expect(router.state.historyAction).toBe("REPLACE");
+    expect(screen.getByTestId("measurements-tab")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 });

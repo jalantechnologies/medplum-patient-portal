@@ -1,23 +1,19 @@
-import { formatSearchQuery, Operator, type SearchRequest } from "@medplum/core";
-import type { CarePlan } from "@medplum/fhirtypes";
+import { Operator } from "@medplum/core";
 
-import constant from "../../constants";
 import {
   CARE_PLAN_STATUS,
   RESOURCE_TYPE,
   SEARCH_PARAMETER,
-  SEARCH_TOTAL,
 } from "../../constants/fhir";
-import { AsynchronousOperationError, ServiceResponse } from "../../types";
+import { ServiceResponse } from "../../types";
 import MedplumService from "../medplum/medplum.service";
 
 export default class CarePlanService extends MedplumService {
   countActiveCarePlans = async (
     patientReference: string,
-  ): Promise<ServiceResponse<number>> => {
-    const searchRequest: SearchRequest<CarePlan> = {
-      resourceType: RESOURCE_TYPE.CARE_PLAN,
-      filters: [
+  ): Promise<ServiceResponse<number>> =>
+    new ServiceResponse(
+      await this.countResources(RESOURCE_TYPE.CARE_PLAN, [
         {
           code: SEARCH_PARAMETER.SUBJECT,
           operator: Operator.EQUALS,
@@ -28,18 +24,6 @@ export default class CarePlanService extends MedplumService {
           operator: Operator.EQUALS,
           value: CARE_PLAN_STATUS.ACTIVE,
         },
-      ],
-      count: 0,
-      total: SEARCH_TOTAL.ACCURATE,
-    };
-    const bundle = await this.medplumClient.search(
-      searchRequest.resourceType,
-      formatSearchQuery(searchRequest),
-      MedplumService.freshRequestOptions,
+      ]),
     );
-    if (bundle.total === undefined) {
-      throw new AsynchronousOperationError(constant.DEFAULT_ERROR_MESSAGE);
-    }
-    return new ServiceResponse(bundle.total);
-  };
 }

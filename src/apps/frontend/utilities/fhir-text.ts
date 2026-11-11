@@ -1,5 +1,5 @@
 import { capitalize, formatDate, formatDateTime } from "@medplum/core";
-import type { CodeableConcept } from "@medplum/fhirtypes";
+import type { AllergyIntolerance, CodeableConcept } from "@medplum/fhirtypes";
 
 import constant from "../constants";
 import { DATE_FORMAT } from "../constants/date-format";
@@ -17,6 +17,10 @@ export const nameCodeableConcept = (
   concept?.text ||
   concept?.coding?.find(({ display }) => display)?.display ||
   "";
+
+export const nameAllergyIntolerance = (
+  allergyIntolerance: AllergyIntolerance,
+): string => nameCodeableConcept(allergyIntolerance.code) || "Allergy";
 
 const selectCalendarDateFormat = (date: string) => {
   const [, month, day] = date.split(DATE_PART_SEPARATOR);

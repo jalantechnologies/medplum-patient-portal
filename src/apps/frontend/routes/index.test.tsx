@@ -17,7 +17,11 @@ import constant from "../constants";
 import routes from "../constants/routes";
 import { CARE_PLAN_STATUS, RESOURCE_TYPE } from "../constants/fhir";
 import { AuthenticationProvider } from "../providers";
-import { createCarePlan, interceptSearches } from "../test-medplum";
+import {
+  createCarePlan,
+  interceptSearches,
+  networkFailure,
+} from "../test-medplum";
 import { TestProviders } from "../test-providers";
 import { ApplicationRoutes } from "./index";
 import { routeObjects } from "./route-objects";
@@ -63,8 +67,6 @@ const jsonResponse = (status: number, body: unknown) =>
     status,
     headers: { "content-type": "application/json" },
   });
-
-const networkFailure = () => new TypeError("Failed to fetch");
 
 const signIn = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(await screen.findByTestId("email"), "patient@example.com");
@@ -392,6 +394,7 @@ describe("ApplicationRoutes", () => {
   });
 
   it.each([
+    ["Health profile", routes.HEALTH_PROFILE],
     ["Medications", routes.MEDICATIONS],
     ["Health records", routes.HEALTH_RECORDS],
   ])(
@@ -422,7 +425,91 @@ describe("ApplicationRoutes", () => {
       within(within(sidebar).getByTestId("sidebar-navigation"))
         .getAllByTestId("navigation-link")
         .map((link) => link.textContent),
-    ).toEqual(["Home", "Medications", "Health records"]);
+    ).toEqual(["Home", "Health profile", "Medications", "Health records"]);
+  });
+
+  it("takes a patient from Health profile to the Allergies tab of Health records, marked as the current page", async () => {
+    const user = userEvent.setup();
+    const router = renderRoutes(
+      new MockClient({ profile: HomerSimpson }),
+      routes.HEALTH_PROFILE,
+    );
+
+    await user.click(
+      await screen.findByTestId("health-profile-active-allergies-link"),
+    );
+
+    expect(await screen.findByTestId("health-records")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(routes.HEALTH_RECORDS);
+    expect(router.state.location.search).toBe("?tab=allergies");
+    expect(screen.getByTestId("allergies-tab")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(
+      getNavigationLink(screen.getByTestId("sidebar"), routes.HEALTH_RECORDS),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
+  it("opens Conditions from the sidebar's Health records link, and Back returns to the tab the patient was on", async () => {
+    const user = userEvent.setup();
+    const router = renderRoutes(
+      new MockClient({ profile: HomerSimpson }),
+      `${routes.HEALTH_RECORDS}?tab=allergies`,
+    );
+    await screen.findByTestId("allergies-empty");
+
+    await user.click(
+      getNavigationLink(screen.getByTestId("sidebar"), routes.HEALTH_RECORDS),
+    );
+
+    expect(router.state.historyAction).toBe("PUSH");
+    expect(router.state.location.search).toBe("");
+    expect(screen.getByTestId("conditions-tab")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await act(() => router.navigate(-1));
+    expect(router.state.location.search).toBe("?tab=allergies");
+    expect(screen.getByTestId("allergies-tab")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("shows none of Home's failed care plan count when the patient opens Health profile", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    let isCarePlanReachable = false;
+    interceptSearches(medplum, (search, resourceType) =>
+      resourceType === RESOURCE_TYPE.CARE_PLAN && !isCarePlanReachable
+        ? Promise.reject(networkFailure())
+        : search(),
+    );
+    renderRoutes(medplum);
+    await screen.findByTestId("home-overview-error");
+    isCarePlanReachable = true;
+
+    expect(
+      await watchForTestIdentifiers(
+        [
+          "health-profile-error",
+          "health-profile-active-care-plans-unavailable",
+        ],
+        async () => {
+          await user.click(
+            getNavigationLink(
+              screen.getByTestId("sidebar"),
+              routes.HEALTH_PROFILE,
+            ),
+          );
+          expect(
+            await screen.findByTestId("health-profile-active-care-plans"),
+          ).toHaveTextContent("No ongoing plans");
+          await screen.findByTestId("health-profile-active-allergies");
+        },
+      ),
+    ).toBe(false);
   });
 
   it("shows none of Home's earlier failure when the patient comes back to Home", async () => {

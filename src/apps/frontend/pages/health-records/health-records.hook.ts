@@ -1,13 +1,19 @@
 import { getReferenceString } from "@medplum/core";
 import { useMedplumProfile } from "@medplum/react-hooks";
-import { useState, type Key } from "react";
+import type { Key } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 
+import { HEALTH_RECORDS_TAB } from "../../constants/routes";
 import {
   useAllergyIntoleranceContext,
   useConditionContext,
   useObservationContext,
 } from "../../contexts";
 import { useRecordListTab } from "../../hooks";
+import {
+  buildHealthRecordsTabSearch,
+  readHealthRecordsTabKey,
+} from "../../utilities";
 import {
   summarizeAllergyIntolerance,
   summarizeCondition,
@@ -16,22 +22,19 @@ import {
 
 const HEALTH_RECORD_TAB_TEXT = {
   CONDITIONS: {
+    ...HEALTH_RECORDS_TAB.CONDITIONS,
     emptyDescription: "No condition information has been shared.",
     emptyTitle: "No conditions available",
-    key: "conditions",
-    title: "Conditions",
   },
   ALLERGIES: {
+    ...HEALTH_RECORDS_TAB.ALLERGIES,
     emptyDescription: "No allergy information has been shared.",
     emptyTitle: "No allergies available",
-    key: "allergies",
-    title: "Allergies",
   },
   MEASUREMENTS: {
+    ...HEALTH_RECORDS_TAB.MEASUREMENTS,
     emptyDescription: "No measurement information has been shared.",
     emptyTitle: "No measurements available",
-    key: "measurements",
-    title: "Measurements",
   },
 } as const;
 
@@ -110,16 +113,29 @@ const useVitalSignTab = (
 const useHealthRecords = () => {
   const profile = useMedplumProfile();
   const patientReference = profile && getReferenceString(profile);
-  const [activeTabKey, setActiveTabKey] = useState<Key>(
-    HEALTH_RECORD_TAB_TEXT.CONDITIONS.key,
-  );
+  const { hash, state } = useLocation();
+  const navigate = useNavigate();
+  const [searchParameters] = useSearchParams();
+  const activeTabKey = readHealthRecordsTabKey(searchParameters);
   const tabs = [
     useConditionTab(activeTabKey, patientReference),
     useAllergyIntoleranceTab(activeTabKey, patientReference),
     useVitalSignTab(activeTabKey, patientReference),
   ];
 
-  return { activeTabKey, openTab: setActiveTabKey, tabs };
+  const openTab = (tabKey: Key) =>
+    navigate(
+      {
+        hash,
+        search: buildHealthRecordsTabSearch(
+          tabKey,
+          searchParameters,
+        ).toString(),
+      },
+      { replace: true, state },
+    );
+
+  return { activeTabKey, openTab, tabs };
 };
 
 export default useHealthRecords;

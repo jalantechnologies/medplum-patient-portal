@@ -1,14 +1,20 @@
-import { Operator, type WithId } from "@medplum/core";
+import {
+  formatSearchQuery,
+  Operator,
+  type Filter,
+  type WithId,
+} from "@medplum/core";
 import type { MedicationRequest } from "@medplum/fhirtypes";
 
 import {
+  MEDICATION_REQUEST_ELEMENT,
   MEDICATION_REQUEST_INTENT,
   MEDICATION_REQUEST_STATUS,
   RESOURCE_TYPE,
   SEARCH_PARAMETER,
   SEARCH_VALUE_SEPARATOR,
 } from "../../constants/fhir";
-import type { Nullable, SearchPage, ServiceResponse } from "../../types";
+import { ServiceResponse, type Nullable, type SearchPage } from "../../types";
 import MedplumService from "../medplum/medplum.service";
 
 type MedicationRequestPage = SearchPage<WithId<MedicationRequest>>;
@@ -35,6 +41,30 @@ const PAST_STATUSES = [
 ];
 
 export default class MedicationRequestService extends MedplumService {
+  // FHIR R4 has no search parameter for doNotPerform.
+  countActivePrescriptions = async (
+    patientReference: string,
+  ): Promise<ServiceResponse<number>> => {
+    let activePrescriptionCount = 0;
+    for await (const page of this.medplumClient.searchResourcePages(
+      RESOURCE_TYPE.MEDICATION_REQUEST,
+      formatSearchQuery({
+        resourceType: RESOURCE_TYPE.MEDICATION_REQUEST,
+        fields: [MEDICATION_REQUEST_ELEMENT.DO_NOT_PERFORM],
+        filters: MedicationRequestService.buildPrescriptionFilters(
+          patientReference,
+          [MEDICATION_REQUEST_STATUS.ACTIVE],
+        ),
+      }),
+      MedplumService.freshRequestOptions,
+    )) {
+      activePrescriptionCount += page.filter(
+        ({ doNotPerform }) => !doNotPerform,
+      ).length;
+    }
+    return new ServiceResponse(activePrescriptionCount);
+  };
+
   listMedicationRequests = (
     patientReference: string,
     previousPage: Nullable<MedicationRequestPage> = null,
@@ -64,25 +94,35 @@ export default class MedicationRequestService extends MedplumService {
       RESOURCE_TYPE.MEDICATION_REQUEST,
       {
         dateParameter: SEARCH_PARAMETER.AUTHORED_ON,
-        filters: [
-          {
-            code: SEARCH_PARAMETER.PATIENT,
-            operator: Operator.EQUALS,
-            value: patientReference,
-          },
-          {
-            code: SEARCH_PARAMETER.INTENT,
-            operator: Operator.EQUALS,
-            value: PRESCRIPTION_INTENTS.join(SEARCH_VALUE_SEPARATOR),
-          },
-          {
-            code: SEARCH_PARAMETER.STATUS,
-            operator: Operator.EQUALS,
-            value: statuses.join(SEARCH_VALUE_SEPARATOR),
-          },
-        ],
+        filters: MedicationRequestService.buildPrescriptionFilters(
+          patientReference,
+          statuses,
+        ),
       },
       previousPage,
     );
+  }
+
+  private static buildPrescriptionFilters(
+    patientReference: string,
+    statuses: MedicationRequest["status"][],
+  ): Filter[] {
+    return [
+      {
+        code: SEARCH_PARAMETER.PATIENT,
+        operator: Operator.EQUALS,
+        value: patientReference,
+      },
+      {
+        code: SEARCH_PARAMETER.INTENT,
+        operator: Operator.EQUALS,
+        value: PRESCRIPTION_INTENTS.join(SEARCH_VALUE_SEPARATOR),
+      },
+      {
+        code: SEARCH_PARAMETER.STATUS,
+        operator: Operator.EQUALS,
+        value: statuses.join(SEARCH_VALUE_SEPARATOR),
+      },
+    ];
   }
 }

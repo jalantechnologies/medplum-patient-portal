@@ -2,60 +2,35 @@ import { Block } from "baseui/block";
 import { HeadingSmall, ParagraphSmall } from "baseui/typography";
 import type { FC } from "react";
 
-interface OverviewFactProperties {
-  hasFailed: boolean;
-  isLoading: boolean;
+import { FactValue } from "../../components";
+import type { Fact } from "../../types";
+
+interface OverviewFactProperties extends Fact {
   label: string;
   testIdentifier: string;
-  value: string;
 }
 
-const OverviewFactValue: FC<Omit<OverviewFactProperties, "label">> = ({
+const OverviewFact: FC<OverviewFactProperties> = ({
   hasFailed,
   isLoading,
+  label,
   testIdentifier,
   value,
-}) => {
-  if (isLoading) {
-    return (
-      <ParagraphSmall
-        as="dd"
-        margin="0"
-        color="contentSecondary"
-        data-testid={`${testIdentifier}-loading`}
-      >
-        Loading…
-      </ParagraphSmall>
-    );
-  }
-  if (hasFailed) {
-    return (
-      <ParagraphSmall
-        as="dd"
-        margin="0"
-        color="contentSecondary"
-        data-testid={`${testIdentifier}-unavailable`}
-      >
-        Could not load
-      </ParagraphSmall>
-    );
-  }
-  return (
-    <HeadingSmall as="dd" margin="0" data-testid={testIdentifier}>
-      {value}
-    </HeadingSmall>
-  );
-};
-
-const OverviewFact: FC<OverviewFactProperties> = ({
-  label,
-  ...valueProperties
 }) => (
   <Block display="grid" gridGap="scale300" alignContent="start">
     <ParagraphSmall as="dt" margin="0" color="contentSecondary">
       {label}
     </ParagraphSmall>
-    <OverviewFactValue {...valueProperties} />
+    <FactValue
+      as="dd"
+      hasFailed={hasFailed}
+      isLoading={isLoading}
+      testIdentifier={testIdentifier}
+    >
+      <HeadingSmall as="div" margin="0">
+        {value}
+      </HeadingSmall>
+    </FactValue>
   </Block>
 );
 

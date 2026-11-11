@@ -34,11 +34,11 @@ import {
   SEARCH_VALUE_SEPARATOR,
 } from "../../constants/fhir";
 import { MedicationRequestProvider } from "../../providers";
+import { createMedicationRequest } from "../../test-medplum";
 import { TestProviders } from "../../test-providers";
 import Medications from "./medications.page";
 
 const homer = createReference(HomerSimpson);
-const doctor = { display: "Dr. Mira Synthetic" };
 const ALL_MEDICATIONS = "all-medications";
 const PAST_MEDICATIONS = "past-medications";
 
@@ -50,23 +50,6 @@ const renderMedications = (medplum: MockClient) =>
       </MedicationRequestProvider>
     </TestProviders>,
   );
-
-const createMedicationRequest = (
-  medplum: MockClient,
-  name: string,
-  authoredOn: string | undefined,
-  overrides: Partial<MedicationRequest> = {},
-): Promise<MedicationRequest> =>
-  medplum.createResource<MedicationRequest>({
-    resourceType: RESOURCE_TYPE.MEDICATION_REQUEST,
-    status: MEDICATION_REQUEST_STATUS.ACTIVE,
-    intent: MEDICATION_REQUEST_INTENT.ORDER,
-    subject: homer,
-    medicationCodeableConcept: { text: name },
-    authoredOn,
-    requester: doctor,
-    ...overrides,
-  });
 
 const showDatesInChicago = () => {
   vi.stubEnv("TZ", "America/Chicago");
