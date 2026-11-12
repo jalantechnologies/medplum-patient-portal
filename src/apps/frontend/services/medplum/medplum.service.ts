@@ -11,7 +11,11 @@ import type { Bundle, ExtractResource, ResourceType } from "@medplum/fhirtypes";
 
 import { configuration } from "../../configuration";
 import constant from "../../constants";
-import { SEARCH_PARAMETER, SEARCH_TOTAL } from "../../constants/fhir";
+import {
+  SEARCH_PARAMETER,
+  SEARCH_TOTAL,
+  SEARCH_VALUE_SEPARATOR,
+} from "../../constants/fhir";
 import {
   AsynchronousOperationError,
   ServiceResponse,
@@ -98,6 +102,18 @@ export default class MedplumService {
   ): Promise<
     ServiceResponse<SearchPage<WithId<ExtractResource<PageResourceType>>>>
   > {
+    return new ServiceResponse(
+      await this.readNextPage(resourceType, search, previousPage),
+    );
+  }
+
+  protected async readNextPage<PageResourceType extends ResourceType>(
+    resourceType: PageResourceType,
+    search: NewestFirstSearch,
+    previousPage: Nullable<
+      SearchPage<WithId<ExtractResource<PageResourceType>>>
+    >,
+  ): Promise<SearchPage<WithId<ExtractResource<PageResourceType>>>> {
     const previousResources = previousPage?.resources ?? [];
     const position = previousPage
       ? previousPage.nextPosition
@@ -114,7 +130,7 @@ export default class MedplumService {
     const previousIdentifiers = new Set(
       previousResources.map((resource) => resource.id),
     );
-    return new ServiceResponse({
+    return {
       nextPosition,
       resources: [
         ...previousResources,
@@ -122,7 +138,47 @@ export default class MedplumService {
           (resource) => !previousIdentifiers.has(resource.id),
         ),
       ],
-    });
+    };
+  }
+
+  protected async searchByIdentifiers<
+    SearchedResourceType extends ResourceType,
+  >(
+    resourceType: SearchedResourceType,
+    identifiers: string[],
+    filters: Filter[],
+  ): Promise<WithId<ExtractResource<SearchedResourceType>>[]> {
+    const batches = await Promise.all(
+      MedplumService.splitIntoPages(identifiers).map((pageIdentifiers) =>
+        this.medplumClient.searchResources(
+          resourceType,
+          formatSearchQuery({
+            resourceType,
+            filters: [
+              {
+                code: SEARCH_PARAMETER.ID,
+                operator: Operator.EQUALS,
+                value: pageIdentifiers.join(SEARCH_VALUE_SEPARATOR),
+              },
+              ...filters,
+            ],
+            count: pageIdentifiers.length,
+          }),
+          MedplumService.freshRequestOptions,
+        ),
+      ),
+    );
+    return batches.flat();
+  }
+
+  private static splitIntoPages(identifiers: string[]): string[][] {
+    const pageCount = Math.ceil(identifiers.length / constant.SEARCH_PAGE_SIZE);
+    return Array.from({ length: pageCount }, (_, pageIndex) =>
+      identifiers.slice(
+        pageIndex * constant.SEARCH_PAGE_SIZE,
+        (pageIndex + 1) * constant.SEARCH_PAGE_SIZE,
+      ),
+    );
   }
 
   private static readTotal(bundle: Bundle): number {

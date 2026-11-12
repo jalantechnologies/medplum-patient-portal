@@ -13,6 +13,10 @@ import {
 import { CarePlanContext, useCarePlanContext } from "./care-plan.context";
 import { ConditionContext, useConditionContext } from "./condition.context";
 import {
+  DiagnosticReportContext,
+  useDiagnosticReportContext,
+} from "./diagnostic-report.context";
+import {
   MedicationRequestContext,
   useMedicationRequestContext,
 } from "./medication-request.context";
@@ -27,6 +31,7 @@ export {
   AuthenticationContext,
   CarePlanContext,
   ConditionContext,
+  DiagnosticReportContext,
   MedicationRequestContext,
   ObservationContext,
   useAllergyIntoleranceContext,
@@ -34,6 +39,7 @@ export {
   useAuthenticationContext,
   useCarePlanContext,
   useConditionContext,
+  useDiagnosticReportContext,
   useMedicationRequestContext,
   useObservationContext,
 };

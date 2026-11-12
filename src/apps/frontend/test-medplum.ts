@@ -1,13 +1,22 @@
-import { createReference } from "@medplum/core";
+import {
+  createReference,
+  parseSearchRequest,
+  type QueryTypes,
+  type SearchRequest,
+  type WithId,
+} from "@medplum/core";
 import type {
   AllergyIntolerance,
   Appointment,
   Bundle,
   CarePlan,
   CodeableConcept,
+  DiagnosticReport,
   MedicationRequest,
+  Observation,
+  ResourceType,
 } from "@medplum/fhirtypes";
-import { HomerSimpson, type MockClient } from "@medplum/mock";
+import { HomerSimpson, MockClient } from "@medplum/mock";
 import { vi } from "vitest";
 
 import {
@@ -16,12 +25,17 @@ import {
   APPOINTMENT_PARTICIPANT_STATUS,
   CARE_PLAN_INTENT,
   CODE_SYSTEM,
+  DIAGNOSTIC_REPORT_STATUS,
+  LABORATORY_SERVICE_SECTION,
   MEDICATION_REQUEST_INTENT,
   MEDICATION_REQUEST_STATUS,
+  OBSERVATION_STATUS,
   RESOURCE_TYPE,
 } from "./constants/fhir";
 
 export const doctor = { display: "Dr. Mira Synthetic" };
+
+export const laboratory = { display: "Harbor Synthetic Laboratory" };
 
 export const networkFailure = () => new TypeError("Failed to fetch");
 
@@ -97,6 +111,66 @@ export const createMedicationRequest = (
     requester: doctor,
     ...overrides,
   });
+
+export const createReportResult = (
+  medplum: MockClient,
+  name: string,
+  overrides: Partial<Observation> = {},
+): Promise<WithId<Observation>> =>
+  medplum.createResource<Observation>({
+    resourceType: RESOURCE_TYPE.OBSERVATION,
+    status: OBSERVATION_STATUS.FINAL,
+    code: { text: name },
+    subject: createReference(HomerSimpson),
+    ...overrides,
+  });
+
+export const createDiagnosticReport = (
+  medplum: MockClient,
+  name: string,
+  effectiveDateTime: string | undefined,
+  results: Observation[],
+  overrides: Partial<DiagnosticReport> = {},
+): Promise<DiagnosticReport> =>
+  medplum.createResource<DiagnosticReport>({
+    resourceType: RESOURCE_TYPE.DIAGNOSTIC_REPORT,
+    status: DIAGNOSTIC_REPORT_STATUS.FINAL,
+    category: [
+      codeFrom(
+        CODE_SYSTEM.DIAGNOSTIC_SERVICE_SECTION,
+        LABORATORY_SERVICE_SECTION.LABORATORY,
+      ),
+    ],
+    code: { text: name },
+    subject: createReference(HomerSimpson),
+    effectiveDateTime,
+    performer: [laboratory],
+    result: results.map((result) => createReference(result)),
+    ...overrides,
+  });
+
+export const readSearchRequest = (
+  medplum: MockClient,
+  resourceType: ResourceType,
+  query: QueryTypes,
+): SearchRequest =>
+  parseSearchRequest(medplum.fhirSearchUrl(resourceType, query));
+
+export const failSearches = (
+  medplum: MockClient,
+  shouldFail: (searchRequest: SearchRequest) => boolean,
+) =>
+  vi
+    .spyOn(medplum, "searchResources")
+    .mockImplementation(((resourceType, query, options) =>
+      shouldFail(readSearchRequest(medplum, resourceType, query))
+        ? Promise.reject(networkFailure())
+        : MockClient.prototype.searchResources.call(
+            medplum,
+            resourceType,
+            query,
+            options,
+          )) as typeof medplum.searchResources);
 
 export const interceptSearches = (
   medplum: MockClient,

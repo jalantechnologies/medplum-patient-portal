@@ -34,7 +34,12 @@ const RecordListTabs = <Summary extends RecordSummary>({
           <Banner
             kind={KIND.negative}
             action={{ label: "Try again", onClick: retryFailedTabs }}
-            overrides={{ Root: { props: { "aria-label": errorLabel } } }}
+            overrides={{
+              Root: { props: { "aria-label": errorLabel } },
+              TrailingButtonContainer: {
+                props: { "data-testid": `${errorTestIdentifier}-retry` },
+              },
+            }}
           >
             {failedTabs[0].error?.message}
           </Banner>

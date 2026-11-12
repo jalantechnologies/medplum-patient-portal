@@ -9,12 +9,14 @@ import {
   Medications,
   NotFound,
   SignIn,
+  TestResults,
 } from "../pages";
 import {
   AllergyIntoleranceProvider,
   AppointmentProvider,
   CarePlanProvider,
   ConditionProvider,
+  DiagnosticReportProvider,
   MedicationRequestProvider,
   ObservationProvider,
 } from "../providers";
@@ -57,6 +59,14 @@ export const routeObjects = [
               <MedicationRequestProvider>
                 <Medications />
               </MedicationRequestProvider>
+            ),
+          },
+          {
+            path: routes.TEST_RESULTS,
+            element: (
+              <DiagnosticReportProvider>
+                <TestResults />
+              </DiagnosticReportProvider>
             ),
           },
           {

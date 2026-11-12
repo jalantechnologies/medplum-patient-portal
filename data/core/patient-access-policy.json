@@ -23,6 +23,11 @@
       "interaction": ["search"]
     },
     {
+      "resourceType": "DiagnosticReport",
+      "criteria": "DiagnosticReport?patient=%patient",
+      "interaction": ["search"]
+    },
+    {
       "resourceType": "MedicationRequest",
       "criteria": "MedicationRequest?patient=%patient",
       "interaction": ["search"]

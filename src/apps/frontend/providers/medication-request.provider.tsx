@@ -4,30 +4,8 @@ import { useMedplumContext } from "@medplum/react-hooks";
 import { useMemo, type FC, type PropsWithChildren } from "react";
 
 import { MedicationRequestContext } from "../contexts";
-import { useAsynchronousResult } from "../hooks";
+import { useAsynchronousResult, useRecordSearch } from "../hooks";
 import { MedicationRequestService } from "../services";
-import type {
-  Nullable,
-  RecordSearch,
-  SearchPage,
-  ServiceResponse,
-} from "../types";
-
-type MedicationRequestPage = SearchPage<WithId<MedicationRequest>>;
-
-const useMedicationRequestSearch = (
-  listMedicationRequests: (
-    patientReference: string,
-    previousPage?: Nullable<MedicationRequestPage>,
-  ) => Promise<ServiceResponse<MedicationRequestPage>>,
-): RecordSearch<WithId<MedicationRequest>> => {
-  const { error, isLoading, isRequesting, load, result } =
-    useAsynchronousResult(listMedicationRequests);
-  return useMemo(
-    () => ({ error, isLoading, isRequesting, list: load, page: result }),
-    [error, isLoading, isRequesting, load, result],
-  );
-};
 
 export const MedicationRequestProvider: FC<PropsWithChildren> = ({
   children,
@@ -37,10 +15,10 @@ export const MedicationRequestProvider: FC<PropsWithChildren> = ({
     () => new MedicationRequestService(medplum),
     [medplum],
   );
-  const allMedicationRequests = useMedicationRequestSearch(
+  const allMedicationRequests = useRecordSearch<WithId<MedicationRequest>>(
     medicationRequestService.listMedicationRequests,
   );
-  const pastMedicationRequests = useMedicationRequestSearch(
+  const pastMedicationRequests = useRecordSearch<WithId<MedicationRequest>>(
     medicationRequestService.listPastMedicationRequests,
   );
 

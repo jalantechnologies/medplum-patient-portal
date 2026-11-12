@@ -4,6 +4,7 @@ const routes = {
   HOME: "/",
   MEDICATIONS: "/medications",
   SIGN_IN: "/sign-in",
+  TEST_RESULTS: "/test-results",
 };
 
 export const ROUTE_SEARCH_PARAMETER = {

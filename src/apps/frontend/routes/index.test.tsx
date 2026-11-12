@@ -394,21 +394,20 @@ describe("ApplicationRoutes", () => {
   });
 
   it.each([
-    ["Health profile", routes.HEALTH_PROFILE],
-    ["Medications", routes.MEDICATIONS],
-    ["Health records", routes.HEALTH_RECORDS],
+    ["Health profile", routes.HEALTH_PROFILE, "health-profile"],
+    ["Medications", routes.MEDICATIONS, "medications"],
+    ["Test results", routes.TEST_RESULTS, "test-results"],
+    ["Health records", routes.HEALTH_RECORDS, "health-records"],
   ])(
     "takes a patient to %s from the sidebar and marks it as the current page",
-    async (title, path) => {
+    async (_, path, pageTestIdentifier) => {
       const user = userEvent.setup();
       const router = renderRoutes(new MockClient({ profile: HomerSimpson }));
 
       const sidebar = await screen.findByTestId("sidebar");
       await user.click(getNavigationLink(sidebar, path));
 
-      expect(
-        await screen.findByRole("heading", { level: 1, name: title }),
-      ).toBeInTheDocument();
+      expect(await screen.findByTestId(pageTestIdentifier)).toBeInTheDocument();
       expect(router.state.location.pathname).toBe(path);
       expect(getNavigationLink(sidebar, path)).toHaveAttribute(
         "aria-current",
@@ -425,7 +424,13 @@ describe("ApplicationRoutes", () => {
       within(within(sidebar).getByTestId("sidebar-navigation"))
         .getAllByTestId("navigation-link")
         .map((link) => link.textContent),
-    ).toEqual(["Home", "Health profile", "Medications", "Health records"]);
+    ).toEqual([
+      "Home",
+      "Health profile",
+      "Medications",
+      "Test results",
+      "Health records",
+    ]);
   });
 
   it("takes a patient from Health profile to the Allergies tab of Health records, marked as the current page", async () => {
