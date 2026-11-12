@@ -9,6 +9,7 @@ const navigationItems = [
   { title: "Home", itemId: routes.HOME },
   { title: "Health profile", itemId: routes.HEALTH_PROFILE },
   { title: "Medications", itemId: routes.MEDICATIONS },
+  { title: "Test results", itemId: routes.TEST_RESULTS },
   { title: "Health records", itemId: routes.HEALTH_RECORDS },
 ];
 

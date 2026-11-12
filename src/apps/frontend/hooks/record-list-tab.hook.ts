@@ -11,15 +11,20 @@ import type {
 
 interface RecordListTabSource<
   Resource,
+  Page extends SearchPage<Resource>,
   Summary extends RecordSummary,
-> extends RecordSearch<Resource> {
+> extends RecordSearch<Resource, Page> {
   activeTabKey: Key;
   patientReference: string | undefined;
-  summarize: (resource: Resource) => Summary;
+  summarize: (resource: Resource, page: Page) => Summary;
   text: RecordListTabText;
 }
 
-const useRecordListTab = <Resource, Summary extends RecordSummary>({
+const useRecordListTab = <
+  Resource,
+  Page extends SearchPage<Resource>,
+  Summary extends RecordSummary,
+>({
   activeTabKey,
   error,
   isLoading,
@@ -29,9 +34,9 @@ const useRecordListTab = <Resource, Summary extends RecordSummary>({
   patientReference,
   summarize,
   text,
-}: RecordListTabSource<Resource, Summary>): RecordListTab<Summary> => {
+}: RecordListTabSource<Resource, Page, Summary>): RecordListTab<Summary> => {
   const listPage = useCallback(
-    async (previousPage: Nullable<SearchPage<Resource>>) => {
+    async (previousPage: Nullable<Page>) => {
       if (patientReference) {
         await Promise.allSettled([list(patientReference, previousPage)]);
       }
@@ -55,7 +60,9 @@ const useRecordListTab = <Resource, Summary extends RecordSummary>({
     isLoading,
     isRequesting,
     listMoreRecords: () => void listPage(page),
-    records: (page?.resources ?? []).map(summarize),
+    records: page
+      ? page.resources.map((resource) => summarize(resource, page))
+      : [],
     retry: () => listPage(page),
   };
 };

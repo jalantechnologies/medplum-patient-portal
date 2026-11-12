@@ -1,5 +1,6 @@
 import {
   AccessPolicyInteraction,
+  capitalize,
   createReference,
   getReferenceString,
   getSearchParameters,
@@ -16,6 +17,7 @@ import type {
   CodeSystem,
   CodeSystemConcept,
   Condition,
+  DiagnosticReport,
   MedicationRequest,
   Observation,
   Patient,
@@ -33,11 +35,17 @@ import {
   CARE_PLAN_INTENT,
   CARE_PLAN_STATUS,
   CODE_SYSTEM,
+  CODE_SYSTEM_CONCEPT_PROPERTY,
   CONDITION_CLINICAL_STATUS,
   CONDITION_VERIFICATION_STATUS,
+  DIAGNOSTIC_REPORT_STATUS,
+  IMAGING_SERVICE_SECTION,
+  LABORATORY_SERVICE_SECTION,
   MEDICATION_REQUEST_INTENT,
   MEDICATION_REQUEST_STATUS,
   OBSERVATION_CATEGORY,
+  OBSERVATION_INTERPRETATION,
+  OBSERVATION_INTERPRETATION_VERSION_TWO,
   OBSERVATION_STATUS,
   RESOURCE_TYPE,
   SEARCH_PARAMETER,
@@ -80,6 +88,81 @@ describe("CODE_SYSTEM", () => {
   it("names only observation categories that FHIR defines", () => {
     expect(listCodeSystemCodes(CODE_SYSTEM.OBSERVATION_CATEGORY)).toEqual(
       expect.arrayContaining(Object.values(OBSERVATION_CATEGORY)),
+    );
+  });
+
+  const listConcepts = (
+    concepts: CodeSystemConcept[] = [],
+  ): CodeSystemConcept[] =>
+    concepts.flatMap((concept) => [concept, ...listConcepts(concept.concept)]);
+
+  const listHl7Concepts = (fileName: string, system: string) =>
+    listConcepts(
+      (readJson(fileName) as Bundle<CodeSystem>).entry?.find(
+        (entry) => entry.resource?.url === system,
+      )?.resource?.concept,
+    );
+
+  const isSelectable = ({ property }: CodeSystemConcept) =>
+    !property?.some(
+      ({ code, valueBoolean }) =>
+        code === CODE_SYSTEM_CONCEPT_PROPERTY.NOT_SELECTABLE && valueBoolean,
+    );
+
+  const nameAsHl7Does = ({ code, display }: CodeSystemConcept) => ({
+    code,
+    display: capitalize(display ?? ""),
+  });
+
+  const sortByCode = <Interpretation extends { code: string }>(
+    interpretations: Interpretation[],
+  ) =>
+    interpretations.toSorted((first, second) =>
+      first.code.localeCompare(second.code),
+    );
+
+  it("names every observation interpretation HL7 version 3 defines, deprecated ones included, as HL7 names it, and only those", () => {
+    expect(sortByCode(Object.values(OBSERVATION_INTERPRETATION))).toEqual(
+      sortByCode(
+        listHl7Concepts(
+          "fhir/r4/v3-codesystems.json",
+          CODE_SYSTEM.OBSERVATION_INTERPRETATION,
+        )
+          .filter(isSelectable)
+          .map(nameAsHl7Does),
+      ),
+    );
+  });
+
+  it("names every observation interpretation of HL7 version 2 that version 3 lacks, as HL7 names it, and only those", () => {
+    const versionThreeCodes = new Set<string>(
+      Object.values(OBSERVATION_INTERPRETATION).map(({ code }) => code),
+    );
+
+    expect(
+      sortByCode(Object.values(OBSERVATION_INTERPRETATION_VERSION_TWO)),
+    ).toEqual(
+      sortByCode(
+        listHl7Concepts(
+          "fhir/r4/v2-tables.json",
+          CODE_SYSTEM.OBSERVATION_INTERPRETATION_VERSION_TWO,
+        )
+          .filter(({ code }) => !versionThreeCodes.has(code))
+          .map(nameAsHl7Does),
+      ),
+    );
+  });
+
+  it("names only diagnostic service sections that HL7 version 2 defines", () => {
+    const diagnosticServiceSectionCodes = listHl7Concepts(
+      "fhir/r4/v2-tables.json",
+      CODE_SYSTEM.DIAGNOSTIC_SERVICE_SECTION,
+    ).map(({ code }) => code);
+    expect(diagnosticServiceSectionCodes).toEqual(
+      expect.arrayContaining([
+        ...Object.values(LABORATORY_SERVICE_SECTION),
+        ...Object.values(IMAGING_SERVICE_SECTION),
+      ]),
     );
   });
 });
@@ -132,6 +215,12 @@ describe("patient access policy", () => {
     }),
     [RESOURCE_TYPE.CONDITION]: (patient): Condition => ({
       resourceType: RESOURCE_TYPE.CONDITION,
+      subject: patient,
+    }),
+    [RESOURCE_TYPE.DIAGNOSTIC_REPORT]: (patient): DiagnosticReport => ({
+      resourceType: RESOURCE_TYPE.DIAGNOSTIC_REPORT,
+      status: DIAGNOSTIC_REPORT_STATUS.FINAL,
+      code: { text: "Vitamin D" },
       subject: patient,
     }),
     [RESOURCE_TYPE.MEDICATION_REQUEST]: (patient): MedicationRequest => ({

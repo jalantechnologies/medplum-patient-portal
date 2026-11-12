@@ -4,6 +4,7 @@ import usePatientName from "./patient-name.hook";
 import useReader from "./reader.hook";
 import useRecordDetailColumns from "./record-detail-columns.hook";
 import useRecordListTab from "./record-list-tab.hook";
+import useRecordSearch from "./record-search.hook";
 
 export {
   useAsynchronous,
@@ -12,4 +13,5 @@ export {
   useReader,
   useRecordDetailColumns,
   useRecordListTab,
+  useRecordSearch,
 };

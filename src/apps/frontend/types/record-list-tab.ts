@@ -13,15 +13,18 @@ export interface RecordSummary {
   identifier: string;
 }
 
-export interface RecordSearch<Resource> {
+export interface RecordSearch<
+  Resource,
+  Page extends SearchPage<Resource> = SearchPage<Resource>,
+> {
   error: Nullable<AsynchronousOperationError>;
   isLoading: boolean;
   isRequesting: boolean;
   list: (
     patientReference: string,
-    previousPage?: Nullable<SearchPage<Resource>>,
+    previousPage?: Nullable<Page>,
   ) => Promise<unknown>;
-  page: Nullable<SearchPage<Resource>>;
+  page: Nullable<Page>;
 }
 
 export interface RecordListTab<

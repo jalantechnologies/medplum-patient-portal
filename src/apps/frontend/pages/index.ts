@@ -6,6 +6,7 @@ import Medications from "./medications/medications.page";
 import NotFound from "./not-found/not-found.page";
 import SessionLoading from "./session-loading/session-loading.page";
 import SignIn from "./sign-in/sign-in.page";
+import TestResults from "./test-results/test-results.page";
 
 export {
   ApplicationLayout,
@@ -16,4 +17,5 @@ export {
   NotFound,
   SessionLoading,
   SignIn,
+  TestResults,
 };
