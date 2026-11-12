@@ -73,4 +73,4 @@ Use synthetic data only: in code, tests, screenshots, issues and demos. Never pu
 
 ## License
 
-Not chosen yet. The repository stays private until its first public release, and the license is chosen before then.
+[Apache License 2.0](LICENSE), the license [Medplum](https://github.com/medplum/medplum) uses.
