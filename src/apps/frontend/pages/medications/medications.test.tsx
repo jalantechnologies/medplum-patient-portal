@@ -32,6 +32,7 @@ import {
   RESOURCE_TYPE,
   SEARCH_PARAMETER,
   SEARCH_VALUE_SEPARATOR,
+  TIMING_PERIOD_UNIT,
 } from "../../constants/fhir";
 import { MedicationRequestProvider } from "../../providers";
 import { createMedicationRequest } from "../../test-medplum";
@@ -172,6 +173,49 @@ describe("Medications", () => {
     expect(
       within(list).getAllByTestId(`${ALL_MEDICATIONS}-record`)[0].tagName,
     ).toBe("LI");
+  });
+
+  it("shows how much to take, how often and whether as needed when a prescription's instructions are coded", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createMedicationRequest(
+      medplum,
+      "Lisinopril 10 mg tablet",
+      "2026-10-20",
+      {
+        dosageInstruction: [
+          {
+            sequence: 1,
+            asNeededBoolean: false,
+            timing: {
+              repeat: {
+                frequency: 1,
+                period: 1,
+                periodUnit: TIMING_PERIOD_UNIT.DAY,
+              },
+            },
+            doseAndRate: [{ doseQuantity: { value: 1 } }],
+          },
+        ],
+      },
+    );
+    await createMedicationRequest(medplum, "Albuterol inhaler", "2026-10-19", {
+      dosageInstruction: [{ sequence: 1, asNeededBoolean: true }],
+    });
+    await createMedicationRequest(
+      medplum,
+      "Triamcinolone 0.1% cream",
+      "2026-10-18",
+      { dosageInstruction: [{ timing: { code: { text: "Twice a day" } } }] },
+    );
+
+    renderMedications(medplum);
+
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    expect(listMedicationTexts(list, ALL_MEDICATIONS)).toEqual([
+      "Lisinopril 10 mg tabletDr. Mira SyntheticActiveDose: 1 · DailyPrescribedOctober 20, 2026",
+      "Albuterol inhalerDr. Mira SyntheticActiveAs neededPrescribedOctober 19, 2026",
+      "Triamcinolone 0.1% creamDr. Mira SyntheticActiveTwice a dayPrescribedOctober 18, 2026",
+    ]);
   });
 
   it("lists prescriptions with no date after the dated ones", async () => {

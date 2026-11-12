@@ -1,9 +1,16 @@
-import { formatTiming, type WithId } from "@medplum/core";
+import {
+  formatQuantity,
+  formatRange,
+  formatTiming,
+  type WithId,
+} from "@medplum/core";
 import type {
   Dosage,
+  DosageDoseAndRate,
   Medication,
   MedicationRequest,
   Resource,
+  Timing,
 } from "@medplum/fhirtypes";
 
 import {
@@ -27,17 +34,48 @@ export interface MedicationSummary {
 }
 
 const SEQUENCE_WHEN_MISSING = Number.MAX_SAFE_INTEGER;
+const INSTRUCTION_PART_SEPARATOR = " · ";
 
 const compareDosageSequence = (first: Dosage, second: Dosage) =>
   (first.sequence ?? SEQUENCE_WHEN_MISSING) -
   (second.sequence ?? SEQUENCE_WHEN_MISSING);
 
-const describeDosage = ({
-  patientInstruction,
-  text,
-  timing,
-}: Dosage): string[] => {
-  const instruction = patientInstruction || text || formatTiming(timing);
+const formatDose = ({ doseQuantity, doseRange }: DosageDoseAndRate): string =>
+  formatQuantity(doseQuantity) || formatRange(doseRange);
+
+const describeDose = (doseAndRate: DosageDoseAndRate[] | undefined): string => {
+  const dose = doseAndRate?.map(formatDose).find(Boolean);
+  return dose ? `Dose: ${dose}` : "";
+};
+
+const describeTiming = (timing: Timing | undefined): string =>
+  timing?.code?.text ||
+  formatTiming(timing) ||
+  nameCodeableConcept(timing?.code);
+
+const describeAsNeeded = ({
+  asNeededBoolean,
+  asNeededCodeableConcept,
+}: Dosage): string => {
+  if (asNeededCodeableConcept) {
+    const reason = nameCodeableConcept(asNeededCodeableConcept);
+    return reason ? `As needed for ${reason}` : "As needed";
+  }
+  return asNeededBoolean ? "As needed" : "";
+};
+
+const describeCodedDosage = (dosage: Dosage): string =>
+  [
+    describeDose(dosage.doseAndRate),
+    describeTiming(dosage.timing),
+    describeAsNeeded(dosage),
+  ]
+    .filter(Boolean)
+    .join(INSTRUCTION_PART_SEPARATOR);
+
+const describeDosage = (dosage: Dosage): string[] => {
+  const instruction =
+    dosage.patientInstruction || dosage.text || describeCodedDosage(dosage);
   return instruction ? [instruction] : [];
 };
 

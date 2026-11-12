@@ -1,5 +1,5 @@
 import { createReference } from "@medplum/core";
-import type { Medication, MedicationRequest } from "@medplum/fhirtypes";
+import type { Dosage, Medication, MedicationRequest } from "@medplum/fhirtypes";
 import { HomerSimpson } from "@medplum/mock";
 import { describe, expect, it } from "vitest";
 
@@ -95,7 +95,7 @@ describe("summarizeMedicationRequest", () => {
     expect(summarize(overrides).title).toBe(title);
   });
 
-  it("prefers the instructions written for the patient, then the clinic's text, then the timing, with one line for each dosage", () => {
+  it("prefers the instructions written for the patient, then the clinic's text, then its coded parts, with one line for each dosage", () => {
     expect(
       summarize({
         dosageInstruction: [
@@ -120,7 +120,143 @@ describe("summarizeMedicationRequest", () => {
       "Apply a thin layer twice a day.",
       "Then once a day for 7 days.",
       "2 times per day",
+      "Dose: 1",
     ]);
+  });
+
+  it.each<[string, Dosage, string]>([
+    [
+      "by its dose and how often, as Synthea codes them",
+      {
+        sequence: 1,
+        asNeededBoolean: false,
+        timing: {
+          repeat: {
+            frequency: 1,
+            period: 1,
+            periodUnit: TIMING_PERIOD_UNIT.DAY,
+          },
+        },
+        doseAndRate: [{ doseQuantity: { value: 1 } }],
+      },
+      "Dose: 1 · Daily",
+    ],
+    [
+      "by its dose with its unit, how often and the reason to take it as needed",
+      {
+        timing: {
+          repeat: {
+            frequency: 2,
+            period: 1,
+            periodUnit: TIMING_PERIOD_UNIT.DAY,
+          },
+        },
+        asNeededCodeableConcept: { text: "shortness of breath" },
+        doseAndRate: [{ doseQuantity: { value: 2, unit: "puff" } }],
+      },
+      "Dose: 2 puff · 2 times per day · As needed for shortness of breath",
+    ],
+    [
+      "as needed, when that is all it says",
+      { asNeededBoolean: true },
+      "As needed",
+    ],
+    [
+      "as needed, when the reason's code has no name",
+      { asNeededCodeableConcept: { coding: [{ code: "267036007" }] } },
+      "As needed",
+    ],
+    [
+      "by its range of doses",
+      {
+        doseAndRate: [
+          {
+            doseRange: {
+              low: { value: 1, unit: "tablet" },
+              high: { value: 2, unit: "tablet" },
+            },
+          },
+        ],
+      },
+      "Dose: 1 - 2 tablet",
+    ],
+    [
+      "by the first entry that gives a dose",
+      {
+        doseAndRate: [
+          { rateQuantity: { value: 5, unit: "mL/h" } },
+          { doseQuantity: { value: 10, unit: "mg" } },
+          { doseQuantity: { value: 20, unit: "mg" } },
+        ],
+      },
+      "Dose: 10 mg",
+    ],
+    [
+      "by its timing's code, when the timing has only a code",
+      { timing: { code: { text: "Twice a day" } } },
+      "Twice a day",
+    ],
+    [
+      "by the name of its timing's code, when the code has no text",
+      {
+        timing: { code: { coding: [{ code: "2XD", display: "Twice a day" }] } },
+      },
+      "Twice a day",
+    ],
+    [
+      "by its timing code's text, when the timing also has a repeat",
+      {
+        timing: {
+          code: { text: "Every morning before breakfast" },
+          repeat: {
+            frequency: 1,
+            period: 1,
+            periodUnit: TIMING_PERIOD_UNIT.DAY,
+          },
+        },
+      },
+      "Every morning before breakfast",
+    ],
+    [
+      "by its timing's repeat, when the timing's code has no text",
+      {
+        timing: {
+          code: { coding: [{ code: "BID", display: "BID" }] },
+          repeat: {
+            frequency: 2,
+            period: 1,
+            periodUnit: TIMING_PERIOD_UNIT.DAY,
+          },
+        },
+      },
+      "2 times per day",
+    ],
+    [
+      "by the clinic's text alone, when it also has coded parts",
+      {
+        text: "Take 1 tablet by mouth daily.",
+        timing: {
+          repeat: {
+            frequency: 1,
+            period: 1,
+            periodUnit: TIMING_PERIOD_UNIT.DAY,
+          },
+        },
+        doseAndRate: [{ doseQuantity: { value: 1, unit: "tablet" } }],
+      },
+      "Take 1 tablet by mouth daily.",
+    ],
+  ])("words the dosage %s", (_, dosage, instruction) => {
+    expect(summarize({ dosageInstruction: [dosage] }).instructions).toEqual([
+      instruction,
+    ]);
+  });
+
+  it("gives no line for a dosage that only says it is not taken as needed", () => {
+    expect(
+      summarize({ dosageInstruction: [{ asNeededBoolean: false }] })
+        .instructions,
+    ).toEqual([]);
   });
 
   it("lists the dosages in the order their sequence gives, and those with no sequence last", () => {
