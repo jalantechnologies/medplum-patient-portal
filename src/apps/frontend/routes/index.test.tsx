@@ -6,12 +6,12 @@ import {
   unauthorized,
   type LoginState,
 } from "@medplum/core";
-import type { Bundle, Patient } from "@medplum/fhirtypes";
+import type { Bundle, Dosage, Patient } from "@medplum/fhirtypes";
 import { DrAliceSmith, HomerSimpson, MockClient } from "@medplum/mock";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createMemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { createMemoryRouter, type InitialEntry } from "react-router";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import constant from "../constants";
 import routes from "../constants/routes";
@@ -19,6 +19,7 @@ import { CARE_PLAN_STATUS, RESOURCE_TYPE } from "../constants/fhir";
 import { AuthenticationProvider } from "../providers";
 import {
   createCarePlan,
+  createMedicationRequest,
   interceptSearches,
   networkFailure,
 } from "../test-medplum";
@@ -26,7 +27,7 @@ import { TestProviders } from "../test-providers";
 import { ApplicationRoutes } from "./index";
 import { routeObjects } from "./route-objects";
 
-const renderRoutes = (medplum: MockClient, path = "/") => {
+const renderRoutes = (medplum: MockClient, path: InitialEntry = "/") => {
   const router = createMemoryRouter(routeObjects, { initialEntries: [path] });
   render(
     <TestProviders medplum={medplum}>
@@ -101,6 +102,67 @@ const recordWhetherNextClickIsLeftToTheBrowser = () => {
   );
   return record;
 };
+
+const UNREADABLE_PRESCRIPTION_FAILURE = "toSorted is not a function";
+
+const UNREADABLE_NAME_FAILURE = "Synthetic failure";
+
+const createPrescriptionThatCannotBeDrawn = (medplum: MockClient) =>
+  createMedicationRequest(medplum, "Synthetic amoxicillin", "2026-11-01", {
+    dosageInstruction: {
+      text: "Take one tablet by mouth",
+    } as unknown as Dosage[],
+  });
+
+const correctPrescription = (
+  medplum: MockClient,
+  prescription: Awaited<ReturnType<typeof createPrescriptionThatCannotBeDrawn>>,
+) =>
+  medplum.updateResource({
+    ...prescription,
+    dosageInstruction: [{ text: "Take one tablet by mouth every 8 hours" }],
+  });
+
+const createPatientWithUnreadableName = () => {
+  const reading = { isNameReadable: false };
+  const patient = Object.defineProperty({ ...HomerSimpson }, "name", {
+    get: () => {
+      if (!reading.isNameReadable) {
+        throw new Error(UNREADABLE_NAME_FAILURE);
+      }
+      return HomerSimpson.name;
+    },
+  });
+  return { patient, reading };
+};
+
+const silenceExpectedRenderError = (expectedFailure: string) => {
+  const writeError = console.error.bind(console);
+  const isExpectedError = (value: unknown) =>
+    value instanceof Error && value.message.includes(expectedFailure);
+  const isReactBoundaryReport = (value: unknown) =>
+    String(value).startsWith("The above error occurred in the");
+  const keepFromReport = (event: ErrorEvent) => {
+    if (isExpectedError(event.error)) {
+      event.preventDefault();
+    }
+  };
+  vi.spyOn(console, "error").mockImplementation((...messages: unknown[]) => {
+    if (
+      !messages.some(isExpectedError) &&
+      !isReactBoundaryReport(messages[0])
+    ) {
+      writeError(...messages);
+    }
+  });
+  window.addEventListener("error", keepFromReport);
+  onTestFinished(() => window.removeEventListener("error", keepFromReport));
+};
+
+const listPrescriptionTitles = async () =>
+  within(await screen.findByTestId("all-medications-list"))
+    .getAllByRole("heading", { level: 2 })
+    .map((heading) => heading.textContent);
 
 const createScreenWidth = () =>
   Object.assign(new EventTarget(), {
@@ -741,5 +803,130 @@ describe("ApplicationRoutes", () => {
       "aria-expanded",
       "false",
     );
+  });
+
+  it("keeps the navigation on screen and tells the patient when a page fails while it draws", async () => {
+    silenceExpectedRenderError(UNREADABLE_PRESCRIPTION_FAILURE);
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createPrescriptionThatCannotBeDrawn(medplum);
+
+    renderRoutes(medplum, routes.MEDICATIONS);
+
+    const pageError = await screen.findByTestId("page-error");
+    expect(pageError).toHaveAttribute("role", "alert");
+    expect(
+      within(pageError).getByRole("heading", { level: 1 }),
+    ).toHaveTextContent("Something went wrong");
+    expect(screen.getByRole("main")).toContainElement(pageError);
+    expect(
+      getNavigationLink(screen.getByTestId("sidebar"), routes.MEDICATIONS),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
+  it("takes a patient from a page that failed to another page through the navigation", async () => {
+    silenceExpectedRenderError(UNREADABLE_PRESCRIPTION_FAILURE);
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createPrescriptionThatCannotBeDrawn(medplum);
+    renderRoutes(medplum, routes.MEDICATIONS);
+    await screen.findByTestId("page-error");
+
+    await user.click(
+      getNavigationLink(screen.getByTestId("sidebar"), routes.HOME),
+    );
+
+    expect(await screen.findByTestId("home-greeting")).toBeInTheDocument();
+    expect(screen.queryByTestId("page-error")).not.toBeInTheDocument();
+  });
+
+  it("draws the page again in place when the patient tries again", async () => {
+    silenceExpectedRenderError(UNREADABLE_PRESCRIPTION_FAILURE);
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const prescription = await createPrescriptionThatCannotBeDrawn(medplum);
+    const historyState = { openedFrom: "synthetic-link" };
+    const router = renderRoutes(medplum, {
+      pathname: routes.MEDICATIONS,
+      state: historyState,
+    });
+    await screen.findByTestId("page-error");
+
+    await correctPrescription(medplum, prescription);
+    await user.click(screen.getByTestId("page-error-retry"));
+
+    expect(await listPrescriptionTitles()).toEqual(["Synthetic amoxicillin"]);
+    expect(screen.queryByTestId("page-error")).not.toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(routes.MEDICATIONS);
+    expect(router.state.location.state).toEqual(historyState);
+    expect(router.state.historyAction).toBe("REPLACE");
+  });
+
+  it("shows a page that failed once the patient comes back to it and it can be drawn", async () => {
+    silenceExpectedRenderError(UNREADABLE_PRESCRIPTION_FAILURE);
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const prescription = await createPrescriptionThatCannotBeDrawn(medplum);
+    renderRoutes(medplum, routes.MEDICATIONS);
+    await screen.findByTestId("page-error");
+    const sidebar = screen.getByTestId("sidebar");
+    await user.click(getNavigationLink(sidebar, routes.HOME));
+    await screen.findByTestId("home-greeting");
+
+    await correctPrescription(medplum, prescription);
+    await user.click(getNavigationLink(sidebar, routes.MEDICATIONS));
+
+    expect(await listPrescriptionTitles()).toEqual(["Synthetic amoxicillin"]);
+    expect(screen.queryByTestId("page-error")).not.toBeInTheDocument();
+  });
+
+  it("shows the error on a screen of its own when the app around the page fails", async () => {
+    silenceExpectedRenderError(UNREADABLE_NAME_FAILURE);
+    const { patient } = createPatientWithUnreadableName();
+
+    renderRoutes(new MockClient({ profile: patient }));
+
+    const applicationError = await screen.findByTestId("application-error");
+    expect(screen.getByRole("main")).toBe(applicationError);
+    expect(
+      within(applicationError).getByRole("heading", { level: 1 }),
+    ).toHaveTextContent("Something went wrong");
+    expect(within(applicationError).getByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByTestId("sidebar")).not.toBeInTheDocument();
+  });
+
+  it("draws the app again when the patient tries again after the app around the page failed", async () => {
+    silenceExpectedRenderError(UNREADABLE_NAME_FAILURE);
+    const user = userEvent.setup();
+    const { patient, reading } = createPatientWithUnreadableName();
+    renderRoutes(new MockClient({ profile: patient }));
+    const applicationError = await screen.findByTestId("application-error");
+
+    reading.isNameReadable = true;
+    await user.click(within(applicationError).getByTestId("page-error-retry"));
+
+    expect(await screen.findByTestId("home-greeting")).toHaveTextContent(
+      "Hello, Homer",
+    );
+    expect(screen.queryByTestId("application-error")).not.toBeInTheDocument();
+  });
+
+  it("lets a signed-in patient sign out from the screen shown when the app around the page fails", async () => {
+    silenceExpectedRenderError(UNREADABLE_NAME_FAILURE);
+    const user = userEvent.setup();
+    const { patient } = createPatientWithUnreadableName();
+    const medplum = new MockClient({ profile: patient });
+    vi.spyOn(medplum, "signOut").mockImplementation(async () => {
+      medplum.mock.setProfile(undefined);
+    });
+    const router = renderRoutes(medplum);
+    const applicationError = await screen.findByTestId("application-error");
+
+    await user.click(
+      within(applicationError).getByTestId("application-error-sign-out"),
+    );
+
+    expect(await screen.findByTestId("email")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(routes.SIGN_IN);
+    expect(screen.queryByTestId("application-error")).not.toBeInTheDocument();
   });
 });
