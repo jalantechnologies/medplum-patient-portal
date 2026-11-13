@@ -316,6 +316,79 @@ describe("Health records", () => {
     );
   });
 
+  it("marks an allergy the clinician ruled out as ruled out, in the list and in its record, though it is still coded active", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2024-03-12",
+    );
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Amoxicillin" },
+      "2024-03-13",
+      {
+        verificationStatus: codeFrom(
+          CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
+          ALLERGY_INTOLERANCE_VERIFICATION_STATUS.REFUTED,
+        ),
+      },
+    );
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "allergies");
+
+    const rows = await within(panel).findAllByTestId("allergies-record");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "AmoxicillinMarch 13, 2024Dr. Mira SyntheticRuled outView record",
+      "PenicillinMarch 12, 2024Dr. Mira SyntheticActiveView record",
+    ]);
+
+    await user.click(within(rows[0]).getByTestId("allergies-record-view"));
+    const dialog = await screen.findByTestId("health-record-dialog");
+    expect(dialog).toHaveTextContent("Ruled out");
+    expect(dialog).not.toHaveTextContent("Active");
+    expect(
+      within(dialog).getByTestId("health-record-details"),
+    ).toHaveTextContent(
+      "PatientHomer SimpsonDateMarch 13, 2024VerificationRefutedAuthorDr. Mira Synthetic",
+    );
+  });
+
+  it("marks a condition the clinician ruled out as ruled out, in the list and in its record, though it is still coded active", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createCondition(medplum, "Eczema", "2026-10-20");
+    await createCondition(medplum, "Asthma", "2026-10-21", {
+      verificationStatus: codeFrom(
+        CODE_SYSTEM.CONDITION_VERIFICATION,
+        CONDITION_VERIFICATION_STATUS.REFUTED,
+      ),
+    });
+
+    renderHealthRecords(medplum);
+
+    const rows = within(
+      await screen.findByTestId("conditions-list"),
+    ).getAllByTestId("conditions-record");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "AsthmaOctober 21, 2026Dr. Mira SyntheticRuled outView record",
+      "EczemaOctober 20, 2026Dr. Mira SyntheticActiveView record",
+    ]);
+
+    await user.click(within(rows[0]).getByTestId("conditions-record-view"));
+    const dialog = await screen.findByTestId("health-record-dialog");
+    expect(dialog).toHaveTextContent("Ruled out");
+    expect(dialog).not.toHaveTextContent("Active");
+    expect(
+      within(dialog).getByTestId("health-record-details"),
+    ).toHaveTextContent(
+      "PatientHomer SimpsonDateOctober 21, 2026VerificationRefutedAuthorDr. Mira Synthetic",
+    );
+  });
+
   it("lists vital signs as measurements and leaves out laboratory results", async () => {
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });

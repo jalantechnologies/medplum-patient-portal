@@ -3,7 +3,16 @@ import type { CodeableConcept } from "@medplum/fhirtypes";
 import { HomerSimpson } from "@medplum/mock";
 import { describe, expect, it } from "vitest";
 
-import { OBSERVATION_STATUS, RESOURCE_TYPE } from "../../constants/fhir";
+import {
+  ALLERGY_INTOLERANCE_CLINICAL_STATUS,
+  ALLERGY_INTOLERANCE_VERIFICATION_STATUS,
+  CODE_SYSTEM,
+  CONDITION_CLINICAL_STATUS,
+  CONDITION_VERIFICATION_STATUS,
+  OBSERVATION_STATUS,
+  RESOURCE_TYPE,
+} from "../../constants/fhir";
+import { codeFrom } from "../../test-medplum";
 import {
   summarizeAllergyIntolerance,
   summarizeCondition,
@@ -11,6 +20,53 @@ import {
 } from "./health-record-summary";
 
 const homer = createReference(HomerSimpson);
+
+const clinicVerification = {
+  system: "http://example.org/clinic-verification",
+  code: "disproven-by-challenge",
+};
+
+const codedAlsoElsewhere = (system: string, code: string): CodeableConcept => ({
+  coding: [clinicVerification, { system, code }],
+});
+
+const summarizeAllergyStatus = (
+  clinicalStatus: CodeableConcept | undefined,
+  verificationStatus: CodeableConcept | undefined,
+) =>
+  summarizeAllergyIntolerance({
+    resourceType: RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+    id: "amoxicillin",
+    patient: homer,
+    code: { text: "Amoxicillin" },
+    clinicalStatus,
+    verificationStatus,
+  });
+
+const summarizeConditionStatus = (
+  clinicalStatus: CodeableConcept | undefined,
+  verificationStatus: CodeableConcept | undefined,
+) =>
+  summarizeCondition({
+    resourceType: RESOURCE_TYPE.CONDITION,
+    id: "asthma",
+    subject: homer,
+    code: { text: "Asthma" },
+    clinicalStatus,
+    verificationStatus,
+  });
+
+const allergyClinical = (code: string) =>
+  codeFrom(CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL, code);
+
+const allergyVerification = (code: string) =>
+  codeFrom(CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION, code);
+
+const conditionClinical = (code: string) =>
+  codeFrom(CODE_SYSTEM.CONDITION_CLINICAL, code);
+
+const conditionVerification = (code: string) =>
+  codeFrom(CODE_SYSTEM.CONDITION_VERIFICATION, code);
 
 describe("naming a health record", () => {
   const multiplyCoded: CodeableConcept = {
@@ -81,4 +137,126 @@ describe("summarizeVitalSign", () => {
       }).status,
     ).toBe(words);
   });
+});
+
+describe("summarizeAllergyIntolerance", () => {
+  it.each([
+    [
+      "an active one",
+      allergyClinical(ALLERGY_INTOLERANCE_CLINICAL_STATUS.ACTIVE),
+      allergyVerification(ALLERGY_INTOLERANCE_VERIFICATION_STATUS.REFUTED),
+    ],
+    [
+      "a resolved one",
+      allergyClinical(ALLERGY_INTOLERANCE_CLINICAL_STATUS.RESOLVED),
+      allergyVerification(ALLERGY_INTOLERANCE_VERIFICATION_STATUS.REFUTED),
+    ],
+    [
+      "one with no clinical status",
+      undefined,
+      allergyVerification(ALLERGY_INTOLERANCE_VERIFICATION_STATUS.REFUTED),
+    ],
+    [
+      "one whose verification is also coded in another system first",
+      allergyClinical(ALLERGY_INTOLERANCE_CLINICAL_STATUS.ACTIVE),
+      codedAlsoElsewhere(
+        CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
+        ALLERGY_INTOLERANCE_VERIFICATION_STATUS.REFUTED,
+      ),
+    ],
+  ])(
+    "words an allergy the clinician ruled out as ruled out, even %s",
+    (_, clinicalStatus, verificationStatus) => {
+      const summary = summarizeAllergyStatus(
+        clinicalStatus,
+        verificationStatus,
+      );
+
+      expect(summary.status).toBe("Ruled out");
+      expect(summary.verification).toBe("Refuted");
+    },
+  );
+
+  it.each([
+    [
+      "unconfirmed",
+      allergyVerification(ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED),
+    ],
+    [
+      "confirmed",
+      allergyVerification(ALLERGY_INTOLERANCE_VERIFICATION_STATUS.CONFIRMED),
+    ],
+    ["not given", undefined],
+  ])(
+    "words an allergy by its clinical status when its verification is %s",
+    (_, verificationStatus) => {
+      expect(
+        summarizeAllergyStatus(
+          allergyClinical(ALLERGY_INTOLERANCE_CLINICAL_STATUS.ACTIVE),
+          verificationStatus,
+        ).status,
+      ).toBe("Active");
+    },
+  );
+});
+
+describe("summarizeCondition", () => {
+  it.each([
+    [
+      "an active one",
+      conditionClinical(CONDITION_CLINICAL_STATUS.ACTIVE),
+      conditionVerification(CONDITION_VERIFICATION_STATUS.REFUTED),
+    ],
+    [
+      "an inactive one",
+      conditionClinical(CONDITION_CLINICAL_STATUS.INACTIVE),
+      conditionVerification(CONDITION_VERIFICATION_STATUS.REFUTED),
+    ],
+    [
+      "one with no clinical status",
+      undefined,
+      conditionVerification(CONDITION_VERIFICATION_STATUS.REFUTED),
+    ],
+    [
+      "one whose verification is also coded in another system first",
+      conditionClinical(CONDITION_CLINICAL_STATUS.ACTIVE),
+      codedAlsoElsewhere(
+        CODE_SYSTEM.CONDITION_VERIFICATION,
+        CONDITION_VERIFICATION_STATUS.REFUTED,
+      ),
+    ],
+  ])(
+    "words a condition the clinician ruled out as ruled out, even %s",
+    (_, clinicalStatus, verificationStatus) => {
+      const summary = summarizeConditionStatus(
+        clinicalStatus,
+        verificationStatus,
+      );
+
+      expect(summary.status).toBe("Ruled out");
+      expect(summary.verification).toBe("Refuted");
+    },
+  );
+
+  it.each([
+    [
+      "provisional",
+      conditionVerification(CONDITION_VERIFICATION_STATUS.PROVISIONAL),
+    ],
+    [
+      "confirmed",
+      conditionVerification(CONDITION_VERIFICATION_STATUS.CONFIRMED),
+    ],
+    ["not given", undefined],
+  ])(
+    "words a condition by its clinical status when its verification is %s",
+    (_, verificationStatus) => {
+      expect(
+        summarizeConditionStatus(
+          conditionClinical(CONDITION_CLINICAL_STATUS.ACTIVE),
+          verificationStatus,
+        ).status,
+      ).toBe("Active");
+    },
+  );
 });
