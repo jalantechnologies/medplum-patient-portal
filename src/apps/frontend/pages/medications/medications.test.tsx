@@ -424,6 +424,9 @@ describe("Medications", () => {
     expect(
       screen.queryByTestId(`${ALL_MEDICATIONS}-more`),
     ).not.toBeInTheDocument();
+    expect(screen.getByTestId(`${ALL_MEDICATIONS}-status`).textContent).toBe(
+      `${prescriptionCount} records shown`,
+    );
   });
 
   it("shows an error and marks the tab that could not be read", async () => {
@@ -586,7 +589,7 @@ describe("Medications", () => {
     );
   });
 
-  it("tells a screen reader when a tab's prescriptions arrive", async () => {
+  it("tells a screen reader how many prescriptions arrived, without reading them out", async () => {
     const medplum = new MockClient({ profile: HomerSimpson });
     await createMedicationRequest(
       medplum,
@@ -596,13 +599,13 @@ describe("Medications", () => {
 
     renderMedications(medplum);
 
-    const content = screen.getByTestId(`${ALL_MEDICATIONS}-content`);
-    expect(content).toHaveAttribute("aria-live", "polite");
-    expect(
-      within(content).getByTestId(`${ALL_MEDICATIONS}-loading`),
-    ).toBeVisible();
-    expect(
-      await within(content).findByTestId(`${ALL_MEDICATIONS}-list`),
-    ).toBeInTheDocument();
+    const status = screen.getByTestId(`${ALL_MEDICATIONS}-status`);
+    expect(status).toHaveAttribute("role", "status");
+    expect(status).toHaveTextContent("Loading…");
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    expect(screen.getByTestId(`${ALL_MEDICATIONS}-status`)).toBe(status);
+    expect(status.textContent).toBe("1 record shown");
+    expect(status).not.toContainElement(list);
+    expect(list).toBeVisible();
   });
 });

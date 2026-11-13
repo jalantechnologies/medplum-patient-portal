@@ -759,6 +759,9 @@ describe("Test results", () => {
     expect(
       screen.queryByTestId(`${LABORATORY_RESULTS}-more`),
     ).not.toBeInTheDocument();
+    expect(screen.getByTestId(`${LABORATORY_RESULTS}-status`).textContent).toBe(
+      `${reportCount} records shown`,
+    );
   });
 
   it("shows a full page of reports with ten results each", async () => {
@@ -1125,19 +1128,26 @@ describe("Test results", () => {
     );
   });
 
-  it("tells a screen reader when a tab's reports arrive", async () => {
-    const medplum = new MockClient({ profile: HomerSimpson });
-    await createDiagnosticReport(medplum, "Vitamin D", "2026-10-18", []);
+  it("tells a screen reader how many reports arrived, without reading the reports or their results out", async () => {
+    const medplum = await createMedplumWithoutSampleReport();
+    const vitaminD = await createReportResult(medplum, "Vitamin D", {
+      valueQuantity: { value: 24, unit: "ng/mL" },
+    });
+    await createDiagnosticReport(medplum, "Vitamin D", "2026-10-18", [
+      vitaminD,
+    ]);
 
     renderTestResults(medplum);
 
-    const content = screen.getByTestId(`${LABORATORY_RESULTS}-content`);
-    expect(content).toHaveAttribute("aria-live", "polite");
+    const status = screen.getByTestId(`${LABORATORY_RESULTS}-status`);
+    expect(status).toHaveAttribute("role", "status");
+    expect(status).toHaveTextContent("Loading…");
+    const list = await screen.findByTestId(`${LABORATORY_RESULTS}-list`);
+    expect(screen.getByTestId(`${LABORATORY_RESULTS}-status`)).toBe(status);
+    expect(status.textContent).toBe("1 record shown");
+    expect(status).not.toContainElement(list);
     expect(
-      within(content).getByTestId(`${LABORATORY_RESULTS}-loading`),
-    ).toBeVisible();
-    expect(
-      await within(content).findByTestId(`${LABORATORY_RESULTS}-list`),
+      await within(list).findByTestId(`${LABORATORY_RESULTS}-record-results`),
     ).toBeVisible();
   });
 });

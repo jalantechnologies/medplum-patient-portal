@@ -854,18 +854,114 @@ describe("Health records", () => {
     }
   });
 
-  it("tells a screen reader when a tab's records arrive", async () => {
+  it("tells a screen reader how many records arrived, without reading the records out", async () => {
     const medplum = new MockClient({ profile: HomerSimpson });
     await createCondition(medplum, "Eczema", "2026-10-20");
 
     renderHealthRecords(medplum);
 
-    const content = screen.getByTestId("conditions-content");
-    expect(content).toHaveAttribute("aria-live", "polite");
-    expect(within(content).getByTestId("conditions-loading")).toBeVisible();
+    const status = screen.getByTestId("conditions-status");
+    expect(status).toHaveAttribute("role", "status");
+    expect(status).toHaveTextContent("Loading…");
+    const list = await screen.findByTestId("conditions-list");
+    expect(screen.getByTestId("conditions-status")).toBe(status);
+    expect(status.textContent).toBe("1 record shown");
+    expect(status).not.toContainElement(list);
+    expect(list).toBeVisible();
+  });
+
+  it("tells a screen reader how many records are shown after the patient asks for more, and keeps the count when the next page cannot be read", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const conditionCount = constant.SEARCH_PAGE_SIZE + 1;
+    for (let index = 0; index < conditionCount; index += 1) {
+      await createCondition(
+        medplum,
+        `Condition ${index + 1}`,
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+      );
+    }
+    let isRecordReachable = true;
+    failSearches(medplum, () => !isRecordReachable);
+
+    renderHealthRecords(medplum);
+    const list = await screen.findByTestId("conditions-list");
+    const status = screen.getByTestId("conditions-status");
+    expect(status.textContent).toBe(
+      `${constant.SEARCH_PAGE_SIZE} records shown`,
+    );
+    isRecordReachable = false;
+    await user.click(screen.getByTestId("conditions-more"));
+
+    const error = await screen.findByTestId("health-records-error");
+    expect(error).toHaveAttribute("role", "alert");
+    expect(status.textContent).toBe(
+      `${constant.SEARCH_PAGE_SIZE} records shown`,
+    );
+    isRecordReachable = true;
+    await user.click(
+      within(screen.getByTestId("health-records-error-retry")).getByRole(
+        "button",
+      ),
+    );
+
+    await waitFor(() =>
+      expect(status.textContent).toBe(`${conditionCount} records shown`),
+    );
+    expect(status).not.toContainElement(list);
+  });
+
+  it("tells a screen reader that a tab could not be read, or has nothing in it", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    failSearches(
+      medplum,
+      (resourceType) => resourceType === RESOURCE_TYPE.CONDITION,
+    );
+
+    renderHealthRecords(medplum);
+
     expect(
-      await within(content).findByTestId("conditions-list"),
-    ).toBeInTheDocument();
+      await within(screen.getByTestId("conditions-status")).findByTestId(
+        "conditions-unavailable",
+      ),
+    ).toHaveTextContent("Could not load");
+    const panel = await openTab(user, "allergies");
+    expect(
+      await within(within(panel).getByTestId("allergies-status")).findByTestId(
+        "allergies-empty",
+      ),
+    ).toHaveTextContent("No allergies available");
+  });
+
+  it("shows the status with its count already in it when the patient comes back to a tab that was read, so a screen reader hears nothing new", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createCondition(medplum, "Eczema", "2026-10-20");
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-list");
+    await within(await openTab(user, "allergies")).findByTestId(
+      "allergies-empty",
+    );
+    const panel = screen.getByTestId("conditions-panel");
+    const changes: MutationRecord[] = [];
+    const observer = new MutationObserver((records) =>
+      changes.push(...records),
+    );
+    observer.observe(panel, {
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+    await openTab(user, "conditions");
+    changes.push(...observer.takeRecords());
+    observer.disconnect();
+
+    const status = within(panel).getByTestId("conditions-status");
+    expect(status.textContent).toBe("1 record shown");
+    expect(changes.filter(({ target }) => status.contains(target))).toEqual([]);
+    expect(within(panel).getByTestId("conditions-list")).toBeVisible();
   });
 
   it("opens the tab named in the address and reads only that tab's records", async () => {
