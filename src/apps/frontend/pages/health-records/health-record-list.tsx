@@ -67,6 +67,7 @@ const HealthRecordRow: FC<HealthRecordRowProperties> = ({
           size={BUTTON_SIZE.compact}
           aria-label={`View record: ${record.title}`}
           onClick={() => onViewRecord(record)}
+          data-testid={`${testIdentifier}-view`}
         >
           View record
         </Button>
