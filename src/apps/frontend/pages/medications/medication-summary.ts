@@ -133,7 +133,7 @@ const nameMedication = (
 ): string =>
   nameCodeableConcept(medicationRequest.medicationCodeableConcept) ||
   medicationRequest.medicationReference?.display ||
-  nameCodeableConcept(findContainedMedication(medicationRequest)?.code) ||
+  nameMedicationRecord(findContainedMedication(medicationRequest)) ||
   nameMedicationRecord(
     findReferencedMedication(medicationRequest, medications),
   ) ||
