@@ -43,12 +43,20 @@ const amlodipine: WithId<Medication> = {
 
 const compoundedPaste: Medication = {
   resourceType: RESOURCE_TYPE.MEDICATION,
+  id: "paste",
   ingredient: [
     { itemCodeableConcept: { text: "Hydrocortisone" } },
     { itemReference: { display: "Zinc oxide" } },
     { itemCodeableConcept: { coding: [{ code: "387253001" }] } },
   ],
 };
+
+const containing = (medication: Medication) => ({
+  contained: [medication],
+  medicationReference: {
+    reference: `${CONTAINED_REFERENCE_PREFIX}${medication.id}`,
+  },
+});
 
 describe("summarizeMedicationRequest", () => {
   it.each([
@@ -96,6 +104,31 @@ describe("summarizeMedicationRequest", () => {
         },
       },
       "Amlodipine 5 mg tablet",
+    ],
+    [
+      "the named ingredients of the medicine it contains, when that medicine has no code",
+      containing(compoundedPaste),
+      "Hydrocortisone, Zinc oxide",
+    ],
+    [
+      "the code of the medicine it contains, before its ingredients",
+      containing({ ...compoundedPaste, code: { text: "Diaper paste" } }),
+      "Diaper paste",
+    ],
+    [
+      "a plain word when the medicine it contains was entered in error",
+      containing({ ...amlodipine, status: MEDICATION_STATUS.ENTERED_IN_ERROR }),
+      "Medication",
+    ],
+    [
+      "a plain word when the medicine it contains has no named code or ingredient",
+      containing({
+        resourceType: RESOURCE_TYPE.MEDICATION,
+        id: "unnamed",
+        code: { coding: [{ code: "197361" }] },
+        ingredient: [{ itemCodeableConcept: { coding: [{ code: "1" }] } }],
+      }),
+      "Medication",
     ],
     [
       "a plain word when it contains a medicine it does not refer to",
