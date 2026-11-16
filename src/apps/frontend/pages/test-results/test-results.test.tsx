@@ -101,9 +101,9 @@ const listResultCells = (report: HTMLElement, tabKey: string) =>
 
 const parseSearchRequests = (
   medplum: MockClient,
-  searchResources: MockInstance<MockClient["searchResources"]>,
+  search: MockInstance<MockClient["search"]>,
 ) =>
-  searchResources.mock.calls.map(([resourceType, query]) =>
+  search.mock.calls.map(([resourceType, query]) =>
     readSearchRequest(medplum, resourceType, query),
   );
 
@@ -805,7 +805,7 @@ describe("Test results", () => {
       }),
     );
     await createDiagnosticReport(medplum, "Long panel", "2026-10-18", results);
-    const searchResources = vi.spyOn(medplum, "searchResources");
+    const search = vi.spyOn(medplum, "search");
 
     renderTestResults(medplum);
 
@@ -813,7 +813,7 @@ describe("Test results", () => {
     expect(
       within(list).getAllByTestId(`${LABORATORY_RESULTS}-record-result`),
     ).toHaveLength(constant.SEARCH_PAGE_SIZE + 1);
-    const resultSearches = searchResources.mock.calls.filter(
+    const resultSearches = search.mock.calls.filter(
       ([resourceType]) => resourceType === RESOURCE_TYPE.OBSERVATION,
     );
     expect(resultSearches).toHaveLength(2);
@@ -922,7 +922,7 @@ describe("Test results", () => {
       const medplum = await createMedplumWithoutSampleReport();
       const isFailingSearch =
         await createRecordsAndChooseFailingSearch(medplum);
-      const searchResources = failSearches(medplum, isFailingSearch);
+      const search = failSearches(medplum, isFailingSearch);
 
       renderTestResults(medplum);
 
@@ -933,7 +933,7 @@ describe("Test results", () => {
         screen.getByTestId(`${LABORATORY_RESULTS}-unavailable`),
       ).toHaveTextContent("Could not load");
       expect(
-        parseSearchRequests(medplum, searchResources).filter(isFailingSearch),
+        parseSearchRequests(medplum, search).filter(isFailingSearch),
       ).toHaveLength(1);
     },
   );
@@ -999,11 +999,11 @@ describe("Test results", () => {
   it("reads imaging and other reports only once their tab is opened", async () => {
     const user = userEvent.setup();
     const medplum = await createMedplumWithoutSampleReport();
-    const searchResources = vi.spyOn(medplum, "searchResources");
+    const search = vi.spyOn(medplum, "search");
 
     const listSearchedCategories = () => [
       ...new Set(
-        parseSearchRequests(medplum, searchResources).map((searchRequest) =>
+        parseSearchRequests(medplum, search).map((searchRequest) =>
           JSON.stringify(
             findFilterValues(searchRequest, SEARCH_PARAMETER.CATEGORY),
           ),
@@ -1027,7 +1027,7 @@ describe("Test results", () => {
   it("asks Medplum without its cache, for each tab's categories in one filter, none entered in error, the dated ones newest first and then the undated ones, with only search parameters that reports define", async () => {
     const user = userEvent.setup();
     const medplum = await createMedplumWithoutSampleReport();
-    const searchResources = vi.spyOn(medplum, "searchResources");
+    const search = vi.spyOn(medplum, "search");
 
     renderTestResults(medplum);
     await screen.findByTestId(`${LABORATORY_RESULTS}-empty`);
@@ -1036,7 +1036,7 @@ describe("Test results", () => {
       `${OTHER_REPORTS}-empty`,
     );
 
-    for (const [resourceType, , options] of searchResources.mock.calls) {
+    for (const [resourceType, , options] of search.mock.calls) {
       expect(resourceType).toBe(RESOURCE_TYPE.DIAGNOSTIC_REPORT);
       expect(options).toEqual(expect.objectContaining({ cache: "reload" }));
     }
@@ -1084,7 +1084,7 @@ describe("Test results", () => {
         ].join(SEARCH_VALUE_SEPARATOR),
       },
     ];
-    const searchRequests = parseSearchRequests(medplum, searchResources);
+    const searchRequests = parseSearchRequests(medplum, search);
     expect(searchRequests).toEqual([
       expect.objectContaining(searchedFor(laboratoryFilters, true)),
       expect.objectContaining(searchedFor(laboratoryFilters, false)),

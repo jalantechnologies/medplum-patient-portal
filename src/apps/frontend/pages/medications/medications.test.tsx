@@ -1,12 +1,18 @@
 import {
   createReference,
+  generateId,
+  getReferenceString,
   getSearchParameter,
   Operator,
   parseSearchRequest,
   type Filter,
   type SearchRequest,
 } from "@medplum/core";
-import type { MedicationRequest, Patient } from "@medplum/fhirtypes";
+import type {
+  Medication,
+  MedicationRequest,
+  Patient,
+} from "@medplum/fhirtypes";
 import { HomerSimpson, MockClient } from "@medplum/mock";
 import {
   fireEvent,
@@ -29,13 +35,16 @@ import constant from "../../constants";
 import {
   MEDICATION_REQUEST_INTENT,
   MEDICATION_REQUEST_STATUS,
+  MEDICATION_STATUS,
+  REFERENCE_HISTORY_SEGMENT,
   RESOURCE_TYPE,
+  SEARCH_ENTRY_MODE,
   SEARCH_PARAMETER,
   SEARCH_VALUE_SEPARATOR,
   TIMING_PERIOD_UNIT,
 } from "../../constants/fhir";
 import { MedicationRequestProvider } from "../../providers";
-import { createMedicationRequest } from "../../test-medplum";
+import { createMedicationRequest, interceptSearches } from "../../test-medplum";
 import { TestProviders } from "../../test-providers";
 import Medications from "./medications.page";
 
@@ -60,17 +69,13 @@ const showDatesInChicago = () => {
 };
 
 const failSearches = (medplum: MockClient, shouldFail: () => boolean) => {
-  const searchResources = medplum.searchResources.bind(medplum);
+  const search = medplum.search.bind(medplum);
   return vi
-    .spyOn(medplum, "searchResources")
+    .spyOn(medplum, "search")
     .mockImplementation(((resourceType, query, options) =>
       shouldFail()
         ? Promise.reject(new TypeError("Failed to fetch"))
-        : searchResources(
-            resourceType,
-            query,
-            options,
-          )) as typeof medplum.searchResources);
+        : search(resourceType, query, options)) as typeof medplum.search);
 };
 
 const openTab = async (
@@ -86,12 +91,54 @@ const listMedicationTitles = (container: HTMLElement, tabKey: string) =>
     .getAllByTestId(`${tabKey}-record`)
     .map((card) => within(card).getByRole("heading", { level: 2 }).textContent);
 
-const parseSearchRequests = (
-  searchResources: MockInstance<MockClient["searchResources"]>,
-) =>
-  searchResources.mock.calls.map(([resourceType, query]) =>
+const parseSearchRequests = (search: MockInstance<MockClient["search"]>) =>
+  search.mock.calls.map(([resourceType, query]) =>
     parseSearchRequest(`${resourceType}${String(query)}`),
   );
+
+const createMedication = (
+  medplum: MockClient,
+  name: string,
+  overrides: Partial<Medication> = {},
+) =>
+  medplum.createResource<Medication>({
+    resourceType: RESOURCE_TYPE.MEDICATION,
+    code: { text: name },
+    ...overrides,
+  });
+
+const prescribeByReference = (
+  medplum: MockClient,
+  reference: string,
+  authoredOn: string | undefined,
+) =>
+  createMedicationRequest(medplum, "", authoredOn, {
+    medicationCodeableConcept: undefined,
+    medicationReference: { reference },
+  });
+
+const MISSING_MEDICATION_REFERENCE = `${RESOURCE_TYPE.MEDICATION}/removed`;
+
+const referToVersion = (medication: Medication, version = "") =>
+  `${getReferenceString(medication)}/${REFERENCE_HISTORY_SEGMENT}/${version || medication.meta?.versionId}`;
+
+// Medplum's server includes the current version of a medicine for a reference to any of its versions, which MockClient does not do.
+const includeAsMedplumDoes = (medplum: MockClient, medication: Medication) =>
+  interceptSearches(medplum, async (search) => {
+    const bundle = await search();
+    return bundle.entry?.length
+      ? {
+          ...bundle,
+          entry: [
+            ...bundle.entry,
+            {
+              resource: medication,
+              search: { mode: SEARCH_ENTRY_MODE.INCLUDE },
+            },
+          ],
+        }
+      : bundle;
+  });
 
 const findFilterValue = ({ filters }: SearchRequest, code: string) =>
   filters?.find((filter) => filter.code === code)?.value;
@@ -216,6 +263,270 @@ describe("Medications", () => {
       "Albuterol inhalerDr. Mira SyntheticActiveAs neededPrescribedOctober 19, 2026",
       "Triamcinolone 0.1% creamDr. Mira SyntheticActiveTwice a dayPrescribedOctober 18, 2026",
     ]);
+  });
+
+  it("names a prescription by the medicine it refers to, and by a plain word when that medicine was entered in error or Medplum does not send it", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const amlodipine = await createMedication(
+      medplum,
+      "Amlodipine 5 mg tablet",
+    );
+    const mistakenMedication = await createMedication(
+      medplum,
+      "Lisinopril 10 mg tablet",
+      { status: MEDICATION_STATUS.ENTERED_IN_ERROR },
+    );
+    await prescribeByReference(
+      medplum,
+      getReferenceString(amlodipine),
+      "2026-10-20",
+    );
+    await prescribeByReference(
+      medplum,
+      getReferenceString(mistakenMedication),
+      "2026-10-19",
+    );
+    await prescribeByReference(
+      medplum,
+      MISSING_MEDICATION_REFERENCE,
+      "2026-10-18",
+    );
+
+    renderMedications(medplum);
+
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    expect(listMedicationTitles(list, ALL_MEDICATIONS)).toEqual([
+      "Amlodipine 5 mg tablet",
+      "Medication",
+      "Medication",
+    ]);
+  });
+
+  it("names the prescriptions on every page by the medicines they refer to, which come with each page's search", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const amlodipine = await createMedication(
+      medplum,
+      "Amlodipine 5 mg tablet",
+    );
+    const lisinopril = await createMedication(
+      medplum,
+      "Lisinopril 10 mg tablet",
+    );
+    await prescribeByReference(
+      medplum,
+      getReferenceString(lisinopril),
+      "2019-12-31",
+    );
+    for (let index = 0; index < constant.SEARCH_PAGE_SIZE; index += 1) {
+      await prescribeByReference(
+        medplum,
+        getReferenceString(amlodipine),
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+      );
+    }
+    await createMedicationRequest(
+      medplum,
+      "Triamcinolone 0.1% cream",
+      undefined,
+    );
+    const search = vi.spyOn(medplum, "search");
+    const executeBatch = vi.spyOn(medplum, "executeBatch");
+
+    renderMedications(medplum);
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    await user.click(screen.getByTestId(`${ALL_MEDICATIONS}-more`));
+
+    await waitFor(() =>
+      expect(
+        within(list).getAllByTestId(`${ALL_MEDICATIONS}-record`),
+      ).toHaveLength(constant.SEARCH_PAGE_SIZE + 2),
+    );
+    expect(listMedicationTitles(list, ALL_MEDICATIONS).slice(-3)).toEqual([
+      "Amlodipine 5 mg tablet",
+      "Lisinopril 10 mg tablet",
+      "Triamcinolone 0.1% cream",
+    ]);
+    expect(
+      search.mock.calls.map(([resourceType]) => resourceType),
+    ).not.toContain(RESOURCE_TYPE.MEDICATION);
+    expect(executeBatch).not.toHaveBeenCalled();
+  });
+
+  it("names the prescriptions with no date by the medicines they refer to, which come with the search for them", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const amlodipine = await createMedication(
+      medplum,
+      "Amlodipine 5 mg tablet",
+    );
+    const lisinopril = await createMedication(
+      medplum,
+      "Lisinopril 10 mg tablet",
+    );
+    await prescribeByReference(
+      medplum,
+      getReferenceString(lisinopril),
+      "2026-10-20",
+    );
+    await prescribeByReference(
+      medplum,
+      getReferenceString(amlodipine),
+      undefined,
+    );
+
+    renderMedications(medplum);
+
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    expect(listMedicationTitles(list, ALL_MEDICATIONS)).toEqual([
+      "Lisinopril 10 mg tablet",
+      "Amlodipine 5 mg tablet",
+    ]);
+  });
+
+  it("names a prescription that refers to one version of a medicine by that version, and reads in one request only the versions Medplum did not send", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const firstVersion = await createMedication(
+      medplum,
+      "Amlodipine 5 mg tablet",
+    );
+    const currentVersion = await medplum.updateResource<Medication>({
+      ...firstVersion,
+      code: { text: "Amlodipine 10 mg tablet" },
+    });
+    const missingVersion = referToVersion(firstVersion, generateId());
+    for (const [reference, authoredOn] of [
+      [referToVersion(firstVersion), "2026-10-20"],
+      [referToVersion(currentVersion), "2026-10-19"],
+      [missingVersion, "2026-10-18"],
+      [referToVersion(firstVersion), "2026-10-17"],
+    ]) {
+      await prescribeByReference(medplum, reference, authoredOn);
+    }
+    includeAsMedplumDoes(medplum, currentVersion);
+    const executeBatch = vi.spyOn(medplum, "executeBatch");
+
+    renderMedications(medplum);
+
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    expect(listMedicationTitles(list, ALL_MEDICATIONS)).toEqual([
+      "Amlodipine 5 mg tablet",
+      "Amlodipine 10 mg tablet",
+      "Medication",
+      "Amlodipine 5 mg tablet",
+    ]);
+    expect(executeBatch).toHaveBeenCalledTimes(1);
+    expect(
+      executeBatch.mock.calls[0][0].entry?.map(({ request }) => request?.url),
+    ).toEqual([referToVersion(firstVersion), missingVersion]);
+  });
+
+  it("reads the version of a medicine once, though prescriptions on a later page refer to it again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const firstVersion = await createMedication(
+      medplum,
+      "Amlodipine 5 mg tablet",
+    );
+    const currentVersion = await medplum.updateResource<Medication>({
+      ...firstVersion,
+      code: { text: "Amlodipine 10 mg tablet" },
+    });
+    for (let index = 0; index <= constant.SEARCH_PAGE_SIZE; index += 1) {
+      await prescribeByReference(
+        medplum,
+        referToVersion(firstVersion),
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+      );
+    }
+    includeAsMedplumDoes(medplum, currentVersion);
+    const executeBatch = vi.spyOn(medplum, "executeBatch");
+
+    renderMedications(medplum);
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    await user.click(screen.getByTestId(`${ALL_MEDICATIONS}-more`));
+
+    await waitFor(() =>
+      expect(
+        within(list).getAllByTestId(`${ALL_MEDICATIONS}-record`),
+      ).toHaveLength(constant.SEARCH_PAGE_SIZE + 1),
+    );
+    expect(new Set(listMedicationTitles(list, ALL_MEDICATIONS))).toEqual(
+      new Set(["Amlodipine 5 mg tablet"]),
+    );
+    expect(executeBatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows an error when the version of a medicine could not be read, and names the prescription once the patient tries again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const firstVersion = await createMedication(
+      medplum,
+      "Amlodipine 5 mg tablet",
+    );
+    await medplum.updateResource<Medication>({
+      ...firstVersion,
+      code: { text: "Amlodipine 10 mg tablet" },
+    });
+    await prescribeByReference(
+      medplum,
+      referToVersion(firstVersion),
+      "2026-10-20",
+    );
+    const executeBatch = medplum.executeBatch.bind(medplum);
+    let isVersionReachable = false;
+    vi.spyOn(medplum, "executeBatch").mockImplementation((bundle, options) =>
+      isVersionReachable
+        ? executeBatch(bundle, options)
+        : Promise.reject(new TypeError("Failed to fetch")),
+    );
+
+    renderMedications(medplum);
+    await screen.findByTestId("medications-error");
+    isVersionReachable = true;
+    await user.click(
+      within(screen.getByTestId("medications-error-retry")).getByRole("button"),
+    );
+
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    expect(listMedicationTitles(list, ALL_MEDICATIONS)).toEqual([
+      "Amlodipine 5 mg tablet",
+    ]);
+  });
+
+  it("names every prescription by the newest copy of its medicine once a later page brings that medicine again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const amlodipine = await createMedication(
+      medplum,
+      "Amlodipine 5 mg tablet",
+    );
+    for (let index = 0; index <= constant.SEARCH_PAGE_SIZE; index += 1) {
+      await prescribeByReference(
+        medplum,
+        getReferenceString(amlodipine),
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+      );
+    }
+
+    renderMedications(medplum);
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    expect(new Set(listMedicationTitles(list, ALL_MEDICATIONS))).toEqual(
+      new Set(["Amlodipine 5 mg tablet"]),
+    );
+    await medplum.updateResource<Medication>({
+      ...amlodipine,
+      code: { text: "Amlodipine 10 mg tablet" },
+    });
+    await user.click(screen.getByTestId(`${ALL_MEDICATIONS}-more`));
+
+    await waitFor(() =>
+      expect(
+        within(list).getAllByTestId(`${ALL_MEDICATIONS}-record`),
+      ).toHaveLength(constant.SEARCH_PAGE_SIZE + 1),
+    );
+    expect(new Set(listMedicationTitles(list, ALL_MEDICATIONS))).toEqual(
+      new Set(["Amlodipine 10 mg tablet"]),
+    );
   });
 
   it("lists prescriptions with no date after the dated ones", async () => {
@@ -469,11 +780,11 @@ describe("Medications", () => {
   it("reads past prescriptions only once their tab is opened", async () => {
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
-    const searchResources = vi.spyOn(medplum, "searchResources");
+    const search = vi.spyOn(medplum, "search");
 
     const listSearchedStatuses = () => [
       ...new Set(
-        parseSearchRequests(searchResources).map((searchRequest) =>
+        parseSearchRequests(search).map((searchRequest) =>
           findFilterValue(searchRequest, SEARCH_PARAMETER.STATUS),
         ),
       ),
@@ -490,10 +801,10 @@ describe("Medications", () => {
     expect(listSearchedStatuses()).toHaveLength(2);
   });
 
-  it("asks Medplum without its cache, for each tab's orders and statuses, the dated ones newest first and then the undated ones, with only search parameters that prescriptions define", async () => {
+  it("asks Medplum without its cache, for each tab's orders and statuses, the dated ones newest first and then the undated ones, with the medicine each one refers to, and with only search parameters that prescriptions define", async () => {
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
-    const searchResources = vi.spyOn(medplum, "searchResources");
+    const search = vi.spyOn(medplum, "search");
 
     renderMedications(medplum);
     await screen.findByTestId(`${ALL_MEDICATIONS}-empty`);
@@ -501,7 +812,7 @@ describe("Medications", () => {
       `${PAST_MEDICATIONS}-empty`,
     );
 
-    for (const [resourceType, , options] of searchResources.mock.calls) {
+    for (const [resourceType, , options] of search.mock.calls) {
       expect(resourceType).toBe(RESOURCE_TYPE.MEDICATION_REQUEST);
       expect(options).toEqual(expect.objectContaining({ cache: "reload" }));
     }
@@ -533,6 +844,12 @@ describe("Medications", () => {
       sortRules: hasDate
         ? [{ code: SEARCH_PARAMETER.AUTHORED_ON, descending: true }]
         : [{ code: SEARCH_PARAMETER.ID, descending: false }],
+      include: [
+        {
+          resourceType: RESOURCE_TYPE.MEDICATION_REQUEST,
+          searchParam: SEARCH_PARAMETER.MEDICATION,
+        },
+      ],
     });
     const listedStatuses = [
       MEDICATION_REQUEST_STATUS.ACTIVE,
@@ -546,7 +863,7 @@ describe("Medications", () => {
       MEDICATION_REQUEST_STATUS.COMPLETED,
       MEDICATION_REQUEST_STATUS.STOPPED,
     ];
-    const searchRequests = parseSearchRequests(searchResources);
+    const searchRequests = parseSearchRequests(search);
     expect(searchRequests).toEqual([
       expect.objectContaining(searchedFor(listedStatuses, true)),
       expect.objectContaining(searchedFor(listedStatuses, false)),
@@ -558,9 +875,10 @@ describe("Medications", () => {
       expect(findFilterValue(searchRequest, SEARCH_PARAMETER.PATIENT)).toBe(
         homer.reference,
       );
-      for (const { code } of [
-        ...(searchRequest.filters ?? []),
-        ...(searchRequest.sortRules ?? []),
+      for (const code of [
+        ...(searchRequest.filters ?? []).map((filter) => filter.code),
+        ...(searchRequest.sortRules ?? []).map((sortRule) => sortRule.code),
+        ...(searchRequest.include ?? []).map((include) => include.searchParam),
       ]) {
         expect(
           getSearchParameter(RESOURCE_TYPE.MEDICATION_REQUEST, code),

@@ -1,22 +1,20 @@
-import type { WithId } from "@medplum/core";
-import type { MedicationRequest } from "@medplum/fhirtypes";
 import { createContext, useContext } from "react";
 
 import type {
   AsynchronousOperationError,
+  MedicationRequestSearch,
   Nullable,
-  RecordSearch,
 } from "../types";
 
 type MedicationRequestContextType = {
   activePrescriptionCount: Nullable<number>;
   activePrescriptionCountError: Nullable<AsynchronousOperationError>;
-  allMedicationRequests: RecordSearch<WithId<MedicationRequest>>;
+  allMedicationRequests: MedicationRequestSearch;
   countActivePrescriptions: (
     patientReference: string,
   ) => Promise<Nullable<number>>;
   isActivePrescriptionCountLoading: boolean;
-  pastMedicationRequests: RecordSearch<WithId<MedicationRequest>>;
+  pastMedicationRequests: MedicationRequestSearch;
 };
 
 export const MedicationRequestContext =

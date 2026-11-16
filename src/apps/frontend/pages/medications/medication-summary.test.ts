@@ -1,4 +1,8 @@
-import { createReference } from "@medplum/core";
+import {
+  createReference,
+  getReferenceString,
+  type WithId,
+} from "@medplum/core";
 import type { Dosage, Medication, MedicationRequest } from "@medplum/fhirtypes";
 import { HomerSimpson } from "@medplum/mock";
 import { describe, expect, it } from "vitest";
@@ -7,25 +11,43 @@ import {
   CONTAINED_REFERENCE_PREFIX,
   MEDICATION_REQUEST_INTENT,
   MEDICATION_REQUEST_STATUS,
+  MEDICATION_STATUS,
+  REFERENCE_HISTORY_SEGMENT,
   RESOURCE_TYPE,
   TIMING_PERIOD_UNIT,
 } from "../../constants/fhir";
+import type { MedicationsByReference } from "../../types";
 import { summarizeMedicationRequest } from "./medication-summary";
 
-const summarize = (overrides: Partial<MedicationRequest>) =>
-  summarizeMedicationRequest({
-    resourceType: RESOURCE_TYPE.MEDICATION_REQUEST,
-    id: "triamcinolone",
-    status: MEDICATION_REQUEST_STATUS.ACTIVE,
-    intent: MEDICATION_REQUEST_INTENT.ORDER,
-    subject: createReference(HomerSimpson),
-    ...overrides,
-  });
+const summarize = (
+  overrides: Partial<MedicationRequest>,
+  medications: MedicationsByReference = new Map(),
+) =>
+  summarizeMedicationRequest(
+    {
+      resourceType: RESOURCE_TYPE.MEDICATION_REQUEST,
+      id: "triamcinolone",
+      status: MEDICATION_REQUEST_STATUS.ACTIVE,
+      intent: MEDICATION_REQUEST_INTENT.ORDER,
+      subject: createReference(HomerSimpson),
+      ...overrides,
+    },
+    { medications, nextPosition: null, resources: [] },
+  );
 
-const amlodipine: Medication = {
+const amlodipine: WithId<Medication> = {
   resourceType: RESOURCE_TYPE.MEDICATION,
   id: "amlodipine",
   code: { text: "Amlodipine 5 mg tablet" },
+};
+
+const compoundedPaste: Medication = {
+  resourceType: RESOURCE_TYPE.MEDICATION,
+  ingredient: [
+    { itemCodeableConcept: { text: "Hydrocortisone" } },
+    { itemReference: { display: "Zinc oxide" } },
+    { itemCodeableConcept: { coding: [{ code: "387253001" }] } },
+  ],
 };
 
 describe("summarizeMedicationRequest", () => {
@@ -93,6 +115,87 @@ describe("summarizeMedicationRequest", () => {
     ["a plain word when it has no name", {}, "Medication"],
   ])("names the medicine by %s", (_, overrides, title) => {
     expect(summarize(overrides).title).toBe(title);
+  });
+
+  const amlodipineReference = getReferenceString(amlodipine);
+  const amlodipineVersionReference = `${amlodipineReference}/${REFERENCE_HISTORY_SEGMENT}/1`;
+  const referenceToAmlodipine = {
+    medicationReference: { reference: amlodipineReference },
+  };
+  const amlodipineAs = (medication: Medication): MedicationsByReference =>
+    new Map([[amlodipineReference, medication]]);
+
+  it.each<[string, Partial<MedicationRequest>, MedicationsByReference, string]>(
+    [
+      [
+        "the code of the medicine it refers to",
+        referenceToAmlodipine,
+        amlodipineAs(amlodipine),
+        "Amlodipine 5 mg tablet",
+      ],
+      [
+        "the version of the medicine it refers to, not the medicine's current version",
+        { medicationReference: { reference: amlodipineVersionReference } },
+        new Map([
+          [
+            amlodipineReference,
+            { ...amlodipine, code: { text: "Amlodipine 10 mg tablet" } },
+          ],
+          [amlodipineVersionReference, amlodipine],
+        ]),
+        "Amlodipine 5 mg tablet",
+      ],
+      [
+        "the name on its reference, before the medicine it refers to",
+        {
+          medicationReference: {
+            ...referenceToAmlodipine.medicationReference,
+            display: "Amlodipine",
+          },
+        },
+        amlodipineAs(amlodipine),
+        "Amlodipine",
+      ],
+      [
+        "the named ingredients of the medicine it refers to, when that medicine has no code",
+        referenceToAmlodipine,
+        amlodipineAs(compoundedPaste),
+        "Hydrocortisone, Zinc oxide",
+      ],
+      [
+        "the code of the medicine it refers to, before its ingredients",
+        referenceToAmlodipine,
+        amlodipineAs({ ...compoundedPaste, code: { text: "Diaper paste" } }),
+        "Diaper paste",
+      ],
+      [
+        "a plain word when Medplum did not send the medicine it refers to",
+        referenceToAmlodipine,
+        new Map(),
+        "Medication",
+      ],
+      [
+        "a plain word when the medicine it refers to was entered in error",
+        referenceToAmlodipine,
+        amlodipineAs({
+          ...amlodipine,
+          status: MEDICATION_STATUS.ENTERED_IN_ERROR,
+        }),
+        "Medication",
+      ],
+      [
+        "a plain word when the medicine it refers to has no named code or ingredient",
+        referenceToAmlodipine,
+        amlodipineAs({
+          resourceType: RESOURCE_TYPE.MEDICATION,
+          code: { coding: [{ code: "197361" }] },
+          ingredient: [{ itemCodeableConcept: { coding: [{ code: "1" }] } }],
+        }),
+        "Medication",
+      ],
+    ],
+  )("names the medicine by %s", (_, overrides, medications, title) => {
+    expect(summarize(overrides, medications).title).toBe(title);
   });
 
   it("prefers the instructions written for the patient, then the clinic's text, then its coded parts, with one line for each dosage", () => {

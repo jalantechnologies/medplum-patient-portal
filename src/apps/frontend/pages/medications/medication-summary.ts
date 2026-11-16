@@ -8,6 +8,7 @@ import type {
   Dosage,
   DosageDoseAndRate,
   Medication,
+  MedicationIngredient,
   MedicationRequest,
   Resource,
   Timing,
@@ -15,8 +16,13 @@ import type {
 
 import {
   CONTAINED_REFERENCE_PREFIX,
+  MEDICATION_STATUS,
   RESOURCE_TYPE,
 } from "../../constants/fhir";
+import type {
+  MedicationRequestPage,
+  MedicationsByReference,
+} from "../../types";
 import {
   formatRecordDate,
   humanizeCode,
@@ -35,6 +41,7 @@ export interface MedicationSummary {
 
 const SEQUENCE_WHEN_MISSING = Number.MAX_SAFE_INTEGER;
 const INSTRUCTION_PART_SEPARATOR = " · ";
+const INGREDIENT_SEPARATOR = ", ";
 
 const compareDosageSequence = (first: Dosage, second: Dosage) =>
   (first.sequence ?? SEQUENCE_WHEN_MISSING) -
@@ -93,14 +100,48 @@ const findContainedMedication = ({
         `${CONTAINED_REFERENCE_PREFIX}${id}` === medicationReference?.reference,
     );
 
-const nameMedication = (medicationRequest: MedicationRequest): string =>
+const findReferencedMedication = (
+  { medicationReference }: MedicationRequest,
+  medications: MedicationsByReference,
+) => {
+  const reference = medicationReference?.reference;
+  return reference ? medications.get(reference) : undefined;
+};
+
+const nameIngredient = ({
+  itemCodeableConcept,
+  itemReference,
+}: MedicationIngredient): string =>
+  nameCodeableConcept(itemCodeableConcept) || itemReference?.display || "";
+
+const nameMedicationRecord = (medication: Medication | undefined): string => {
+  if (!medication || medication.status === MEDICATION_STATUS.ENTERED_IN_ERROR) {
+    return "";
+  }
+  return (
+    nameCodeableConcept(medication.code) ||
+    (medication.ingredient ?? [])
+      .map(nameIngredient)
+      .filter(Boolean)
+      .join(INGREDIENT_SEPARATOR)
+  );
+};
+
+const nameMedication = (
+  medicationRequest: MedicationRequest,
+  medications: MedicationsByReference,
+): string =>
   nameCodeableConcept(medicationRequest.medicationCodeableConcept) ||
   medicationRequest.medicationReference?.display ||
   nameCodeableConcept(findContainedMedication(medicationRequest)?.code) ||
+  nameMedicationRecord(
+    findReferencedMedication(medicationRequest, medications),
+  ) ||
   "Medication";
 
 export const summarizeMedicationRequest = (
   medicationRequest: WithId<MedicationRequest>,
+  { medications }: MedicationRequestPage,
 ): MedicationSummary => ({
   date: formatRecordDate(medicationRequest.authoredOn),
   identifier: medicationRequest.id,
@@ -110,5 +151,5 @@ export const summarizeMedicationRequest = (
   isDoNotPerform: medicationRequest.doNotPerform ?? false,
   prescriber: medicationRequest.requester?.display ?? "",
   status: humanizeCode(medicationRequest.status),
-  title: nameMedication(medicationRequest),
+  title: nameMedication(medicationRequest, medications),
 });

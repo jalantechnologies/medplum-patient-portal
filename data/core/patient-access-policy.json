@@ -28,6 +28,10 @@
       "interaction": ["search"]
     },
     {
+      "resourceType": "Medication",
+      "interaction": ["read", "vread"]
+    },
+    {
       "resourceType": "MedicationRequest",
       "criteria": "MedicationRequest?patient=%patient",
       "interaction": ["search"]

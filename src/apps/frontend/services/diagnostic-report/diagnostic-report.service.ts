@@ -33,7 +33,7 @@ export default class DiagnosticReportService extends MedplumService {
     parameters: ListDiagnosticReportsParameters,
   ): Promise<ServiceResponse<DiagnosticReportPage>> => {
     const { previousPage } = parameters;
-    const page = await this.readNextPage(
+    const { page } = await this.readNextPage(
       RESOURCE_TYPE.DIAGNOSTIC_REPORT,
       {
         dateParameter: SEARCH_PARAMETER.DATE,
