@@ -6,6 +6,7 @@ import { useMemo, type FC, type PropsWithChildren } from "react";
 import { MedicationRequestContext } from "../contexts";
 import { useAsynchronousResult, useRecordSearch } from "../hooks";
 import { MedicationRequestService } from "../services";
+import type { MedicationRequestPage } from "../types";
 
 export const MedicationRequestProvider: FC<PropsWithChildren> = ({
   children,
@@ -15,12 +16,14 @@ export const MedicationRequestProvider: FC<PropsWithChildren> = ({
     () => new MedicationRequestService(medplum),
     [medplum],
   );
-  const allMedicationRequests = useRecordSearch<WithId<MedicationRequest>>(
-    medicationRequestService.listMedicationRequests,
-  );
-  const pastMedicationRequests = useRecordSearch<WithId<MedicationRequest>>(
-    medicationRequestService.listPastMedicationRequests,
-  );
+  const allMedicationRequests = useRecordSearch<
+    WithId<MedicationRequest>,
+    MedicationRequestPage
+  >(medicationRequestService.listMedicationRequests);
+  const pastMedicationRequests = useRecordSearch<
+    WithId<MedicationRequest>,
+    MedicationRequestPage
+  >(medicationRequestService.listPastMedicationRequests);
 
   const {
     error: activePrescriptionCountError,

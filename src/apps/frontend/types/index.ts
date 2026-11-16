@@ -15,6 +15,11 @@ import type {
 } from "./diagnostic-report";
 import type { Fact } from "./fact";
 import type {
+  MedicationRequestPage,
+  MedicationRequestSearch,
+  MedicationsByReference,
+} from "./medication-request";
+import type {
   RecordListTab,
   RecordListTabText,
   RecordSearch,
@@ -35,6 +40,9 @@ export {
   type DiagnosticReportSearch,
   type Fact,
   type ListDiagnosticReportsParameters,
+  type MedicationRequestPage,
+  type MedicationRequestSearch,
+  type MedicationsByReference,
   type Nullable,
   type RecordListTab,
   type RecordListTabText,

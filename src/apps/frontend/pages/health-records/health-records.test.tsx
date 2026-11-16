@@ -129,17 +129,13 @@ const failSearches = (
   medplum: MockClient,
   shouldFail: (resourceType: string) => boolean,
 ) => {
-  const searchResources = medplum.searchResources.bind(medplum);
+  const search = medplum.search.bind(medplum);
   return vi
-    .spyOn(medplum, "searchResources")
+    .spyOn(medplum, "search")
     .mockImplementation(((resourceType, query, options) =>
       shouldFail(resourceType)
         ? Promise.reject(new TypeError("Failed to fetch"))
-        : searchResources(
-            resourceType,
-            query,
-            options,
-          )) as typeof medplum.searchResources);
+        : search(resourceType, query, options)) as typeof medplum.search);
 };
 
 const openTab = async (
@@ -608,13 +604,13 @@ describe("Health records", () => {
 
   it("reads the dated records newest first, then the undated ones in a search of their own", async () => {
     const medplum = new MockClient({ profile: HomerSimpson });
-    const searchResources = vi.spyOn(medplum, "searchResources");
+    const search = vi.spyOn(medplum, "search");
 
     renderHealthRecords(medplum);
     await screen.findByTestId("conditions-empty");
 
     expect(
-      searchResources.mock.calls.map(([resourceType, query]) => {
+      search.mock.calls.map(([resourceType, query]) => {
         const { filters, sortRules } = parseSearchRequest(
           `${resourceType}${String(query)}`,
         );
@@ -792,11 +788,9 @@ describe("Health records", () => {
   it("reads a kind of record only once its tab is opened", async () => {
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
-    const searchResources = vi.spyOn(medplum, "searchResources");
+    const search = vi.spyOn(medplum, "search");
     const listSearchedResourceTypes = () => [
-      ...new Set(
-        searchResources.mock.calls.map(([resourceType]) => resourceType),
-      ),
+      ...new Set(search.mock.calls.map(([resourceType]) => resourceType)),
     ];
 
     renderHealthRecords(medplum);
@@ -816,7 +810,7 @@ describe("Health records", () => {
   it("asks Medplum without its cache, and only with search parameters that each resource type defines", async () => {
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
-    const searchResources = vi.spyOn(medplum, "searchResources");
+    const search = vi.spyOn(medplum, "search");
 
     renderHealthRecords(medplum);
     await screen.findByTestId("conditions-empty");
@@ -828,7 +822,7 @@ describe("Health records", () => {
     );
 
     expect(
-      new Set(searchResources.mock.calls.map(([resourceType]) => resourceType)),
+      new Set(search.mock.calls.map(([resourceType]) => resourceType)),
     ).toEqual(
       new Set([
         RESOURCE_TYPE.CONDITION,
@@ -836,7 +830,7 @@ describe("Health records", () => {
         RESOURCE_TYPE.OBSERVATION,
       ]),
     );
-    for (const [resourceType, query, options] of searchResources.mock.calls) {
+    for (const [resourceType, query, options] of search.mock.calls) {
       expect(options).toEqual(expect.objectContaining({ cache: "reload" }));
       const searchRequest = parseSearchRequest(
         `${resourceType}${String(query)}`,
@@ -971,7 +965,7 @@ describe("Health records", () => {
       { text: "Penicillin" },
       "2026-10-20",
     );
-    const searchResources = vi.spyOn(medplum, "searchResources");
+    const search = vi.spyOn(medplum, "search");
 
     renderHealthRecords(medplum, "/health-records?tab=allergies");
 
@@ -984,7 +978,7 @@ describe("Health records", () => {
       await within(panel).findAllByTestId("allergies-record"),
     ).toHaveLength(1);
     expect(
-      new Set(searchResources.mock.calls.map(([resourceType]) => resourceType)),
+      new Set(search.mock.calls.map(([resourceType]) => resourceType)),
     ).toEqual(new Set([RESOURCE_TYPE.ALLERGY_INTOLERANCE]));
   });
 

@@ -18,6 +18,7 @@ import type {
   CodeSystemConcept,
   Condition,
   DiagnosticReport,
+  Medication,
   MedicationRequest,
   Observation,
   Patient,
@@ -260,13 +261,34 @@ describe("patient access policy", () => {
     (policyResource) => policyResource.resourceType,
   );
 
+  const resourceTypesAboutNoPatient: string[] = [RESOURCE_TYPE.MEDICATION];
+  const patientRecordTypes = policyResourceTypes.filter(
+    (resourceType) => !resourceTypesAboutNoPatient.includes(resourceType),
+  );
+
   it("has a record to check for each resource type it grants", () => {
-    expect(Object.keys(buildRecordAbout).toSorted()).toEqual(
-      policyResourceTypes.toSorted(),
-    );
+    expect(
+      [
+        ...Object.keys(buildRecordAbout),
+        ...resourceTypesAboutNoPatient,
+      ].toSorted(),
+    ).toEqual(policyResourceTypes.toSorted());
   });
 
-  it.each(policyResourceTypes)(
+  it("lets every patient only read a medicine or one of its versions, which are about no patient, so no patient can search for the medicines another patient takes", () => {
+    const medication: Medication = {
+      resourceType: RESOURCE_TYPE.MEDICATION,
+      code: { text: "Amlodipine 5 mg tablet" },
+    };
+
+    for (const patient of [quinn, harper]) {
+      expect(
+        listAllowedInteractions(medication, fillPolicyFor(patient)),
+      ).toEqual([AccessPolicyInteraction.READ, AccessPolicyInteraction.VREAD]);
+    }
+  });
+
+  it.each(patientRecordTypes)(
     "lets a patient only search their own %s records",
     (resourceType) => {
       const quinnPolicy = fillPolicyFor(quinn);

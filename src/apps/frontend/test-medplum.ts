@@ -161,16 +161,16 @@ export const failSearches = (
   shouldFail: (searchRequest: SearchRequest) => boolean,
 ) =>
   vi
-    .spyOn(medplum, "searchResources")
+    .spyOn(medplum, "search")
     .mockImplementation(((resourceType, query, options) =>
       shouldFail(readSearchRequest(medplum, resourceType, query))
         ? Promise.reject(networkFailure())
-        : MockClient.prototype.searchResources.call(
+        : MockClient.prototype.search.call(
             medplum,
             resourceType,
             query,
             options,
-          )) as typeof medplum.searchResources);
+          )) as typeof medplum.search);
 
 export const interceptSearches = (
   medplum: MockClient,

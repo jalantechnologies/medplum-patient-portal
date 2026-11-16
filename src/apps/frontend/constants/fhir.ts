@@ -2,8 +2,12 @@ import type { SearchRequest } from "@medplum/core";
 import type {
   Appointment,
   AppointmentParticipant,
+  Bundle,
+  BundleEntryRequest,
+  BundleEntrySearch,
   CarePlan,
   DiagnosticReport,
+  Medication,
   MedicationRequest,
   Observation,
   ResourceType,
@@ -13,6 +17,7 @@ import type {
 export const RESOURCE_TYPE = {
   ALLERGY_INTOLERANCE: "AllergyIntolerance",
   APPOINTMENT: "Appointment",
+  BUNDLE: "Bundle",
   CARE_PLAN: "CarePlan",
   CONDITION: "Condition",
   DIAGNOSTIC_REPORT: "DiagnosticReport",
@@ -71,6 +76,10 @@ export const DIAGNOSTIC_REPORT_STATUS = {
   REGISTERED: "registered",
   UNKNOWN: "unknown",
 } as const satisfies Record<string, DiagnosticReport["status"]>;
+
+export const MEDICATION_STATUS = {
+  ENTERED_IN_ERROR: "entered-in-error",
+} as const satisfies Record<string, Medication["status"]>;
 
 export const MEDICATION_REQUEST_INTENT = {
   FILLER_ORDER: "filler-order",
@@ -325,6 +334,7 @@ export const SEARCH_PARAMETER = {
   DATE: "date",
   ID: "_id",
   INTENT: "intent",
+  MEDICATION: "medication",
   PATIENT: "patient",
   RECORDED_DATE: "recorded-date",
   STATUS: "status",
@@ -342,7 +352,22 @@ export const BUNDLE_LINK_RELATION = {
   NEXT: "next",
 } as const;
 
+export const BUNDLE_TYPE = {
+  BATCH: "batch",
+} as const satisfies Record<string, Bundle["type"]>;
+
+export const BUNDLE_REQUEST_METHOD = {
+  GET: "GET",
+} as const satisfies Record<string, BundleEntryRequest["method"]>;
+
+export const SEARCH_ENTRY_MODE = {
+  INCLUDE: "include",
+  MATCH: "match",
+} as const satisfies Record<string, NonNullable<BundleEntrySearch["mode"]>>;
+
 export const CONTAINED_REFERENCE_PREFIX = "#";
+
+export const REFERENCE_SEGMENT_SEPARATOR = "/";
 
 export const REFERENCE_HISTORY_SEGMENT = "_history";
 
