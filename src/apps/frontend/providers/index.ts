@@ -6,6 +6,7 @@ import { ConditionProvider } from "./condition.provider";
 import { DiagnosticReportProvider } from "./diagnostic-report.provider";
 import { MedicationRequestProvider } from "./medication-request.provider";
 import { ObservationProvider } from "./observation.provider";
+import { RecordSourceProvider } from "./record-source.provider";
 
 export {
   AllergyIntoleranceProvider,
@@ -16,4 +17,5 @@ export {
   DiagnosticReportProvider,
   MedicationRequestProvider,
   ObservationProvider,
+  RecordSourceProvider,
 };

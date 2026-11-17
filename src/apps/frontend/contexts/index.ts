@@ -24,6 +24,10 @@ import {
   ObservationContext,
   useObservationContext,
 } from "./observation.context";
+import {
+  RecordSourceContext,
+  useRecordSourceContext,
+} from "./record-source.context";
 
 export {
   AllergyIntoleranceContext,
@@ -34,6 +38,7 @@ export {
   DiagnosticReportContext,
   MedicationRequestContext,
   ObservationContext,
+  RecordSourceContext,
   useAllergyIntoleranceContext,
   useAppointmentContext,
   useAuthenticationContext,
@@ -42,4 +47,5 @@ export {
   useDiagnosticReportContext,
   useMedicationRequestContext,
   useObservationContext,
+  useRecordSourceContext,
 };

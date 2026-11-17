@@ -1,10 +1,19 @@
 import {
   createReference,
+  formatSearchQuery,
+  getReferenceString,
   getSearchParameter,
   Operator,
   parseSearchRequest,
 } from "@medplum/core";
-import type { Condition, Observation, Patient } from "@medplum/fhirtypes";
+import type {
+  Bundle,
+  Condition,
+  List,
+  Observation,
+  Organization,
+  Patient,
+} from "@medplum/fhirtypes";
 import { HomerSimpson, MockClient } from "@medplum/mock";
 import {
   fireEvent,
@@ -25,12 +34,18 @@ import constant from "../../constants";
 import {
   ALLERGY_INTOLERANCE_CLINICAL_STATUS,
   ALLERGY_INTOLERANCE_VERIFICATION_STATUS,
+  BUNDLE_LINK_RELATION,
+  BUNDLE_TYPE,
   CODE_SYSTEM,
   CONDITION_CLINICAL_STATUS,
   CONDITION_VERIFICATION_STATUS,
+  IDENTIFIER_SYSTEM,
+  LIST_MODE,
+  LIST_STATUS,
   OBSERVATION_CATEGORY,
   OBSERVATION_STATUS,
   RESOURCE_TYPE,
+  SEARCH_ENTRY_MODE,
   SEARCH_PARAMETER,
 } from "../../constants/fhir";
 import routes from "../../constants/routes";
@@ -38,8 +53,24 @@ import {
   AllergyIntoleranceProvider,
   ConditionProvider,
   ObservationProvider,
+  RecordSourceProvider,
 } from "../../providers";
-import { codeFrom, createAllergyIntolerance, doctor } from "../../test-medplum";
+import {
+  addListedOrganizations,
+  codeFrom,
+  createAllergyIntolerance,
+  createRecordSources,
+  doctor,
+  harborLaboratory,
+  includeListedOrganizations,
+  interceptSearches,
+  mapleDental,
+  networkFailure,
+  oakDermatology,
+  readSearchRequest,
+  RECEIVED_AT,
+  receiveRecordsAt,
+} from "../../test-medplum";
 import { TestProviders } from "../../test-providers";
 import HealthRecords from "./health-records.page";
 
@@ -67,11 +98,89 @@ const renderHealthRecords = (
   );
   const result = render(
     <TestProviders medplum={medplum}>
-      <RouterProvider router={router} />
+      <RecordSourceProvider>
+        <RouterProvider router={router} />
+      </RecordSourceProvider>
     </TestProviders>,
   );
   return { ...result, router };
 };
+
+const pineFamilyClinic = {
+  address: "https://fhir.pine-family-clinic.example",
+  name: "Pine Synthetic Family Clinic",
+};
+
+const cedarCardiology = {
+  address: "https://fhir.cedar-cardiology.example",
+  name: "Cedar Synthetic Cardiology",
+};
+
+const createClinic = (
+  medplum: MockClient,
+  { address, name }: typeof oakDermatology,
+  overrides: Partial<Organization> = {},
+) =>
+  medplum.createResource<Organization>({
+    resourceType: RESOURCE_TYPE.ORGANIZATION,
+    identifier: [{ system: IDENTIFIER_SYSTEM.URI, value: address }],
+    name,
+    ...overrides,
+  });
+
+const createSourceList = (medplum: MockClient, overrides: Partial<List>) =>
+  medplum.createResource<List>({
+    resourceType: RESOURCE_TYPE.LIST,
+    status: LIST_STATUS.CURRENT,
+    mode: LIST_MODE.WORKING,
+    subject: homer,
+    ...overrides,
+  });
+
+const serveListPages = (
+  medplum: MockClient,
+  lists: List[],
+  isPageReachable: (pageIndex: number) => boolean,
+) =>
+  interceptSearches(medplum, async (search, resourceType, query) => {
+    if (resourceType !== RESOURCE_TYPE.LIST) {
+      return search();
+    }
+    const searchRequest = readSearchRequest(medplum, resourceType, query);
+    const pageIndex = (searchRequest.offset ?? 0) / constant.SEARCH_PAGE_SIZE;
+    if (!isPageReachable(pageIndex)) {
+      throw networkFailure();
+    }
+    const nextPageIndex = pageIndex + 1;
+    const listPage: Bundle = {
+      resourceType: RESOURCE_TYPE.BUNDLE,
+      type: BUNDLE_TYPE.SEARCHSET,
+      entry: [
+        {
+          resource: lists[pageIndex],
+          search: { mode: SEARCH_ENTRY_MODE.MATCH },
+        },
+      ],
+      link:
+        nextPageIndex < lists.length
+          ? [
+              {
+                relation: BUNDLE_LINK_RELATION.NEXT,
+                url: medplum
+                  .fhirSearchUrl(
+                    resourceType,
+                    formatSearchQuery({
+                      ...searchRequest,
+                      offset: nextPageIndex * constant.SEARCH_PAGE_SIZE,
+                    }),
+                  )
+                  .toString(),
+              },
+            ]
+          : [],
+    };
+    return addListedOrganizations(medplum, listPage, resourceType);
+  });
 
 const createCondition = (
   medplum: MockClient,
@@ -209,6 +318,397 @@ describe("Health records", () => {
     expect(rows[0].tagName).toBe("LI");
   });
 
+  it("names the clinic each record came from, and in the record when the portal received it", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology, mapleDental]);
+    includeListedOrganizations(medplum);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: oakDermatology.address },
+    });
+    await createCondition(medplum, "Tooth decay", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+
+    renderHealthRecords(medplum);
+
+    const list = await screen.findByTestId("conditions-list");
+    await waitFor(() =>
+      expect(listRecordTexts(list, "conditions")).toEqual([
+        "EczemaOak Synthetic Dermatology · October 20, 2026Dr. Mira SyntheticActiveView record",
+        "Tooth decayMaple Synthetic Dental · April 8, 2025Dr. Mira SyntheticActiveView record",
+      ]),
+    );
+    await user.click(
+      within(list).getByRole("button", { name: "View record: Eczema" }),
+    );
+    expect(
+      within(await screen.findByTestId("health-record-dialog")).getByTestId(
+        "health-record-details",
+      ),
+    ).toHaveTextContent(
+      "PatientHomer SimpsonSourceOak Synthetic DermatologyDateOctober 20, 2026ReceivedOctober 28, 2026 · 4:10 PM Central TimeAuthorDr. Mira Synthetic",
+      { normalizeWhitespace: false },
+    );
+  });
+
+  it("names the clinic once when the clinic itself recorded the measurement", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology]);
+    includeListedOrganizations(medplum);
+    await createObservation(
+      medplum,
+      OBSERVATION_CATEGORY.VITAL_SIGNS,
+      "Blood pressure",
+      {
+        effectiveDateTime: "2026-10-20",
+        meta: { source: oakDermatology.address },
+        performer: [{ display: oakDermatology.name }],
+      },
+    );
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "measurements");
+
+    await waitFor(() =>
+      expect(listRecordTexts(panel, "measurements")).toEqual([
+        "Blood pressureOak Synthetic Dermatology · October 20, 2026FinalView record",
+      ]),
+    );
+  });
+
+  it("names no clinic for a record whose source the patient's list does not name, or that names no source", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology]);
+    includeListedOrganizations(medplum);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: mapleDental.address },
+    });
+    await createCondition(medplum, "Asthma", "2026-10-19");
+    const search = vi.spyOn(medplum, "search");
+
+    renderHealthRecords(medplum);
+
+    const list = await screen.findByTestId("conditions-list");
+    await waitFor(() =>
+      expect(search.mock.calls.map(([resourceType]) => resourceType)).toContain(
+        RESOURCE_TYPE.LIST,
+      ),
+    );
+    await waitFor(() =>
+      expect(listRecordTexts(list, "conditions")).toEqual([
+        "EczemaOctober 20, 2026Dr. Mira SyntheticActiveView record",
+        "AsthmaOctober 19, 2026Dr. Mira SyntheticActiveView record",
+      ]),
+    );
+  });
+
+  it("reads the clinics from the patient's own lists in use, with the clinics those lists name, once and without Medplum's cache", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const search = vi.spyOn(medplum, "search");
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+
+    const listSearches = search.mock.calls.filter(
+      ([resourceType]) => resourceType === RESOURCE_TYPE.LIST,
+    );
+    expect(listSearches).toHaveLength(1);
+    const [[resourceType, query, options]] = listSearches;
+    expect(readSearchRequest(medplum, resourceType, query)).toEqual({
+      resourceType: RESOURCE_TYPE.LIST,
+      filters: [
+        {
+          code: SEARCH_PARAMETER.STATUS,
+          operator: Operator.EQUALS,
+          value: LIST_STATUS.CURRENT,
+        },
+        {
+          code: SEARCH_PARAMETER.SUBJECT,
+          operator: Operator.EQUALS,
+          value: getReferenceString(HomerSimpson),
+        },
+      ],
+      include: [
+        {
+          resourceType: RESOURCE_TYPE.LIST,
+          searchParam: SEARCH_PARAMETER.ITEM,
+          targetType: RESOURCE_TYPE.ORGANIZATION,
+        },
+      ],
+      count: constant.SEARCH_PAGE_SIZE,
+    });
+    expect(options).toEqual(expect.objectContaining({ cache: "reload" }));
+  });
+
+  it("names the clinics listed on every page of the patient's lists", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const oakList = await createRecordSources(medplum, [oakDermatology]);
+    const mapleList = await createRecordSources(medplum, [mapleDental]);
+    await createCondition(medplum, "Tooth decay", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    serveListPages(medplum, [oakList, mapleList], () => true);
+
+    renderHealthRecords(medplum);
+
+    const list = await screen.findByTestId("conditions-list");
+    await waitFor(() =>
+      expect(listRecordTexts(list, "conditions")).toEqual([
+        "Tooth decayMaple Synthetic Dental · April 8, 2025Dr. Mira SyntheticActiveView record",
+      ]),
+    );
+  });
+
+  it("shows an error when a later page of the patient's lists could not be read, and names every clinic once the patient tries again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const oakList = await createRecordSources(medplum, [oakDermatology]);
+    const mapleList = await createRecordSources(medplum, [mapleDental]);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: oakDermatology.address },
+    });
+    await createCondition(medplum, "Tooth decay", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    let isLaterPageReachable = false;
+    serveListPages(
+      medplum,
+      [oakList, mapleList],
+      (pageIndex) => pageIndex === 0 || isLaterPageReachable,
+    );
+
+    renderHealthRecords(medplum);
+
+    const error = await screen.findByTestId("health-records-error");
+    const list = screen.getByTestId("conditions-list");
+    expect(listRecordTexts(list, "conditions")).toEqual([
+      "EczemaOctober 20, 2026Dr. Mira SyntheticActiveView record",
+      "Tooth decayApril 8, 2025Dr. Mira SyntheticActiveView record",
+    ]);
+    isLaterPageReachable = true;
+    await user.click(
+      within(screen.getByTestId("health-records-error-retry")).getByRole(
+        "button",
+      ),
+    );
+
+    await waitFor(() =>
+      expect(listRecordTexts(list, "conditions")).toEqual([
+        "EczemaOak Synthetic Dermatology · October 20, 2026Dr. Mira SyntheticActiveView record",
+        "Tooth decayMaple Synthetic Dental · April 8, 2025Dr. Mira SyntheticActiveView record",
+      ]),
+    );
+    expect(error).not.toBeInTheDocument();
+  });
+
+  it("shows an error with a way to try again when the clinics could not be read, and lists the records meanwhile", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology]);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: oakDermatology.address },
+    });
+    let areSourcesReachable = false;
+    const search = interceptSearches(
+      medplum,
+      async (searchAgain, resourceType) => {
+        if (resourceType === RESOURCE_TYPE.LIST && !areSourcesReachable) {
+          throw networkFailure();
+        }
+        return addListedOrganizations(
+          medplum,
+          await searchAgain(),
+          resourceType,
+        );
+      },
+    );
+
+    renderHealthRecords(medplum);
+
+    expect(await screen.findByTestId("health-records-error")).toHaveTextContent(
+      constant.DEFAULT_ERROR_MESSAGE,
+    );
+    const list = await screen.findByTestId("conditions-list");
+    expect(listRecordTexts(list, "conditions")).toEqual([
+      "EczemaOctober 20, 2026Dr. Mira SyntheticActiveView record",
+    ]);
+    const conditionSearchCount = search.mock.calls.filter(
+      ([resourceType]) => resourceType === RESOURCE_TYPE.CONDITION,
+    ).length;
+    areSourcesReachable = true;
+    await user.click(
+      within(screen.getByTestId("health-records-error-retry")).getByRole(
+        "button",
+      ),
+    );
+
+    await waitFor(() =>
+      expect(listRecordTexts(list, "conditions")).toEqual([
+        "EczemaOak Synthetic Dermatology · October 20, 2026Dr. Mira SyntheticActiveView record",
+      ]),
+    );
+    expect(
+      screen.queryByTestId("health-records-error"),
+    ).not.toBeInTheDocument();
+    expect(
+      search.mock.calls.filter(
+        ([resourceType]) => resourceType === RESOURCE_TYPE.CONDITION,
+      ),
+    ).toHaveLength(conditionSearchCount);
+  });
+
+  it("names only the clinics on a list in use: not one that a list of changes removes, nor one on a retired, mistaken or snapshot list, though it names a clinic no longer active", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const [oak, maple, harbor, pine, cedar] = await Promise.all([
+      createClinic(medplum, oakDermatology),
+      createClinic(medplum, mapleDental),
+      createClinic(medplum, harborLaboratory, { active: false }),
+      createClinic(medplum, pineFamilyClinic),
+      createClinic(medplum, cedarCardiology),
+    ]);
+    await createSourceList(medplum, {
+      entry: [
+        { item: createReference(oak) },
+        { item: createReference(harbor) },
+      ],
+    });
+    await createSourceList(medplum, {
+      mode: LIST_MODE.CHANGES,
+      entry: [{ item: createReference(maple), deleted: true }],
+    });
+    await createSourceList(medplum, {
+      status: LIST_STATUS.RETIRED,
+      entry: [{ item: createReference(pine) }],
+    });
+    await createSourceList(medplum, {
+      status: LIST_STATUS.ENTERED_IN_ERROR,
+      entry: [{ item: createReference(pine) }],
+    });
+    await createSourceList(medplum, {
+      mode: LIST_MODE.SNAPSHOT,
+      entry: [{ item: createReference(cedar) }],
+    });
+    const search = includeListedOrganizations(medplum);
+    for (const [name, source] of [
+      ["Eczema", oakDermatology],
+      ["Tooth decay", mapleDental],
+      ["Anemia", harborLaboratory],
+      ["Asthma", pineFamilyClinic],
+      ["Hypertension", cedarCardiology],
+    ] as const) {
+      await createCondition(medplum, name, "2026-10-20", {
+        meta: { source: source.address },
+      });
+    }
+
+    renderHealthRecords(medplum);
+
+    const list = await screen.findByTestId("conditions-list");
+    await waitFor(() =>
+      expect(listRecordTexts(list, "conditions")).toEqual(
+        expect.arrayContaining([
+          "EczemaOak Synthetic Dermatology · October 20, 2026Dr. Mira SyntheticActiveView record",
+          "AnemiaHarbor Synthetic Laboratory · October 20, 2026Dr. Mira SyntheticActiveView record",
+        ]),
+      ),
+    );
+    expect(listRecordTexts(list, "conditions")).toEqual(
+      expect.arrayContaining([
+        "Tooth decayOctober 20, 2026Dr. Mira SyntheticActiveView record",
+        "AsthmaOctober 20, 2026Dr. Mira SyntheticActiveView record",
+        "HypertensionOctober 20, 2026Dr. Mira SyntheticActiveView record",
+      ]),
+    );
+    const [[resourceType, query]] = search.mock.calls.filter(
+      ([searchedType]) => searchedType === RESOURCE_TYPE.LIST,
+    );
+    expect(readSearchRequest(medplum, resourceType, query).filters).toEqual(
+      expect.arrayContaining([
+        {
+          code: SEARCH_PARAMETER.STATUS,
+          operator: Operator.EQUALS,
+          value: LIST_STATUS.CURRENT,
+        },
+      ]),
+    );
+  });
+
+  it("names a clinic at each of its addresses, and the record whose address carries the request after a '#'", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const formerAddress = "https://fhir.oak-dermatology-former.example";
+    const oak = await createClinic(medplum, oakDermatology, {
+      identifier: [
+        { system: IDENTIFIER_SYSTEM.URI, value: formerAddress },
+        { system: IDENTIFIER_SYSTEM.URI, value: oakDermatology.address },
+      ],
+    });
+    await createSourceList(medplum, {
+      entry: [{ item: createReference(oak) }],
+    });
+    includeListedOrganizations(medplum);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: oakDermatology.address },
+    });
+    await createCondition(medplum, "Rosacea", "2024-03-12", {
+      meta: { source: formerAddress },
+    });
+    await createCondition(medplum, "Acne", "2023-05-01", {
+      meta: {
+        source: `${oakDermatology.address}#4f6b8a71-2c3d-4e5f-9a0b-1c2d3e4f5a6b`,
+      },
+    });
+
+    renderHealthRecords(medplum);
+
+    const list = await screen.findByTestId("conditions-list");
+    await waitFor(() =>
+      expect(listRecordTexts(list, "conditions")).toEqual([
+        "EczemaOak Synthetic Dermatology · October 20, 2026Dr. Mira SyntheticActiveView record",
+        "RosaceaOak Synthetic Dermatology · March 12, 2024Dr. Mira SyntheticActiveView record",
+        "AcneOak Synthetic Dermatology · May 1, 2023Dr. Mira SyntheticActiveView record",
+      ]),
+    );
+  });
+
+  it("names the clinic in a record opened before the clinics arrived, once they arrive", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology]);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: oakDermatology.address },
+    });
+    let sendSources = () => {};
+    const sourcesSent = new Promise<void>((resolve) => {
+      sendSources = resolve;
+    });
+    interceptSearches(medplum, async (search, resourceType) => {
+      if (resourceType === RESOURCE_TYPE.LIST) {
+        await sourcesSent;
+      }
+      return addListedOrganizations(medplum, await search(), resourceType);
+    });
+
+    renderHealthRecords(medplum);
+    const list = await screen.findByTestId("conditions-list");
+    await user.click(
+      within(list).getByRole("button", { name: "View record: Eczema" }),
+    );
+    const details = within(
+      await screen.findByTestId("health-record-dialog"),
+    ).getByTestId("health-record-details");
+    expect(details).not.toHaveTextContent("Source");
+    sendSources();
+
+    await waitFor(() =>
+      expect(details).toHaveTextContent("SourceOak Synthetic Dermatology"),
+    );
+  });
+
   it("lists conditions with no recorded date after the dated ones", async () => {
     const medplum = new MockClient({ profile: HomerSimpson });
     await createCondition(medplum, "Seasonal rhinitis", "2024-03-12");
@@ -266,6 +766,8 @@ describe("Health records", () => {
   });
 
   it("shows whether each allergy is still current, and how sure the clinic is of it in the record", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
     await createAllergyIntolerance(
@@ -308,11 +810,13 @@ describe("Health records", () => {
         "health-record-details",
       ),
     ).toHaveTextContent(
-      "PatientHomer SimpsonDateMay 2, 2022VerificationConfirmedAuthorDr. Mira Synthetic",
+      "PatientHomer SimpsonDateMay 2, 2022VerificationConfirmedReceivedOctober 28, 2026 · 4:10 PM Central TimeAuthorDr. Mira Synthetic",
     );
   });
 
   it("marks an allergy the clinician ruled out as ruled out, in the list and in its record, though it is still coded active", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
     await createAllergyIntolerance(
@@ -349,11 +853,13 @@ describe("Health records", () => {
     expect(
       within(dialog).getByTestId("health-record-details"),
     ).toHaveTextContent(
-      "PatientHomer SimpsonDateMarch 13, 2024VerificationRefutedAuthorDr. Mira Synthetic",
+      "PatientHomer SimpsonDateMarch 13, 2024VerificationRefutedReceivedOctober 28, 2026 · 4:10 PM Central TimeAuthorDr. Mira Synthetic",
     );
   });
 
   it("marks a condition the clinician ruled out as ruled out, in the list and in its record, though it is still coded active", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
     await createCondition(medplum, "Eczema", "2026-10-20");
@@ -381,7 +887,7 @@ describe("Health records", () => {
     expect(
       within(dialog).getByTestId("health-record-details"),
     ).toHaveTextContent(
-      "PatientHomer SimpsonDateOctober 21, 2026VerificationRefutedAuthorDr. Mira Synthetic",
+      "PatientHomer SimpsonDateOctober 21, 2026VerificationRefutedReceivedOctober 28, 2026 · 4:10 PM Central TimeAuthorDr. Mira Synthetic",
     );
   });
 
@@ -610,17 +1116,19 @@ describe("Health records", () => {
     await screen.findByTestId("conditions-empty");
 
     expect(
-      search.mock.calls.map(([resourceType, query]) => {
-        const { filters, sortRules } = parseSearchRequest(
-          `${resourceType}${String(query)}`,
-        );
-        return {
-          dateFilter: filters?.find(
-            ({ code }) => code === SEARCH_PARAMETER.RECORDED_DATE,
-          ),
-          sortRules,
-        };
-      }),
+      search.mock.calls
+        .filter(([resourceType]) => resourceType === RESOURCE_TYPE.CONDITION)
+        .map(([resourceType, query]) => {
+          const { filters, sortRules } = parseSearchRequest(
+            `${resourceType}${String(query)}`,
+          );
+          return {
+            dateFilter: filters?.find(
+              ({ code }) => code === SEARCH_PARAMETER.RECORDED_DATE,
+            ),
+            sortRules,
+          };
+        }),
     ).toEqual([
       {
         dateFilter: {
@@ -642,6 +1150,8 @@ describe("Health records", () => {
   });
 
   it("opens a record in a dialog with its value, and closes it back onto the record", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
     await createObservation(
@@ -668,7 +1178,7 @@ describe("Health records", () => {
     expect(
       within(dialog).getByTestId("health-record-details"),
     ).toHaveTextContent(
-      "PatientHomer SimpsonDateOctober 20, 2026AuthorDr. Mira Synthetic",
+      "PatientHomer SimpsonDateOctober 20, 2026ReceivedOctober 28, 2026 · 4:10 PM Central TimeAuthorDr. Mira Synthetic",
     );
 
     await user.click(within(dialog).getByTestId("health-record-close"));
@@ -795,13 +1305,17 @@ describe("Health records", () => {
 
     renderHealthRecords(medplum);
     await screen.findByTestId("conditions-empty");
-    expect(listSearchedResourceTypes()).toEqual([RESOURCE_TYPE.CONDITION]);
+    expect(listSearchedResourceTypes()).toEqual([
+      RESOURCE_TYPE.LIST,
+      RESOURCE_TYPE.CONDITION,
+    ]);
 
     await within(await openTab(user, "allergies")).findByTestId(
       "allergies-empty",
     );
     await openTab(user, "conditions");
     expect(listSearchedResourceTypes()).toEqual([
+      RESOURCE_TYPE.LIST,
       RESOURCE_TYPE.CONDITION,
       RESOURCE_TYPE.ALLERGY_INTOLERANCE,
     ]);
@@ -828,6 +1342,7 @@ describe("Health records", () => {
         RESOURCE_TYPE.CONDITION,
         RESOURCE_TYPE.ALLERGY_INTOLERANCE,
         RESOURCE_TYPE.OBSERVATION,
+        RESOURCE_TYPE.LIST,
       ]),
     );
     for (const [resourceType, query, options] of search.mock.calls) {
@@ -979,7 +1494,7 @@ describe("Health records", () => {
     ).toHaveLength(1);
     expect(
       new Set(search.mock.calls.map(([resourceType]) => resourceType)),
-    ).toEqual(new Set([RESOURCE_TYPE.ALLERGY_INTOLERANCE]));
+    ).toEqual(new Set([RESOURCE_TYPE.ALLERGY_INTOLERANCE, RESOURCE_TYPE.LIST]));
   });
 
   it.each([

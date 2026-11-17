@@ -18,10 +18,13 @@ import routes from "../constants/routes";
 import { CARE_PLAN_STATUS, RESOURCE_TYPE } from "../constants/fhir";
 import { AuthenticationProvider } from "../providers";
 import {
+  addListedOrganizations,
   createCarePlan,
   createMedicationRequest,
+  createRecordSources,
   interceptSearches,
   networkFailure,
+  oakDermatology,
 } from "../test-medplum";
 import { TestProviders } from "../test-providers";
 import { ApplicationRoutes } from "./index";
@@ -670,6 +673,61 @@ describe("ApplicationRoutes", () => {
       "1 ongoing plan",
     );
     expect(screen.getByTestId("next-visit")).toHaveTextContent("None booked");
+  });
+
+  it("lists prescriptions without their clinic and shows an error while the clinics cannot be read, and names the clinic with no error once the patient comes back", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology]);
+    await createMedicationRequest(
+      medplum,
+      "Triamcinolone 0.1% cream",
+      "2026-10-20",
+      { meta: { source: oakDermatology.address } },
+    );
+    let areSourcesReachable = false;
+    const search = interceptSearches(
+      medplum,
+      async (searchAgain, resourceType) => {
+        if (resourceType === RESOURCE_TYPE.LIST && !areSourcesReachable) {
+          throw networkFailure();
+        }
+        return addListedOrganizations(
+          medplum,
+          await searchAgain(),
+          resourceType,
+        );
+      },
+    );
+    renderRoutes(medplum, routes.MEDICATIONS);
+    const firstVisit = await screen.findByTestId("all-medications-record");
+    await waitFor(() =>
+      expect(search.mock.calls.map(([resourceType]) => resourceType)).toContain(
+        RESOURCE_TYPE.LIST,
+      ),
+    );
+
+    expect(firstVisit).toHaveTextContent("Dr. Mira Synthetic");
+    expect(firstVisit).not.toHaveTextContent(oakDermatology.name);
+    expect(await screen.findByTestId("medications-error")).toHaveTextContent(
+      constant.DEFAULT_ERROR_MESSAGE,
+    );
+
+    areSourcesReachable = true;
+    await user.click(
+      getNavigationLink(screen.getByTestId("sidebar"), routes.HOME),
+    );
+    await screen.findByTestId("home");
+    await user.click(
+      getNavigationLink(screen.getByTestId("sidebar"), routes.MEDICATIONS),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("all-medications-record")).toHaveTextContent(
+        `Dr. Mira Synthetic · ${oakDermatology.name}`,
+      ),
+    );
+    expect(screen.queryByTestId("medications-error")).not.toBeInTheDocument();
   });
 
   it("takes a patient from another page to Home with the keyboard", async () => {

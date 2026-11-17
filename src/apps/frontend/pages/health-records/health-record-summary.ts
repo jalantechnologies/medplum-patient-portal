@@ -15,8 +15,10 @@ import {
   CODE_SYSTEM,
   CONDITION_VERIFICATION_STATUS,
 } from "../../constants/fhir";
+import type { RecordSourceNames } from "../../types";
 import {
   formatRecordDate,
+  formatRecordDateTime,
   humanizeCode,
   nameAllergyIntolerance,
   nameCodeableConcept,
@@ -26,6 +28,8 @@ export interface HealthRecordSummary {
   author: string;
   date: string;
   identifier: string;
+  received: string;
+  source: string;
   status: string;
   title: string;
   value: string;
@@ -61,10 +65,13 @@ const describeClinicalRecordStatus = ({
 
 export const summarizeCondition = (
   condition: WithId<Condition>,
+  recordSourceNames: RecordSourceNames,
 ): HealthRecordSummary => ({
   author: condition.recorder?.display ?? "",
   date: formatRecordDate(condition.recordedDate),
   identifier: condition.id,
+  received: formatRecordDateTime(condition.meta?.lastUpdated),
+  source: recordSourceNames.findName(condition.meta?.source),
   status: describeClinicalRecordStatus({
     clinicalStatus: condition.clinicalStatus,
     clinicalSystem: CODE_SYSTEM.CONDITION_CLINICAL,
@@ -82,10 +89,13 @@ export const summarizeCondition = (
 
 export const summarizeAllergyIntolerance = (
   allergyIntolerance: WithId<AllergyIntolerance>,
+  recordSourceNames: RecordSourceNames,
 ): HealthRecordSummary => ({
   author: allergyIntolerance.recorder?.display ?? "",
   date: formatRecordDate(allergyIntolerance.recordedDate),
   identifier: allergyIntolerance.id,
+  received: formatRecordDateTime(allergyIntolerance.meta?.lastUpdated),
+  source: recordSourceNames.findName(allergyIntolerance.meta?.source),
   status: describeClinicalRecordStatus({
     clinicalStatus: allergyIntolerance.clinicalStatus,
     clinicalSystem: CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL,
@@ -103,6 +113,7 @@ export const summarizeAllergyIntolerance = (
 
 export const summarizeVitalSign = (
   vitalSign: WithId<Observation>,
+  recordSourceNames: RecordSourceNames,
 ): HealthRecordSummary => ({
   author: vitalSign.performer?.[0]?.display ?? "",
   date: formatRecordDate(
@@ -111,6 +122,8 @@ export const summarizeVitalSign = (
       vitalSign.effectivePeriod?.start,
   ),
   identifier: vitalSign.id,
+  received: formatRecordDateTime(vitalSign.meta?.lastUpdated),
+  source: recordSourceNames.findName(vitalSign.meta?.source),
   status: humanizeCode(vitalSign.status),
   title: nameCodeableConcept(vitalSign.code) || "Measurement",
   value: formatObservationValue(vitalSign),

@@ -12,12 +12,11 @@ import type { FC } from "react";
 
 import { RecordListTabContent } from "../../components";
 import type { RecordListTab } from "../../types";
+import { joinDetails, omitRepeatedDetail } from "../../utilities";
 import type {
   TestReportSummary,
   TestResultSummary,
 } from "./test-report-summary";
-
-const BYLINE_SEPARATOR = " · ";
 
 const RESULT_COLUMNS = ["Test", "Result", "Reference range", "Flag"];
 
@@ -44,8 +43,21 @@ interface TestResultTableProperties {
   title: string;
 }
 
-const describeByline = ({ date, performer }: TestReportSummary): string =>
-  [date, performer].filter(Boolean).join(BYLINE_SEPARATOR);
+const describeByline = ({
+  date,
+  performer,
+  source,
+}: TestReportSummary): string =>
+  joinDetails(date, performer, omitRepeatedDetail(source, performer));
+
+const describeOrigin = ({
+  received,
+  sourceUpdated,
+}: TestReportSummary): string =>
+  joinDetails(
+    sourceUpdated && `Source updated ${sourceUpdated}`,
+    received && `Received ${received}`,
+  );
 
 const selectIndent = (depth: number) =>
   INDENT_BY_DEPTH[Math.min(depth, INDENT_BY_DEPTH.length - 1)];
@@ -182,6 +194,24 @@ const TestReportNotes: FC<TestReportCardProperties> = ({
   </>
 );
 
+const TestReportOrigin: FC<TestReportCardProperties> = ({
+  report,
+  testIdentifier,
+}) => {
+  const origin = describeOrigin(report);
+
+  return origin ? (
+    <ParagraphSmall
+      marginTop="scale600"
+      marginBottom="0"
+      color="contentSecondary"
+      data-testid={`${testIdentifier}-origin`}
+    >
+      {origin}
+    </ParagraphSmall>
+  ) : null;
+};
+
 const TestReportCard: FC<TestReportCardProperties> = ({
   report,
   testIdentifier,
@@ -199,6 +229,7 @@ const TestReportCard: FC<TestReportCardProperties> = ({
         </Block>
       ) : null}
       <TestReportNotes report={report} testIdentifier={testIdentifier} />
+      <TestReportOrigin report={report} testIdentifier={testIdentifier} />
     </Card>
   </Block>
 );

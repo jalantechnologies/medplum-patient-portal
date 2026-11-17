@@ -9,7 +9,7 @@ import useTestResults from "./test-results.hook";
 
 const TestResults: FC = () => {
   const { recordOwner } = usePatientName();
-  const { activeTabKey, openTab, tabs } = useTestResults();
+  const { activeTabKey, openTab, recordSourceRequest, tabs } = useTestResults();
 
   return (
     <Block data-testid="test-results">
@@ -36,6 +36,7 @@ const TestResults: FC = () => {
         errorLabel="Test results error"
         errorTestIdentifier="test-results-error"
         onTabChange={openTab}
+        otherRequests={[recordSourceRequest]}
         tabs={tabs}
       >
         {(tab) => <TestReportList tab={tab} />}

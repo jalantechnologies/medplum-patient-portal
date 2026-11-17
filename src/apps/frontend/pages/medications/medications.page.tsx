@@ -9,7 +9,7 @@ import useMedications from "./medications.hook";
 
 const Medications: FC = () => {
   const { recordOwner } = usePatientName();
-  const { activeTabKey, openTab, tabs } = useMedications();
+  const { activeTabKey, openTab, recordSourceRequest, tabs } = useMedications();
 
   return (
     <Block data-testid="medications">
@@ -29,6 +29,7 @@ const Medications: FC = () => {
         errorLabel="Medications error"
         errorTestIdentifier="medications-error"
         onTabChange={openTab}
+        otherRequests={[recordSourceRequest]}
         tabs={tabs}
       >
         {(tab) => <MedicationList tab={tab} />}

@@ -1,9 +1,14 @@
-import { getReferenceString } from "@medplum/core";
+import { getReferenceString, type WithId } from "@medplum/core";
+import type { MedicationRequest } from "@medplum/fhirtypes";
 import { useMedplumProfile } from "@medplum/react-hooks";
 import { useState, type Key } from "react";
 
-import { useMedicationRequestContext } from "../../contexts";
-import { useRecordListTab } from "../../hooks";
+import {
+  useMedicationRequestContext,
+  useRecordSourceContext,
+} from "../../contexts";
+import { useRecordListTab, useRecordSourceNames } from "../../hooks";
+import type { MedicationRequestPage } from "../../types";
 import { summarizeMedicationRequest } from "./medication-summary";
 
 const MISSING_MEDICINE_NOTICE =
@@ -32,24 +37,37 @@ const useMedications = () => {
   const [activeTabKey, setActiveTabKey] = useState<Key>(
     MEDICATION_TAB_TEXT.ALL.key,
   );
+  const { recordSourceNames, recordSourceRequest } = useRecordSourceNames({
+    ...useRecordSourceContext(),
+    patientReference,
+  });
+  const summarize = (
+    medicationRequest: WithId<MedicationRequest>,
+    page: MedicationRequestPage,
+  ) => summarizeMedicationRequest(medicationRequest, page, recordSourceNames);
   const tabs = [
     useRecordListTab({
       ...allMedicationRequests,
       activeTabKey,
       patientReference,
-      summarize: summarizeMedicationRequest,
+      summarize,
       text: MEDICATION_TAB_TEXT.ALL,
     }),
     useRecordListTab({
       ...pastMedicationRequests,
       activeTabKey,
       patientReference,
-      summarize: summarizeMedicationRequest,
+      summarize,
       text: MEDICATION_TAB_TEXT.PAST,
     }),
   ];
 
-  return { activeTabKey, openTab: setActiveTabKey, tabs };
+  return {
+    activeTabKey,
+    openTab: setActiveTabKey,
+    recordSourceRequest,
+    tabs,
+  };
 };
 
 export default useMedications;

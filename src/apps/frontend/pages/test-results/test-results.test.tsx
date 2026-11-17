@@ -34,14 +34,27 @@ import {
   SEARCH_PARAMETER,
   SEARCH_VALUE_SEPARATOR,
 } from "../../constants/fhir";
-import { DiagnosticReportProvider } from "../../providers";
 import {
+  DiagnosticReportProvider,
+  RecordSourceProvider,
+} from "../../providers";
+import {
+  addListedOrganizations,
   codeFrom,
   createDiagnosticReport,
+  createRecordSources,
   createReportResult,
+  doctor,
   failSearches,
+  harborLaboratory,
+  includeListedOrganizations,
+  interceptSearches,
   laboratory,
+  networkFailure,
+  oakDermatology,
   readSearchRequest,
+  RECEIVED_AT,
+  receiveRecordsAt,
 } from "../../test-medplum";
 import { TestProviders } from "../../test-providers";
 import { showDatesInChicago } from "../../test-time-zone";
@@ -71,9 +84,11 @@ const createMedplumWithoutSampleReport = async () => {
 const renderTestResults = (medplum: MockClient) =>
   render(
     <TestProviders medplum={medplum}>
-      <DiagnosticReportProvider>
-        <TestResults />
-      </DiagnosticReportProvider>
+      <RecordSourceProvider>
+        <DiagnosticReportProvider>
+          <TestResults />
+        </DiagnosticReportProvider>
+      </RecordSourceProvider>
     </TestProviders>,
   );
 
@@ -103,9 +118,11 @@ const parseSearchRequests = (
   medplum: MockClient,
   search: MockInstance<MockClient["search"]>,
 ) =>
-  search.mock.calls.map(([resourceType, query]) =>
-    readSearchRequest(medplum, resourceType, query),
-  );
+  search.mock.calls
+    .filter(([resourceType]) => resourceType !== RESOURCE_TYPE.LIST)
+    .map(([resourceType, query]) =>
+      readSearchRequest(medplum, resourceType, query),
+    );
 
 const findFilterValues = ({ filters }: SearchRequest, code: string) =>
   (filters ?? [])
@@ -223,6 +240,103 @@ describe("Test results", () => {
     expect(
       within(newest).getByTestId(`${LABORATORY_RESULTS}-record-title`).tagName,
     ).toBe("H2");
+  });
+
+  it("says when the source last updated each report, if it says so, and when the portal received it", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createDiagnosticReport(medplum, "Vitamin D", "2026-10-18", [], {
+      issued: "2026-10-19T09:00:00-05:00",
+    });
+    await createDiagnosticReport(medplum, "Hemoglobin", "2025-05-14", []);
+
+    renderTestResults(medplum);
+
+    const [vitaminD, hemoglobin] = await screen.findAllByTestId(
+      `${LABORATORY_RESULTS}-record`,
+    );
+    expect(
+      within(vitaminD).getByTestId(`${LABORATORY_RESULTS}-record-origin`),
+    ).toHaveTextContent(
+      "Source updated October 19, 2026 · Received October 28, 2026",
+    );
+    expect(
+      within(hemoglobin).getByTestId(`${LABORATORY_RESULTS}-record-origin`),
+    ).toHaveTextContent(/^Received October 28, 2026$/);
+  });
+
+  it("names the clinic each report came from after who performed it, and a lab that sent its own report once", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [harborLaboratory, oakDermatology]);
+    includeListedOrganizations(medplum);
+    await createDiagnosticReport(medplum, "Vitamin D", "2026-10-18", [], {
+      meta: { source: harborLaboratory.address },
+    });
+    await createDiagnosticReport(medplum, "Skin biopsy", "2025-05-14", [], {
+      meta: { source: oakDermatology.address },
+      performer: [doctor],
+    });
+
+    renderTestResults(medplum);
+
+    const [vitaminD, skinBiopsy] = await screen.findAllByTestId(
+      `${LABORATORY_RESULTS}-record`,
+    );
+    await waitFor(() =>
+      expect(
+        within(skinBiopsy).getByTestId(`${LABORATORY_RESULTS}-record-byline`),
+      ).toHaveTextContent(
+        `Collected May 14, 2025 · ${doctor.display} · ${oakDermatology.name}`,
+      ),
+    );
+    expect(
+      within(vitaminD).getByTestId(`${LABORATORY_RESULTS}-record-byline`),
+    ).toHaveTextContent(
+      new RegExp(`^Collected October 18, 2026 · ${harborLaboratory.name}$`),
+    );
+  });
+
+  it("shows an error with a way to try again when the clinics could not be read, and names them once the patient tries again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology]);
+    await createDiagnosticReport(medplum, "Skin biopsy", "2025-05-14", [], {
+      meta: { source: oakDermatology.address },
+      performer: [doctor],
+    });
+    let areSourcesReachable = false;
+    interceptSearches(medplum, async (search, resourceType) => {
+      if (resourceType === RESOURCE_TYPE.LIST && !areSourcesReachable) {
+        throw networkFailure();
+      }
+      return addListedOrganizations(medplum, await search(), resourceType);
+    });
+
+    renderTestResults(medplum);
+
+    expect(await screen.findByTestId("test-results-error")).toHaveTextContent(
+      constant.DEFAULT_ERROR_MESSAGE,
+    );
+    const report = await screen.findByTestId(`${LABORATORY_RESULTS}-record`);
+    expect(
+      within(report).getByTestId(`${LABORATORY_RESULTS}-record-byline`),
+    ).toHaveTextContent(/^Collected May 14, 2025 · Dr\. Mira Synthetic$/);
+    areSourcesReachable = true;
+    await user.click(
+      within(screen.getByTestId("test-results-error-retry")).getByRole(
+        "button",
+      ),
+    );
+
+    await waitFor(() =>
+      expect(
+        within(report).getByTestId(`${LABORATORY_RESULTS}-record-byline`),
+      ).toHaveTextContent(
+        `Collected May 14, 2025 · ${doctor.display} · ${oakDermatology.name}`,
+      ),
+    );
+    expect(screen.queryByTestId("test-results-error")).not.toBeInTheDocument();
   });
 
   it("lists a report's results in the report's own order", async () => {
@@ -1036,8 +1150,10 @@ describe("Test results", () => {
       `${OTHER_REPORTS}-empty`,
     );
 
-    for (const [resourceType, , options] of search.mock.calls) {
-      expect(resourceType).toBe(RESOURCE_TYPE.DIAGNOSTIC_REPORT);
+    expect(
+      new Set(search.mock.calls.map(([resourceType]) => resourceType)),
+    ).toEqual(new Set([RESOURCE_TYPE.DIAGNOSTIC_REPORT, RESOURCE_TYPE.LIST]));
+    for (const [, , options] of search.mock.calls) {
       expect(options).toEqual(expect.objectContaining({ cache: "reload" }));
     }
     const searchedFor = (categoryFilters: Filter[], hasDate: boolean) => ({

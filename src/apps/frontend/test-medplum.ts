@@ -1,6 +1,8 @@
 import {
   createReference,
+  isResource,
   parseSearchRequest,
+  tryParseReference,
   type QueryTypes,
   type SearchRequest,
   type WithId,
@@ -12,12 +14,16 @@ import type {
   CarePlan,
   CodeableConcept,
   DiagnosticReport,
+  List,
   MedicationRequest,
   Observation,
+  Organization,
+  Patient,
+  Reference,
   ResourceType,
 } from "@medplum/fhirtypes";
 import { HomerSimpson, MockClient } from "@medplum/mock";
-import { vi } from "vitest";
+import { onTestFinished, vi } from "vitest";
 
 import {
   ALLERGY_INTOLERANCE_CLINICAL_STATUS,
@@ -26,16 +32,35 @@ import {
   CARE_PLAN_INTENT,
   CODE_SYSTEM,
   DIAGNOSTIC_REPORT_STATUS,
+  IDENTIFIER_SYSTEM,
   LABORATORY_SERVICE_SECTION,
+  LIST_MODE,
+  LIST_STATUS,
   MEDICATION_REQUEST_INTENT,
   MEDICATION_REQUEST_STATUS,
   OBSERVATION_STATUS,
   RESOURCE_TYPE,
+  SEARCH_ENTRY_MODE,
 } from "./constants/fhir";
 
 export const doctor = { display: "Dr. Mira Synthetic" };
 
 export const laboratory = { display: "Harbor Synthetic Laboratory" };
+
+export const oakDermatology = {
+  address: "https://fhir.oak-dermatology.example",
+  name: "Oak Synthetic Dermatology",
+};
+
+export const mapleDental = {
+  address: "https://fhir.maple-dental.example",
+  name: "Maple Synthetic Dental",
+};
+
+export const harborLaboratory = {
+  address: "https://fhir.harbor-laboratory.example",
+  name: laboratory.display,
+};
 
 export const networkFailure = () => new TypeError("Failed to fetch");
 
@@ -190,3 +215,77 @@ export const interceptSearches = (
         query,
       )) as typeof medplum.search);
 };
+
+export const RECEIVED_AT = "2026-10-28T21:10:00.000Z";
+
+export const receiveRecordsAt = (instant: string) => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(instant);
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+};
+
+export const createRecordSources = async (
+  medplum: MockClient,
+  sources: (typeof oakDermatology)[],
+  subject: Reference<Patient> = createReference(HomerSimpson),
+): Promise<List> => {
+  const organizations = await Promise.all(
+    sources.map(({ address, name }) =>
+      medplum.createResource<Organization>({
+        resourceType: RESOURCE_TYPE.ORGANIZATION,
+        identifier: [{ system: IDENTIFIER_SYSTEM.URI, value: address }],
+        name,
+      }),
+    ),
+  );
+  return medplum.createResource<List>({
+    resourceType: RESOURCE_TYPE.LIST,
+    status: LIST_STATUS.CURRENT,
+    mode: LIST_MODE.WORKING,
+    subject,
+    entry: organizations.map((organization) => ({
+      item: createReference(organization),
+    })),
+  });
+};
+
+// MockClient leaves out what List:item names, while Medplum's server includes each Organization the patient may read (search-include.ts).
+export const addListedOrganizations = async (
+  medplum: MockClient,
+  bundle: Bundle,
+  resourceType: string,
+): Promise<Bundle> => {
+  if (resourceType !== RESOURCE_TYPE.LIST) {
+    return bundle;
+  }
+  const organizationReferences = (bundle.entry ?? [])
+    .flatMap(({ resource }) =>
+      isResource<List>(resource, RESOURCE_TYPE.LIST)
+        ? (resource.entry ?? [])
+        : [],
+    )
+    .map(({ item }) => item as Reference<Organization>)
+    .filter(
+      (item) => tryParseReference(item)?.[0] === RESOURCE_TYPE.ORGANIZATION,
+    );
+  const organizations = await Promise.all(
+    organizationReferences.map((item) => medplum.readReference(item)),
+  );
+  return {
+    ...bundle,
+    entry: [
+      ...(bundle.entry ?? []),
+      ...organizations.map((resource) => ({
+        resource,
+        search: { mode: SEARCH_ENTRY_MODE.INCLUDE },
+      })),
+    ],
+  };
+};
+
+export const includeListedOrganizations = (medplum: MockClient) =>
+  interceptSearches(medplum, async (search, resourceType) =>
+    addListedOrganizations(medplum, await search(), resourceType),
+  );
