@@ -13,6 +13,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview": "vite preview",
+    "load:example": "node scripts/load-example-data.ts",
     "prepare": "husky"
   },
   "dependencies": {

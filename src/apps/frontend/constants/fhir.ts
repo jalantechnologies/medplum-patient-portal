@@ -24,7 +24,11 @@ export const RESOURCE_TYPE = {
   MEDICATION: "Medication",
   MEDICATION_REQUEST: "MedicationRequest",
   OBSERVATION: "Observation",
+  ORGANIZATION: "Organization",
   PATIENT: "Patient",
+  PROJECT: "Project",
+  PROJECT_MEMBERSHIP: "ProjectMembership",
+  USER: "User",
 } as const satisfies Record<string, ResourceType>;
 
 export const APPOINTMENT_STATUS = {
@@ -332,10 +336,14 @@ export const SEARCH_PARAMETER = {
   CATEGORY: "category",
   CLINICAL_STATUS: "clinical-status",
   DATE: "date",
+  EMAIL: "email",
   ID: "_id",
+  IDENTIFIER: "identifier",
   INTENT: "intent",
   MEDICATION: "medication",
   PATIENT: "patient",
+  PROFILE: "profile",
+  PROJECT: "project",
   RECORDED_DATE: "recorded-date",
   STATUS: "status",
   SUBJECT: "subject",
@@ -354,11 +362,18 @@ export const BUNDLE_LINK_RELATION = {
 
 export const BUNDLE_TYPE = {
   BATCH: "batch",
+  TRANSACTION: "transaction",
+  TRANSACTION_RESPONSE: "transaction-response",
 } as const satisfies Record<string, Bundle["type"]>;
 
 export const BUNDLE_REQUEST_METHOD = {
   GET: "GET",
+  PUT: "PUT",
 } as const satisfies Record<string, BundleEntryRequest["method"]>;
+
+export const IDENTIFIER_SYSTEM = {
+  URI: "urn:ietf:rfc:3986",
+} as const;
 
 export const SEARCH_ENTRY_MODE = {
   INCLUDE: "include",
