@@ -1,8 +1,8 @@
 # Patient Portal
 
-An open source patient portal for clinics that run on [Medplum](https://www.medplum.com/), built by [Better](https://btr.group/).
+An open source patient platform on [Medplum](https://www.medplum.com/), built by [Better](https://btr.group/). A patient has one account and sees, in one place, what every hospital and clinic they have visited recorded about them, each record showing where it came from.
 
-A patient signs in on a phone or a laptop and sees their own health record, manages appointments, messages their care team, follows their care plans and sees their bills. A clinic deploys it against its own Medplum project.
+A patient signs in on a phone or a laptop and sees their own health record, manages appointments, messages their care team, follows their care plans and sees their bills. The platform runs one Medplum project, which holds every patient's account and the records from every source. A clinic can also run its own copy for its own patients.
 
 ## Status
 
@@ -11,7 +11,7 @@ Early development. A patient can sign in with their Medplum account, see Home wi
 ## Prerequisites
 
 - Node.js 26.13.0, the version in `.nvmrc`. With nvm, run `nvm use` in the project folder.
-- A Medplum server with a project and a patient account in it, set up as in [Patient access](#patient-access). For local development, [run Medplum locally](https://www.medplum.com/docs/contributing/run-the-stack).
+- A Medplum server with a project and a patient account in it, set up as in [Patient access](#patient-access). For local development, [run Medplum locally](https://www.medplum.com/docs/contributing/run-the-stack) and load the example patient as in [Example data](#example-data).
 
 ## Getting started
 
@@ -46,18 +46,45 @@ A project that sets `defaultPatientAccessPolicy` lets patients register themselv
 
 When an update to the portal changes the policy file, open the policy's JSON page (`/AccessPolicy/<policy identifier>/json`), replace its `name` and `resource` with the file's, keep its `id`, and save. Medplum needs the `id` to update the policy in place.
 
+## Example data
+
+`npm run load:example` loads a synthetic example patient, Eleanor Walsh, into the project named in `VITE_MEDPLUM_PROJECT_IDENTIFIER`, with her records from four sources: Oak Dermatology, Harbor Laboratory, Maple Dental and Pine Family Clinic. Each record keeps the source it came from, in `meta.source` and in an identifier from that source. The data is a FHIR transaction bundle, [`data/example/eleanor-walsh.json`](data/example/eleanor-walsh.json).
+
+The command moves every date by the same number of days, so that the bundle's `timestamp` falls on the day of the load: her records keep their spacing, and her next visit is five days after the load. Each time keeps its clock time in US Central time, where the prototype places her sources, and takes the Central offset from UTC of its new day, so her visit stays at 10:30 AM Central with or without daylight saving time. Loading again updates the same records in place instead of copying them, and leaves her account as it is.
+
+Medplum saves the bundle all or nothing only for a project with the `transaction-bundles` feature. Otherwise it saves each record on its own ([Medplum's batch guide](https://www.medplum.com/docs/fhir-datastore/fhir-batch-requests#batches-vs-transactions)): when it refuses one, the others stay saved and the command stops before her account. Loading again after the fix completes the rest.
+
+Load it into a development or demo project, never into one with real patients: the steps below put a project admin's secret in `.env.local`. Before the first load, as a project admin in Medplum's app:
+
+1. **Set up the portal's access policy** as in [Patient access](#patient-access). The command refuses to load into a project that gives invited patients no access policy, in `defaultAccessPolicies` or the older `defaultPatientAccessPolicy`, and stops when her existing account has none, since such a patient could read every record in the project.
+2. **Create a client application.** Open `/admin/clients/new`, give it a name such as "Example data", and choose "Create Client".
+3. **Make it a project admin**, which inviting the patient needs. In `/admin/clients`, open the new client, choose "Go to ProjectMembership", and on its Edit tab check "Admin" and choose "Update".
+4. **Fill in `.env.local`:**
+
+| Variable                    | What it holds                                                                                                                              |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MEDPLUM_CLIENT_IDENTIFIER` | The client application's identifier, shown on its page                                                                                     |
+| `MEDPLUM_CLIENT_SECRET`     | The client application's secret, shown on its page. Vite gives the browser only variables that start with `VITE_`, so this one stays local |
+| `EXAMPLE_PATIENT_EMAIL`     | The email the example patient signs in with, one that no one else in the project uses                                                      |
+| `EXAMPLE_PATIENT_PASSWORD`  | The example patient's password, at least 8 characters                                                                                      |
+
+The command reads the same files as the development server, `.env`, `.env.local`, `.env.development` and `.env.development.local`, in [Vite's order](https://vite.dev/guide/env-and-mode#env-files), with variables already set in the shell taking precedence.
+
+Then run `npm run load:example`, open the portal and sign in with that email and password. If a user with that email is already in the project, for example after her project membership was removed, Medplum gives her that user and keeps its password; the command says so. When you no longer need the client application, uncheck "Admin" on its membership or remove it.
+
 ## Scripts
 
-| Command                 | What it does                                            |
-| ----------------------- | ------------------------------------------------------- |
-| `npm run serve`         | Starts the development server                           |
-| `npm run build`         | Checks types and builds for production into `dist/`     |
-| `npm test`              | Runs the tests once with Vitest                         |
-| `npm run preview`       | Serves the production build                             |
-| `npm run lint`          | Lints the TypeScript and JavaScript code with oxlint    |
-| `npm run lint:markdown` | Lints the Markdown files with remark                    |
-| `npm run format`        | Formats every file with Prettier                        |
-| `npm run format:check`  | Checks the formatting of every file without changing it |
+| Command                 | What it does                                                   |
+| ----------------------- | -------------------------------------------------------------- |
+| `npm run serve`         | Starts the development server                                  |
+| `npm run build`         | Checks types and builds for production into `dist/`            |
+| `npm test`              | Runs the tests once with Vitest                                |
+| `npm run preview`       | Serves the production build                                    |
+| `npm run load:example`  | Loads the example patient, as in [Example data](#example-data) |
+| `npm run lint`          | Lints the TypeScript and JavaScript code with oxlint           |
+| `npm run lint:markdown` | Lints the Markdown files with remark                           |
+| `npm run format`        | Formats every file with Prettier                               |
+| `npm run format:check`  | Checks the formatting of every file without changing it        |
 
 ## Contributing
 

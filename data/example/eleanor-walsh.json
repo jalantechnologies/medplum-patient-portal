@@ -1,0 +1,734 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "timestamp": "2026-10-29T00:00:00-05:00",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:bc2dd428-5677-41fb-9cf5-fb3ac6b39ff4",
+      "resource": {
+        "resourceType": "Organization",
+        "identifier": [
+          {
+            "system": "urn:ietf:rfc:3986",
+            "value": "https://fhir.oak-dermatology.example"
+          }
+        ],
+        "name": "Oak Dermatology",
+        "address": [{ "line": ["120 Example Lane"], "city": "Austin" }]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Organization?identifier=urn:ietf:rfc:3986|https://fhir.oak-dermatology.example"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:8b221265-727d-462f-9a02-006d92caf276",
+      "resource": {
+        "resourceType": "Organization",
+        "identifier": [
+          {
+            "system": "urn:ietf:rfc:3986",
+            "value": "https://fhir.harbor-laboratory.example"
+          }
+        ],
+        "name": "Harbor Laboratory"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Organization?identifier=urn:ietf:rfc:3986|https://fhir.harbor-laboratory.example"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:8f3744a9-2c33-41f2-b892-5023a6fd2bb3",
+      "resource": {
+        "resourceType": "Organization",
+        "identifier": [
+          {
+            "system": "urn:ietf:rfc:3986",
+            "value": "https://fhir.maple-dental.example"
+          }
+        ],
+        "name": "Maple Dental"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Organization?identifier=urn:ietf:rfc:3986|https://fhir.maple-dental.example"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:21c8967a-275f-4754-9622-8358ae7d3eb1",
+      "resource": {
+        "resourceType": "Organization",
+        "identifier": [
+          {
+            "system": "urn:ietf:rfc:3986",
+            "value": "https://fhir.pine-family-clinic.example"
+          }
+        ],
+        "name": "Pine Family Clinic"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Organization?identifier=urn:ietf:rfc:3986|https://fhir.pine-family-clinic.example"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:1d89bf3c-dd6a-4845-a0e4-308b3df8a82e",
+      "resource": {
+        "resourceType": "Practitioner",
+        "meta": { "source": "https://fhir.oak-dermatology.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.oak-dermatology.example/Practitioner",
+            "value": "mira-chen"
+          }
+        ],
+        "name": [{ "prefix": ["Dr."], "given": ["Mira"], "family": "Chen" }]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Practitioner?identifier=https://fhir.oak-dermatology.example/Practitioner|mira-chen"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:486030a0-1d21-412d-9725-f8b32b87f835",
+      "resource": {
+        "resourceType": "Practitioner",
+        "meta": { "source": "https://fhir.maple-dental.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.maple-dental.example/Practitioner",
+            "value": "lena-park"
+          }
+        ],
+        "name": [{ "prefix": ["Dr."], "given": ["Lena"], "family": "Park" }]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Practitioner?identifier=https://fhir.maple-dental.example/Practitioner|lena-park"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "https://fhir.oak-dermatology.example/Patient",
+            "value": "D-20417"
+          },
+          {
+            "system": "https://fhir.harbor-laboratory.example/Patient",
+            "value": "L-58830"
+          },
+          {
+            "system": "https://fhir.maple-dental.example/Patient",
+            "value": "M-3092"
+          },
+          {
+            "system": "https://fhir.pine-family-clinic.example/Patient",
+            "value": "P-11764"
+          }
+        ],
+        "name": [{ "given": ["Eleanor"], "family": "Walsh" }]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Patient?identifier=https://fhir.oak-dermatology.example/Patient|D-20417"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:6c059563-920d-4401-9d65-349573d0c744",
+      "resource": {
+        "resourceType": "CarePlan",
+        "meta": { "source": "https://fhir.oak-dermatology.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.oak-dermatology.example/CarePlan",
+            "value": "eczema-care"
+          }
+        ],
+        "status": "active",
+        "intent": "plan",
+        "title": "Eczema care",
+        "description": "The clinician recorded a follow-up review and the prescribed routine shown in the care plan. Contact the clinic if the instructions are unclear.",
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "period": { "start": "2026-10-20" },
+        "author": {
+          "reference": "urn:uuid:1d89bf3c-dd6a-4845-a0e4-308b3df8a82e",
+          "display": "Dr. Mira Chen"
+        },
+        "addresses": [
+          {
+            "reference": "urn:uuid:62d85e98-e5a3-42ee-b944-3a86f6d38882",
+            "display": "Eczema"
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "CarePlan?identifier=https://fhir.oak-dermatology.example/CarePlan|eczema-care"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:62d85e98-e5a3-42ee-b944-3a86f6d38882",
+      "resource": {
+        "resourceType": "Condition",
+        "meta": { "source": "https://fhir.oak-dermatology.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.oak-dermatology.example/Condition",
+            "value": "eczema"
+          }
+        ],
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active",
+              "display": "Active"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+              "code": "confirmed",
+              "display": "Confirmed"
+            }
+          ]
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "43116000",
+              "display": "Eczema"
+            }
+          ],
+          "text": "Eczema"
+        },
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "recordedDate": "2026-10-20",
+        "recorder": {
+          "reference": "urn:uuid:1d89bf3c-dd6a-4845-a0e4-308b3df8a82e",
+          "display": "Dr. Mira Chen"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Condition?identifier=https://fhir.oak-dermatology.example/Condition|eczema"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:4d6bbab9-53e1-4937-87e2-123070626b85",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "meta": { "source": "https://fhir.oak-dermatology.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.oak-dermatology.example/MedicationRequest",
+            "value": "triamcinolone-cream"
+          }
+        ],
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "1014314",
+              "display": "triamcinolone acetonide 1 MG/ML Topical Cream"
+            }
+          ],
+          "text": "Triamcinolone 0.1% cream"
+        },
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "authoredOn": "2026-10-20",
+        "requester": {
+          "reference": "urn:uuid:1d89bf3c-dd6a-4845-a0e4-308b3df8a82e",
+          "display": "Dr. Mira Chen"
+        },
+        "reasonReference": [
+          {
+            "reference": "urn:uuid:62d85e98-e5a3-42ee-b944-3a86f6d38882",
+            "display": "Eczema"
+          }
+        ],
+        "dosageInstruction": [
+          {
+            "text": "Apply a thin layer to affected skin twice daily for up to 14 days, as prescribed."
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "MedicationRequest?identifier=https://fhir.oak-dermatology.example/MedicationRequest|triamcinolone-cream"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:296ea966-e676-43d5-b7cb-e1064d964e44",
+      "resource": {
+        "resourceType": "DiagnosticReport",
+        "meta": { "source": "https://fhir.harbor-laboratory.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.harbor-laboratory.example/DiagnosticReport",
+            "value": "vitamin-d-report"
+          }
+        ],
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v2-0074",
+                "code": "LAB",
+                "display": "Laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "62292-8",
+              "display": "25-Hydroxyvitamin D3+25-Hydroxyvitamin D2 [Mass/volume] in Serum or Plasma"
+            }
+          ],
+          "text": "Vitamin D"
+        },
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "effectiveDateTime": "2026-10-18",
+        "issued": "2026-10-19T09:00:00-05:00",
+        "performer": [
+          {
+            "reference": "urn:uuid:8b221265-727d-462f-9a02-006d92caf276",
+            "display": "Harbor Laboratory"
+          }
+        ],
+        "result": [
+          {
+            "reference": "urn:uuid:6db9cd91-7616-4213-8577-39310404f015",
+            "display": "Vitamin D"
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "DiagnosticReport?identifier=https://fhir.harbor-laboratory.example/DiagnosticReport|vitamin-d-report"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:6db9cd91-7616-4213-8577-39310404f015",
+      "resource": {
+        "resourceType": "Observation",
+        "meta": { "source": "https://fhir.harbor-laboratory.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.harbor-laboratory.example/Observation",
+            "value": "vitamin-d"
+          }
+        ],
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "laboratory",
+                "display": "Laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "62292-8",
+              "display": "25-Hydroxyvitamin D3+25-Hydroxyvitamin D2 [Mass/volume] in Serum or Plasma"
+            }
+          ],
+          "text": "Vitamin D"
+        },
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "effectiveDateTime": "2026-10-18",
+        "issued": "2026-10-19T09:00:00-05:00",
+        "performer": [
+          {
+            "reference": "urn:uuid:8b221265-727d-462f-9a02-006d92caf276",
+            "display": "Harbor Laboratory"
+          }
+        ],
+        "valueQuantity": {
+          "value": 24,
+          "unit": "ng/mL",
+          "system": "http://unitsofmeasure.org",
+          "code": "ng/mL"
+        },
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+                "code": "L",
+                "display": "Low"
+              }
+            ]
+          }
+        ],
+        "referenceRange": [
+          {
+            "low": {
+              "value": 30,
+              "unit": "ng/mL",
+              "system": "http://unitsofmeasure.org",
+              "code": "ng/mL"
+            },
+            "high": {
+              "value": 100,
+              "unit": "ng/mL",
+              "system": "http://unitsofmeasure.org",
+              "code": "ng/mL"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation?identifier=https://fhir.harbor-laboratory.example/Observation|vitamin-d"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:9eaa032f-2b7b-497c-afcf-b56a78b2452d",
+      "resource": {
+        "resourceType": "AllergyIntolerance",
+        "meta": { "source": "https://fhir.oak-dermatology.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.oak-dermatology.example/AllergyIntolerance",
+            "value": "penicillin"
+          }
+        ],
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+              "code": "active",
+              "display": "Active"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification",
+              "code": "unconfirmed",
+              "display": "Unconfirmed"
+            }
+          ]
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "764146007",
+              "display": "Penicillin"
+            }
+          ],
+          "text": "Penicillin"
+        },
+        "patient": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "recordedDate": "2024-03-12",
+        "recorder": {
+          "reference": "urn:uuid:1d89bf3c-dd6a-4845-a0e4-308b3df8a82e",
+          "display": "Dr. Mira Chen"
+        },
+        "note": [
+          {
+            "text": "Rash recorded after penicillin. Recorded allergy status remains relevant despite its age. Reaction and verification need clinical review."
+          }
+        ],
+        "reaction": [
+          {
+            "manifestation": [
+              {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "271807003",
+                    "display": "Eruption of skin"
+                  }
+                ],
+                "text": "Rash"
+              }
+            ]
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "AllergyIntolerance?identifier=https://fhir.oak-dermatology.example/AllergyIntolerance|penicillin"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:a330e292-60f5-4585-bb59-20e4f06f401d",
+      "resource": {
+        "resourceType": "Observation",
+        "meta": { "source": "https://fhir.oak-dermatology.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.oak-dermatology.example/Observation",
+            "value": "blood-pressure"
+          }
+        ],
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "85354-9",
+              "display": "Blood pressure panel with all children optional"
+            }
+          ],
+          "text": "Blood pressure"
+        },
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "effectiveDateTime": "2026-10-20",
+        "performer": [
+          {
+            "reference": "urn:uuid:bc2dd428-5677-41fb-9cf5-fb3ac6b39ff4",
+            "display": "Oak Dermatology"
+          }
+        ],
+        "component": [
+          {
+            "code": {
+              "coding": [
+                {
+                  "system": "http://loinc.org",
+                  "code": "8480-6",
+                  "display": "Systolic blood pressure"
+                }
+              ]
+            },
+            "valueQuantity": {
+              "value": 118,
+              "unit": "mmHg",
+              "system": "http://unitsofmeasure.org",
+              "code": "mm[Hg]"
+            }
+          },
+          {
+            "code": {
+              "coding": [
+                {
+                  "system": "http://loinc.org",
+                  "code": "8462-4",
+                  "display": "Diastolic blood pressure"
+                }
+              ]
+            },
+            "valueQuantity": {
+              "value": 76,
+              "unit": "mmHg",
+              "system": "http://unitsofmeasure.org",
+              "code": "mm[Hg]"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation?identifier=https://fhir.oak-dermatology.example/Observation|blood-pressure"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:f123d9d8-1d59-49b0-bb9d-dbe4f7788851",
+      "resource": {
+        "resourceType": "Procedure",
+        "meta": { "source": "https://fhir.oak-dermatology.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.oak-dermatology.example/Procedure",
+            "value": "skin-biopsy"
+          }
+        ],
+        "status": "completed",
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "240977001",
+              "display": "Biopsy of skin"
+            }
+          ],
+          "text": "Skin biopsy"
+        },
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "performedDateTime": "2024-03-12",
+        "performer": [
+          {
+            "actor": {
+              "reference": "urn:uuid:bc2dd428-5677-41fb-9cf5-fb3ac6b39ff4",
+              "display": "Oak Dermatology"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Procedure?identifier=https://fhir.oak-dermatology.example/Procedure|skin-biopsy"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:2a2a877c-f2f3-4a93-886d-c9c62773bc55",
+      "resource": {
+        "resourceType": "Immunization",
+        "meta": { "source": "https://fhir.pine-family-clinic.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.pine-family-clinic.example/Immunization",
+            "value": "influenza"
+          }
+        ],
+        "status": "completed",
+        "vaccineCode": {
+          "coding": [
+            {
+              "system": "http://hl7.org/fhir/sid/cvx",
+              "code": "88",
+              "display": "influenza, unspecified formulation"
+            }
+          ],
+          "text": "Influenza vaccine"
+        },
+        "patient": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "occurrenceDateTime": "2025-10-06",
+        "primarySource": false,
+        "reportOrigin": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/immunization-origin",
+              "code": "record",
+              "display": "Written Record"
+            }
+          ]
+        },
+        "note": [{ "text": "One historical influenza dose is recorded." }]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Immunization?identifier=https://fhir.pine-family-clinic.example/Immunization|influenza"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:59f41ead-0689-4eb1-92fa-614054e7d33c",
+      "resource": {
+        "resourceType": "CarePlan",
+        "meta": { "source": "https://fhir.maple-dental.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.maple-dental.example/CarePlan",
+            "value": "dental-checkup"
+          }
+        ],
+        "status": "completed",
+        "intent": "plan",
+        "title": "Dental checkup",
+        "description": "Completed dental checkup. No current dental treatment plan was included.",
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "period": { "start": "2025-04-08", "end": "2025-04-08" },
+        "author": {
+          "reference": "urn:uuid:486030a0-1d21-412d-9725-f8b32b87f835",
+          "display": "Dr. Lena Park"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "CarePlan?identifier=https://fhir.maple-dental.example/CarePlan|dental-checkup"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:36c27baf-1646-4e36-a58f-b77c46405fe7",
+      "resource": {
+        "resourceType": "Appointment",
+        "meta": { "source": "https://fhir.oak-dermatology.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.oak-dermatology.example/Appointment",
+            "value": "care-review"
+          }
+        ],
+        "status": "booked",
+        "description": "Care review",
+        "start": "2026-11-03T10:30:00-06:00",
+        "end": "2026-11-03T11:00:00-06:00",
+        "participant": [
+          {
+            "actor": {
+              "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+              "display": "Eleanor Walsh"
+            },
+            "status": "accepted"
+          },
+          {
+            "actor": {
+              "reference": "urn:uuid:1d89bf3c-dd6a-4845-a0e4-308b3df8a82e",
+              "display": "Dr. Mira Chen"
+            },
+            "status": "accepted"
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Appointment?identifier=https://fhir.oak-dermatology.example/Appointment|care-review"
+      }
+    }
+  ]
+}
