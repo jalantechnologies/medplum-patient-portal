@@ -216,6 +216,19 @@ export const interceptSearches = (
       )) as typeof medplum.search);
 };
 
+export const interceptBatches = (
+  medplum: MockClient,
+  intercept: (executeBatch: () => Promise<Bundle>) => Promise<Bundle>,
+) => {
+  const executeBatch = medplum.executeBatch.bind(medplum);
+  return vi
+    .spyOn(medplum, "executeBatch")
+    .mockImplementation(((bundle, options) =>
+      intercept(() =>
+        executeBatch(bundle, options),
+      )) as typeof medplum.executeBatch);
+};
+
 export const RECEIVED_AT = "2026-10-28T21:10:00.000Z";
 
 export const receiveRecordsAt = (instant: string) => {

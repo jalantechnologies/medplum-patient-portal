@@ -1,5 +1,6 @@
 export const DATE_FORMAT = {
   DAY: { day: "numeric", month: "long", year: "numeric" },
+  SHORT_DAY: { day: "numeric", month: "short", year: "numeric" },
   MONTH: { month: "long", year: "numeric" },
   YEAR: { year: "numeric" },
   TIME: { hour: "numeric", minute: "2-digit", timeZoneName: "longGeneric" },

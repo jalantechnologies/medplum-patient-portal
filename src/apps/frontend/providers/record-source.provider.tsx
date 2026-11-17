@@ -2,7 +2,7 @@ import { useMedplumContext } from "@medplum/react-hooks";
 import { useMemo, type FC, type PropsWithChildren } from "react";
 
 import { RecordSourceContext } from "../contexts";
-import { useAsynchronousResult } from "../hooks";
+import { useAsynchronousResultState } from "../hooks";
 import { RecordSourceService } from "../services";
 
 export const RecordSourceProvider: FC<PropsWithChildren> = ({ children }) => {
@@ -11,22 +11,24 @@ export const RecordSourceProvider: FC<PropsWithChildren> = ({ children }) => {
     () => new RecordSourceService(medplum),
     [medplum],
   );
-
-  const { error, hasAnswer, isRequesting, load, requestNumber, result } =
-    useAsynchronousResult(recordSourceService.listRecordSourceNames);
+  const { load: listRecordSourceNames, state: recordSourceNamesState } =
+    useAsynchronousResultState(recordSourceService.listRecordSourceNames);
+  const { load: findLastReceived, state: lastReceivedState } =
+    useAsynchronousResultState(recordSourceService.findLastReceived);
 
   const value = useMemo(
     () => ({
-      listRecordSourceNames: load,
-      recordSourceNamesState: {
-        error,
-        hasAnswer,
-        isRequesting,
-        requestNumber,
-        result,
-      },
+      findLastReceived,
+      lastReceivedState,
+      listRecordSourceNames,
+      recordSourceNamesState,
     }),
-    [error, hasAnswer, isRequesting, load, requestNumber, result],
+    [
+      findLastReceived,
+      lastReceivedState,
+      listRecordSourceNames,
+      recordSourceNamesState,
+    ],
   );
 
   return (

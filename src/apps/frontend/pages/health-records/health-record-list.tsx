@@ -4,18 +4,10 @@ import {
   KIND as BUTTON_KIND,
   SIZE as BUTTON_SIZE,
 } from "baseui/button";
-import { StyledDivider } from "baseui/divider";
-import { Tag, KIND as TAG_KIND, SIZE as TAG_SIZE } from "baseui/tag";
-import {
-  LabelMedium,
-  ParagraphSmall,
-  ParagraphXSmall,
-} from "baseui/typography";
 import type { FC } from "react";
 
-import { RecordListTabContent } from "../../components";
+import { RecordListTabContent, RecordRow } from "../../components";
 import type { RecordListTab } from "../../types";
-import { joinDetails, omitRepeatedDetail } from "../../utilities";
 import type { HealthRecordSummary } from "./health-record-summary";
 
 interface HealthRecordListProperties {
@@ -33,59 +25,26 @@ const HealthRecordRow: FC<HealthRecordRowProperties> = ({
   onViewRecord,
   record,
   testIdentifier,
-}) => {
-  const sourceAndDate = joinDetails(record.source, record.date);
-  const author = omitRepeatedDetail(record.author, record.source);
-
-  return (
-    <Block as="li" display="block" data-testid={testIdentifier}>
-      <Block
-        display="flex"
-        flexDirection={["column", "column", "row"]}
-        alignItems={["flex-start", "flex-start", "center"]}
-        justifyContent="space-between"
-        gridGap="scale600"
-        paddingTop="scale600"
-        paddingBottom="scale700"
-      >
-        <Block display="grid" gridGap="scale100">
-          <LabelMedium>{record.title}</LabelMedium>
-          {sourceAndDate ? (
-            <ParagraphSmall margin="0" color="contentSecondary">
-              {sourceAndDate}
-            </ParagraphSmall>
-          ) : null}
-          {author ? (
-            <ParagraphXSmall margin="0" color="contentTertiary">
-              {author}
-            </ParagraphXSmall>
-          ) : null}
-        </Block>
-        <Block display="flex" alignItems="center" gridGap="scale600">
-          {record.status ? (
-            <Tag
-              closeable={false}
-              kind={TAG_KIND.neutral}
-              size={TAG_SIZE.small}
-            >
-              {record.status}
-            </Tag>
-          ) : null}
-          <Button
-            kind={BUTTON_KIND.tertiary}
-            size={BUTTON_SIZE.compact}
-            aria-label={`View record: ${record.title}`}
-            onClick={() => onViewRecord(record)}
-            data-testid={`${testIdentifier}-view`}
-          >
-            View record
-          </Button>
-        </Block>
-      </Block>
-      <Block as={StyledDivider} margin="0" />
-    </Block>
-  );
-};
+}) => (
+  <RecordRow
+    author={record.author}
+    date={record.date}
+    source={record.source}
+    status={record.status}
+    testIdentifier={testIdentifier}
+    title={record.title}
+  >
+    <Button
+      kind={BUTTON_KIND.tertiary}
+      size={BUTTON_SIZE.compact}
+      aria-label={`View record: ${record.title}`}
+      onClick={() => onViewRecord(record)}
+      data-testid={`${testIdentifier}-view`}
+    >
+      View record
+    </Button>
+  </RecordRow>
+);
 
 const HealthRecordList: FC<HealthRecordListProperties> = ({
   onViewRecord,

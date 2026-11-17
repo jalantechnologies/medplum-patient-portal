@@ -1,11 +1,21 @@
+import type { WithId } from "@medplum/core";
+import type { CarePlan } from "@medplum/fhirtypes";
 import { createContext, useContext, useMemo } from "react";
 
 import { useReader } from "../hooks";
-import type { AsynchronousResultState, Nullable } from "../types";
+import type {
+  AsynchronousResultState,
+  ListCarePlanPreviewParameters,
+  Nullable,
+} from "../types";
 
 type CarePlanContextType = {
   activeCarePlanCountState: AsynchronousResultState<number>;
+  carePlanPreviewState: AsynchronousResultState<WithId<CarePlan>[]>;
   countActiveCarePlans: (patientReference: string) => Promise<Nullable<number>>;
+  listCarePlanPreview: (
+    parameters: ListCarePlanPreviewParameters,
+  ) => Promise<Nullable<WithId<CarePlan>[]>>;
 };
 
 export const CarePlanContext =
@@ -16,15 +26,36 @@ export const useCarePlanContext = () => {
   if (!carePlanContext) {
     throw new Error("useCarePlanContext must be used inside CarePlanProvider");
   }
-  const { activeCarePlanCountState, countActiveCarePlans } = carePlanContext;
-  const { error, isLoading, result } = useReader(activeCarePlanCountState);
+  const {
+    activeCarePlanCountState,
+    carePlanPreviewState,
+    countActiveCarePlans,
+    listCarePlanPreview,
+  } = carePlanContext;
+  const activeCarePlanCountReader = useReader(activeCarePlanCountState);
+  const carePlanPreviewReader = useReader(carePlanPreviewState);
   return useMemo(
     () => ({
-      activeCarePlanCount: result,
-      activeCarePlanCountError: error,
+      activeCarePlanCount: activeCarePlanCountReader.result,
+      activeCarePlanCountError: activeCarePlanCountReader.error,
+      carePlanPreview: carePlanPreviewReader.result,
+      carePlanPreviewError: carePlanPreviewReader.error,
       countActiveCarePlans,
-      isActiveCarePlanCountLoading: isLoading,
+      hasCarePlanPreviewAnswer: carePlanPreviewReader.hasAnswer,
+      isActiveCarePlanCountLoading: activeCarePlanCountReader.isLoading,
+      isCarePlanPreviewLoading: carePlanPreviewReader.isLoading,
+      listCarePlanPreview,
     }),
-    [countActiveCarePlans, error, isLoading, result],
+    [
+      activeCarePlanCountReader.error,
+      activeCarePlanCountReader.isLoading,
+      activeCarePlanCountReader.result,
+      carePlanPreviewReader.error,
+      carePlanPreviewReader.hasAnswer,
+      carePlanPreviewReader.isLoading,
+      carePlanPreviewReader.result,
+      countActiveCarePlans,
+      listCarePlanPreview,
+    ],
   );
 };

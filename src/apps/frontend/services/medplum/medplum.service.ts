@@ -1,10 +1,12 @@
 import {
   formatSearchQuery,
   MedplumClient,
+  OperationOutcomeError,
   Operator,
   type Filter,
   type IncludeTarget,
   type MedplumRequestOptions,
+  type SearchRequest,
   type WithId,
 } from "@medplum/core";
 import type {
@@ -41,9 +43,19 @@ interface NewestFirstSearch {
   include?: IncludeTarget[];
 }
 
+interface LastUpdatedSearch {
+  filters: Filter[];
+  resourceType: ResourceType;
+}
+
 interface SearchAnswer<SearchedResource> {
   bundle: Bundle;
   includedResources: WithId<Resource>[];
+  resources: SearchedResource[];
+}
+
+interface NewestFirstAnswer<SearchedResource> {
+  bundles: Bundle[];
   resources: SearchedResource[];
 }
 
@@ -94,25 +106,33 @@ export default class MedplumService {
     resourceType: PreviewResourceType,
     search: Omit<NewestFirstSearch, "include">,
   ): Promise<SearchPreview<WithId<ExtractResource<PreviewResourceType>>>> {
-    const [datedRecords, undatedRecords] = await Promise.all(
-      [DATED_RECORDS_START, UNDATED_RECORDS_START].map((position) =>
-        this.searchAt(
-          resourceType,
-          search,
-          position,
-          constant.SEARCH_PREVIEW_SIZE,
-        ),
-      ),
+    const { bundles, resources } = await this.searchNewestFirst(
+      resourceType,
+      search,
+      constant.SEARCH_PREVIEW_SIZE,
+      SEARCH_TOTAL.ACCURATE,
     );
     return {
-      resources: [...datedRecords.resources, ...undatedRecords.resources].slice(
+      resources,
+      total: bundles.reduce(
+        (total, bundle) => total + MedplumService.readTotal(bundle),
         0,
-        constant.SEARCH_PREVIEW_SIZE,
       ),
-      total:
-        MedplumService.readTotal(datedRecords.bundle) +
-        MedplumService.readTotal(undatedRecords.bundle),
     };
+  }
+
+  protected async listNewest<NewestResourceType extends ResourceType>(
+    resourceType: NewestResourceType,
+    search: Omit<NewestFirstSearch, "include">,
+    count: number,
+  ): Promise<WithId<ExtractResource<NewestResourceType>>[]> {
+    const { resources } = await this.searchNewestFirst(
+      resourceType,
+      search,
+      count,
+      SEARCH_TOTAL.NONE,
+    );
+    return resources;
   }
 
   protected async searchPage<PageResourceType extends ResourceType>(
@@ -226,6 +246,38 @@ export default class MedplumService {
     );
   }
 
+  protected async findLastUpdated(
+    searches: LastUpdatedSearch[],
+  ): Promise<string | undefined> {
+    const { entry = [] } = await this.medplumClient.executeBatch({
+      resourceType: RESOURCE_TYPE.BUNDLE,
+      type: BUNDLE_TYPE.BATCH,
+      entry: searches.map(({ filters, resourceType }) => ({
+        request: {
+          method: BUNDLE_REQUEST_METHOD.GET,
+          url: `${resourceType}${formatSearchQuery({
+            resourceType,
+            filters,
+            sortRules: [
+              { code: SEARCH_PARAMETER.LAST_UPDATED, descending: true },
+            ],
+            count: 1,
+          })}`,
+        },
+      })),
+    });
+    return searches
+      .map((_, index) => MedplumService.readLastUpdated(entry[index]))
+      .reduce<string | undefined>(
+        (newest, lastUpdated) =>
+          lastUpdated &&
+          (!newest || Date.parse(lastUpdated) > Date.parse(newest))
+            ? lastUpdated
+            : newest,
+        undefined,
+      );
+  }
+
   protected static isOfType<
     ExpectedResourceType extends ResourceType,
     CheckedResource extends Resource,
@@ -260,6 +312,19 @@ export default class MedplumService {
     return !search?.mode || search.mode === SEARCH_ENTRY_MODE.MATCH;
   }
 
+  private static readLastUpdated(
+    entry: BundleEntry | undefined,
+  ): string | undefined {
+    const resource = entry?.resource;
+    if (!resource || !MedplumService.isOfType(resource, RESOURCE_TYPE.BUNDLE)) {
+      const outcome = entry?.response?.outcome;
+      throw outcome
+        ? new OperationOutcomeError(outcome)
+        : new AsynchronousOperationError(constant.DEFAULT_ERROR_MESSAGE);
+    }
+    return resource.entry?.[0]?.resource?.meta?.lastUpdated;
+  }
+
   private static readTotal(bundle: Bundle): number {
     if (bundle.total === undefined) {
       throw new AsynchronousOperationError(constant.DEFAULT_ERROR_MESSAGE);
@@ -273,6 +338,7 @@ export default class MedplumService {
     { dateParameter, filters, include }: NewestFirstSearch,
     position: SearchPosition,
     count: number,
+    total: SearchRequest["total"],
   ): Promise<SearchAnswer<WithId<ExtractResource<SearchedResourceType>>>> {
     const bundle = await this.medplumClient.search(
       resourceType,
@@ -292,7 +358,7 @@ export default class MedplumService {
         include,
         count,
         offset: position.offset,
-        total: SEARCH_TOTAL.ACCURATE,
+        total,
       }),
       MedplumService.freshRequestOptions,
     );
@@ -305,6 +371,23 @@ export default class MedplumService {
       resources: MedplumService.listEntryResources(
         entries.filter(MedplumService.isMatchEntry),
       ),
+    };
+  }
+
+  private async searchNewestFirst<SearchedResourceType extends ResourceType>(
+    resourceType: SearchedResourceType,
+    search: Omit<NewestFirstSearch, "include">,
+    count: number,
+    total: SearchRequest["total"],
+  ): Promise<NewestFirstAnswer<WithId<ExtractResource<SearchedResourceType>>>> {
+    const answers = await Promise.all(
+      [DATED_RECORDS_START, UNDATED_RECORDS_START].map((position) =>
+        this.searchAt(resourceType, search, position, count, total),
+      ),
+    );
+    return {
+      bundles: answers.map(({ bundle }) => bundle),
+      resources: answers.flatMap(({ resources }) => resources).slice(0, count),
     };
   }
 
@@ -321,6 +404,7 @@ export default class MedplumService {
       search,
       position,
       count,
+      SEARCH_TOTAL.ACCURATE,
     );
     const offset = position.offset + resources.length;
     if (offset < (bundle.total ?? 0)) {

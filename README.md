@@ -6,7 +6,7 @@ A patient signs in on a phone or a laptop and sees their own health record, mana
 
 ## Status
 
-Early development. A patient can sign in with their Medplum account, see Home with their ongoing care plans and their next visit, see a summary of their health in Health profile, see their prescriptions in Medications, see their lab reports and their results in Test results, see their conditions, allergies and measurements in Health records, see which clinic sent each condition, allergy, measurement, prescription and test report, see when the portal received each record, move around the portal on a phone or a laptop, and sign out. The screens for the rest of their health record come next.
+Early development. A patient can sign in with their Medplum account, see Home with their ongoing care plans, how many sources their records come from, their next visit, their care plans with the clinic of each, and when the portal last received their records, see a summary of their health in Health profile, see their prescriptions in Medications, see their lab reports and their results in Test results, see their conditions, allergies and measurements in Health records, see which clinic sent each condition, allergy, measurement, prescription and test report, see when the portal received each record, move around the portal on a phone or a laptop, and sign out. The screens for the rest of their health record come next.
 
 ## Prerequisites
 
