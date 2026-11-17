@@ -14,6 +14,7 @@ const useReader = <Result>({
   const shownError = requestNumber > requestNumberOnArrival ? error : null;
   return {
     error: shownError,
+    hasAnswer,
     isLoading: isLoadingResult({ error: shownError, hasAnswer }),
     result,
   };

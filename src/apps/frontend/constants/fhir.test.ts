@@ -53,6 +53,7 @@ import {
   OBSERVATION_INTERPRETATION,
   OBSERVATION_INTERPRETATION_VERSION_TWO,
   OBSERVATION_STATUS,
+  PATIENT_RECORD_SEARCHES,
   RESOURCE_TYPE,
   SEARCH_PARAMETER,
 } from "./fhir";
@@ -279,6 +280,20 @@ describe("patient access policy", () => {
   const patientRecordTypes = policyResourceTypes.filter(
     (resourceType) => !resourceTypesAboutNoPatient.includes(resourceType),
   );
+
+  it("asks when records were last received from every record type a patient may search, by the parameter the policy limits it with", () => {
+    const recordCriteria = patientAccessPolicy.resource.flatMap(
+      ({ criteria, resourceType }) =>
+        criteria && resourceType !== RESOURCE_TYPE.LIST ? [criteria] : [],
+    );
+
+    expect(
+      PATIENT_RECORD_SEARCHES.map(
+        ({ patientParameter, resourceType }) =>
+          `${resourceType}?${patientParameter}=%patient`,
+      ).toSorted(),
+    ).toEqual(recordCriteria.toSorted());
+  });
 
   it("has a record to check for each resource type it grants", () => {
     expect(

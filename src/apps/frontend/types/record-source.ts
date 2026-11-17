@@ -5,6 +5,15 @@ export interface ListRecordSourcesParameters {
   patientReference: string;
 }
 
+export interface FindLastReceivedParameters {
+  patientReference: string;
+}
+
+export interface RecordSource {
+  addresses: string[];
+  name?: string;
+}
+
 export class RecordSourceNames {
   private readonly namesByAddress = new Map<string, string>();
 
@@ -32,5 +41,18 @@ export class RecordSourceNames {
   private static toAddressKey(address: string): string {
     const [addressWithoutFragment] = address.split(ADDRESS_FRAGMENT_SEPARATOR);
     return addressWithoutFragment.replace(TRAILING_SLASHES, "");
+  }
+}
+
+export class ListedRecordSourceNames extends RecordSourceNames {
+  readonly sourceCount: number;
+
+  constructor(sources: readonly RecordSource[]) {
+    super(
+      sources.flatMap(({ addresses, name }) =>
+        name ? addresses.map((address) => [address, name] as const) : [],
+      ),
+    );
+    this.sourceCount = sources.length;
   }
 }

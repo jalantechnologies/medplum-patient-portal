@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { mapleDental, oakDermatology } from "../test-medplum";
-import { RecordSourceNames } from "./record-source";
+import { ListedRecordSourceNames, RecordSourceNames } from "./record-source";
 
 describe("RecordSourceNames", () => {
   const recordSourceNames = new RecordSourceNames([
@@ -49,5 +49,36 @@ describe("RecordSourceNames", () => {
         [oakDermatology.address, "Oak Synthetic Billing"],
       ]).findName(oakDermatology.address),
     ).toBe(oakDermatology.name);
+  });
+});
+
+describe("ListedRecordSourceNames", () => {
+  const pineFamilyClinic = { addresses: [] };
+  const unnamedClinic = { addresses: ["https://fhir.unnamed-clinic.example"] };
+  const listedRecordSourceNames = new ListedRecordSourceNames([
+    {
+      addresses: [oakDermatology.address, `${oakDermatology.address}/v2`],
+      name: oakDermatology.name,
+    },
+    { addresses: [mapleDental.address], name: mapleDental.name },
+    { ...pineFamilyClinic, name: "Pine Synthetic Family Clinic" },
+    unnamedClinic,
+  ]);
+
+  it("counts each source once, whatever number of addresses it has, and one with no address or no name", () => {
+    expect(listedRecordSourceNames.sourceCount).toBe(4);
+    expect(new ListedRecordSourceNames([]).sourceCount).toBe(0);
+  });
+
+  it("names a source at each of its addresses, and no source that has no name", () => {
+    expect(
+      listedRecordSourceNames.findName(`${oakDermatology.address}/v2`),
+    ).toBe(oakDermatology.name);
+    expect(listedRecordSourceNames.findName(mapleDental.address)).toBe(
+      mapleDental.name,
+    );
+    expect(listedRecordSourceNames.findName(unnamedClinic.addresses[0])).toBe(
+      "",
+    );
   });
 });

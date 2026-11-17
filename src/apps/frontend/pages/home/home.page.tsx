@@ -1,43 +1,22 @@
-import type { Appointment } from "@medplum/fhirtypes";
 import { Banner, KIND } from "baseui/banner";
 import { Block } from "baseui/block";
 import { StyledDivider } from "baseui/divider";
 import { HeadingMedium, ParagraphSmall } from "baseui/typography";
 import type { FC } from "react";
 
-import constant from "../../constants";
 import { usePatientName } from "../../hooks";
-import type { Nullable } from "../../types";
-import { describeActiveCarePlans } from "../../utilities";
+import ConnectedRecords from "./connected-records";
+import CurrentCare from "./current-care";
+import HomeOverview from "./home-overview";
 import useHomeOverview from "./home-overview.hook";
-import OverviewFact from "./overview-fact";
-
-const describeNextVisit = (appointment: Nullable<Appointment>) => {
-  if (!appointment?.start) {
-    return "None booked";
-  }
-  const start = new Date(appointment.start);
-  const day = start.toLocaleDateString(constant.LOCALE, {
-    month: "short",
-    day: "numeric",
-  });
-  const time = start.toLocaleTimeString(constant.LOCALE, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  return `${day} · ${time}`;
-};
 
 const Home: FC = () => {
   const { givenName, recordOwner } = usePatientName();
   const {
-    activeCarePlanCount,
-    hasActiveCarePlanCountFailed,
-    hasNextAppointmentFailed,
-    isActiveCarePlanCountLoading,
-    isNextAppointmentLoading,
+    connectedRecords,
+    currentCare,
     loadOverview,
-    nextAppointment,
+    overview,
     overviewErrorMessage,
   } = useHomeOverview();
 
@@ -75,33 +54,17 @@ const Home: FC = () => {
         </Block>
       ) : null}
       <Block as={StyledDivider} margin="0" />
-      <Block
-        as="dl"
-        display="grid"
-        gridTemplateColumns={["1fr", "1fr", "repeat(3, 1fr)"]}
-        gridGap="scale800"
-        margin="0"
-        paddingTop="scale800"
-        paddingBottom="scale800"
-        aria-live="polite"
-        data-testid="home-overview"
-      >
-        <OverviewFact
-          label="Current care"
-          value={describeActiveCarePlans(activeCarePlanCount)}
-          isLoading={isActiveCarePlanCountLoading}
-          hasFailed={hasActiveCarePlanCountFailed}
-          testIdentifier="active-care-plans"
-        />
-        <OverviewFact
-          label="Next visit"
-          value={describeNextVisit(nextAppointment)}
-          isLoading={isNextAppointmentLoading}
-          hasFailed={hasNextAppointmentFailed}
-          testIdentifier="next-visit"
-        />
-      </Block>
+      <HomeOverview {...overview} />
       <Block as={StyledDivider} margin="0" />
+      <Block
+        display="grid"
+        gridTemplateColumns={["1fr", "1fr", "5fr 2fr"]}
+        gridGap="scale800"
+        paddingTop="scale1000"
+      >
+        <CurrentCare {...currentCare} />
+        <ConnectedRecords {...connectedRecords} />
+      </Block>
     </Block>
   );
 };

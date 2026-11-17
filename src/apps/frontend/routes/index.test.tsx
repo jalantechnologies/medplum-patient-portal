@@ -22,6 +22,7 @@ import {
   createCarePlan,
   createMedicationRequest,
   createRecordSources,
+  interceptBatches,
   interceptSearches,
   networkFailure,
   oakDermatology,
@@ -217,8 +218,13 @@ const watchForTestIdentifiers = async (
 const HOME_FAILURE_TEST_IDENTIFIERS = [
   "home-overview-error",
   "active-care-plans-unavailable",
+  "available-sources-unavailable",
   "next-visit-unavailable",
+  "current-care-unavailable",
+  "last-received-unavailable",
 ];
+
+const HOME_REQUEST_COUNT_ON_ARRIVAL = 6;
 
 const leaveHome = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(
@@ -610,15 +616,18 @@ describe("ApplicationRoutes", () => {
     const medplum = new MockClient({ profile: HomerSimpson });
     const pendingFailures: (() => void)[] = [];
     let isRecordReachable = false;
-    interceptSearches(medplum, (search) =>
+    const failLater = (request: () => Promise<Bundle>) =>
       isRecordReachable
-        ? search()
+        ? request()
         : new Promise<Bundle>((_, reject) => {
             pendingFailures.push(() => reject(networkFailure()));
-          }),
-    );
+          });
+    interceptSearches(medplum, failLater);
+    interceptBatches(medplum, failLater);
     renderRoutes(medplum);
-    await waitFor(() => expect(pendingFailures).toHaveLength(2));
+    await waitFor(() =>
+      expect(pendingFailures).toHaveLength(HOME_REQUEST_COUNT_ON_ARRIVAL),
+    );
     isRecordReachable = true;
     await leaveHome(user);
     await act(async () => {
@@ -644,17 +653,21 @@ describe("ApplicationRoutes", () => {
     await createCarePlan(medplum, CARE_PLAN_STATUS.ACTIVE);
     const pendingAnswers: (() => void)[] = [];
     let isRecordReachable = false;
-    interceptSearches(medplum, (search) => {
+    const answerLater = (request: () => Promise<Bundle>) => {
       if (isRecordReachable) {
-        return search();
+        return request();
       }
-      const answer = search();
+      const answer = request();
       return new Promise<Bundle>((resolve) => {
         pendingAnswers.push(() => resolve(answer));
       });
-    });
+    };
+    interceptSearches(medplum, answerLater);
+    interceptBatches(medplum, answerLater);
     renderRoutes(medplum);
-    await waitFor(() => expect(pendingAnswers).toHaveLength(2));
+    await waitFor(() =>
+      expect(pendingAnswers).toHaveLength(HOME_REQUEST_COUNT_ON_ARRIVAL),
+    );
     isRecordReachable = true;
     await leaveHome(user);
     await act(async () => {
@@ -665,7 +678,13 @@ describe("ApplicationRoutes", () => {
 
     expect(
       await watchForTestIdentifiers(
-        ["active-care-plans-loading", "next-visit-loading"],
+        [
+          "active-care-plans-loading",
+          "available-sources-loading",
+          "next-visit-loading",
+          "current-care-loading",
+          "last-received-loading",
+        ],
         () => returnToHome(user),
       ),
     ).toBe(false);

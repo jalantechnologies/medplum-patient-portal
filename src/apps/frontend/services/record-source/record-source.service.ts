@@ -13,17 +13,18 @@ import {
   IDENTIFIER_SYSTEM,
   LIST_MODE,
   LIST_STATUS,
+  PATIENT_RECORD_SEARCHES,
   RESOURCE_TYPE,
   SEARCH_PARAMETER,
 } from "../../constants/fhir";
 import {
-  RecordSourceNames,
+  ListedRecordSourceNames,
   ServiceResponse,
+  type FindLastReceivedParameters,
   type ListRecordSourcesParameters,
+  type RecordSource,
 } from "../../types";
 import MedplumService from "../medplum/medplum.service";
-
-type SourceName = [address: string, name: string];
 
 export default class RecordSourceService extends MedplumService {
   private static readonly listedOrganization: IncludeTarget = {
@@ -34,7 +35,7 @@ export default class RecordSourceService extends MedplumService {
 
   listRecordSourceNames = async (
     parameters: ListRecordSourcesParameters,
-  ): Promise<ServiceResponse<RecordSourceNames>> => {
+  ): Promise<ServiceResponse<ListedRecordSourceNames>> => {
     const searchRequest = RecordSourceService.toSearchRequest(parameters);
     const resources: Resource[] = [];
     for await (const page of this.medplumClient.searchResourcePages(
@@ -45,9 +46,22 @@ export default class RecordSourceService extends MedplumService {
       resources.push(...page);
     }
     return new ServiceResponse(
-      new RecordSourceNames(RecordSourceService.nameListedSources(resources)),
+      new ListedRecordSourceNames(
+        RecordSourceService.listListedOrganizations(resources).map(
+          RecordSourceService.toRecordSource,
+        ),
+      ),
     );
   };
+
+  findLastReceived = async (
+    parameters: FindLastReceivedParameters,
+  ): Promise<ServiceResponse<string>> =>
+    new ServiceResponse(
+      await this.findLastUpdated(
+        RecordSourceService.toLastReceivedSearches(parameters),
+      ),
+    );
 
   private static toSearchRequest({
     patientReference,
@@ -71,7 +85,26 @@ export default class RecordSourceService extends MedplumService {
     };
   }
 
-  private static nameListedSources(resources: Resource[]): SourceName[] {
+  private static toLastReceivedSearches({
+    patientReference,
+  }: FindLastReceivedParameters) {
+    return PATIENT_RECORD_SEARCHES.map(
+      ({ patientParameter, resourceType }) => ({
+        resourceType,
+        filters: [
+          {
+            code: patientParameter,
+            operator: Operator.EQUALS,
+            value: patientReference,
+          },
+        ],
+      }),
+    );
+  }
+
+  private static listListedOrganizations(
+    resources: Resource[],
+  ): Organization[] {
     const organizationsByReference = new Map(
       resources
         .filter((resource) =>
@@ -82,15 +115,16 @@ export default class RecordSourceService extends MedplumService {
           organization,
         ]),
     );
-    return resources
-      .filter(RecordSourceService.isWorkingList)
-      .flatMap(({ entry }) => entry ?? [])
-      .flatMap(({ item }) => {
-        const organization = organizationsByReference.get(item.reference ?? "");
-        return organization
-          ? RecordSourceService.nameAddresses(organization)
-          : [];
-      });
+    const listedReferences = new Set(
+      resources
+        .filter(RecordSourceService.isWorkingList)
+        .flatMap(({ entry }) => entry ?? [])
+        .flatMap(({ item }) => (item.reference ? [item.reference] : [])),
+    );
+    return [...listedReferences].flatMap((reference) => {
+      const organization = organizationsByReference.get(reference);
+      return organization ? [organization] : [];
+    });
   }
 
   // A snapshot list may be out of date, and a list of changes holds additions and removals (FHIR allows an entry marked deleted only there), not the sources themselves.
@@ -101,15 +135,15 @@ export default class RecordSourceService extends MedplumService {
     );
   }
 
-  private static nameAddresses({
+  private static toRecordSource({
     identifier,
     name,
-  }: Organization): SourceName[] {
-    if (!name) {
-      return [];
-    }
-    return (identifier ?? []).flatMap(({ system, value }): SourceName[] =>
-      system === IDENTIFIER_SYSTEM.URI && value ? [[value, name]] : [],
-    );
+  }: Organization): RecordSource {
+    return {
+      addresses: (identifier ?? []).flatMap(({ system, value }) =>
+        system === IDENTIFIER_SYSTEM.URI && value ? [value] : [],
+      ),
+      name,
+    };
   }
 }

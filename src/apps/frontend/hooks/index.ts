@@ -1,3 +1,4 @@
+import useAsynchronousResultState from "./asynchronous-result-state.hook";
 import useAsynchronousResult from "./asynchronous-result.hook";
 import useAsynchronous from "./asynchronous.hook";
 import usePatientName from "./patient-name.hook";
@@ -10,6 +11,7 @@ import useRecordSourceNames from "./record-source-names.hook";
 export {
   useAsynchronous,
   useAsynchronousResult,
+  useAsynchronousResultState,
   usePatientName,
   useReader,
   useRecordDetailColumns,

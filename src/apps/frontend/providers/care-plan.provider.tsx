@@ -2,7 +2,7 @@ import { useMedplumContext } from "@medplum/react-hooks";
 import { useMemo, type FC, type PropsWithChildren } from "react";
 
 import { CarePlanContext } from "../contexts";
-import { useAsynchronousResult } from "../hooks";
+import { useAsynchronousResultState } from "../hooks";
 import { CarePlanService } from "../services";
 
 export const CarePlanProvider: FC<PropsWithChildren> = ({ children }) => {
@@ -11,22 +11,24 @@ export const CarePlanProvider: FC<PropsWithChildren> = ({ children }) => {
     () => new CarePlanService(medplum),
     [medplum],
   );
-
-  const { error, hasAnswer, isRequesting, load, requestNumber, result } =
-    useAsynchronousResult(carePlanService.countActiveCarePlans);
+  const { load: countActiveCarePlans, state: activeCarePlanCountState } =
+    useAsynchronousResultState(carePlanService.countActiveCarePlans);
+  const { load: listCarePlanPreview, state: carePlanPreviewState } =
+    useAsynchronousResultState(carePlanService.listCarePlanPreview);
 
   const value = useMemo(
     () => ({
-      activeCarePlanCountState: {
-        error,
-        hasAnswer,
-        isRequesting,
-        requestNumber,
-        result,
-      },
-      countActiveCarePlans: load,
+      activeCarePlanCountState,
+      carePlanPreviewState,
+      countActiveCarePlans,
+      listCarePlanPreview,
     }),
-    [error, hasAnswer, isRequesting, load, requestNumber, result],
+    [
+      activeCarePlanCountState,
+      carePlanPreviewState,
+      countActiveCarePlans,
+      listCarePlanPreview,
+    ],
   );
 
   return (

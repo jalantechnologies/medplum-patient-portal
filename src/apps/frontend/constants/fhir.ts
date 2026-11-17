@@ -343,6 +343,7 @@ export const SEARCH_PARAMETER = {
   IDENTIFIER: "identifier",
   INTENT: "intent",
   ITEM: "item",
+  LAST_UPDATED: "_lastUpdated",
   MEDICATION: "medication",
   PATIENT: "patient",
   PROFILE: "profile",
@@ -401,6 +402,40 @@ export const CONTAINED_REFERENCE_PREFIX = "#";
 export const REFERENCE_SEGMENT_SEPARATOR = "/";
 
 export const REFERENCE_HISTORY_SEGMENT = "_history";
+
+export const PATIENT_RECORD_SEARCHES = [
+  {
+    resourceType: RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+    patientParameter: SEARCH_PARAMETER.PATIENT,
+  },
+  {
+    resourceType: RESOURCE_TYPE.APPOINTMENT,
+    patientParameter: SEARCH_PARAMETER.PATIENT,
+  },
+  {
+    resourceType: RESOURCE_TYPE.CARE_PLAN,
+    patientParameter: SEARCH_PARAMETER.SUBJECT,
+  },
+  {
+    resourceType: RESOURCE_TYPE.CONDITION,
+    patientParameter: SEARCH_PARAMETER.PATIENT,
+  },
+  {
+    resourceType: RESOURCE_TYPE.DIAGNOSTIC_REPORT,
+    patientParameter: SEARCH_PARAMETER.PATIENT,
+  },
+  {
+    resourceType: RESOURCE_TYPE.MEDICATION_REQUEST,
+    patientParameter: SEARCH_PARAMETER.PATIENT,
+  },
+  {
+    resourceType: RESOURCE_TYPE.OBSERVATION,
+    patientParameter: SEARCH_PARAMETER.PATIENT,
+  },
+] as const satisfies readonly {
+  patientParameter: string;
+  resourceType: ResourceType;
+}[];
 
 export const SEARCH_TOTAL = {
   ACCURATE: "accurate",

@@ -4,6 +4,7 @@ import {
   type AsynchronousResult,
   type AsynchronousResultState,
 } from "./asynchronous-operation";
+import type { ListCarePlanPreviewParameters } from "./care-plan";
 import type { Nullable } from "./common";
 import type {
   DiagnosticReportKind,
@@ -27,8 +28,11 @@ import type {
   RetryableRequest,
 } from "./record-list-tab";
 import {
+  ListedRecordSourceNames,
   RecordSourceNames,
+  type FindLastReceivedParameters,
   type ListRecordSourcesParameters,
+  type RecordSource,
 } from "./record-source";
 import type { SearchPage, SearchPosition } from "./search-page";
 import type { SearchPreview } from "./search-preview";
@@ -36,6 +40,7 @@ import { ServiceResponse } from "./service-response";
 
 export {
   AsynchronousOperationError,
+  ListedRecordSourceNames,
   RecordSourceNames,
   ServiceResponse,
   type ActiveAllergyIntolerancePreview,
@@ -45,6 +50,8 @@ export {
   type DiagnosticReportPage,
   type DiagnosticReportSearch,
   type Fact,
+  type FindLastReceivedParameters,
+  type ListCarePlanPreviewParameters,
   type ListDiagnosticReportsParameters,
   type ListRecordSourcesParameters,
   type MedicationRequestPage,
@@ -54,6 +61,7 @@ export {
   type RecordListTab,
   type RecordListTabText,
   type RecordSearch,
+  type RecordSource,
   type RecordSummary,
   type ResultHolder,
   type ResultsByIdentifier,
