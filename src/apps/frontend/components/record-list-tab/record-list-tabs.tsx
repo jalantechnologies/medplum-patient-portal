@@ -3,7 +3,11 @@ import { Block } from "baseui/block";
 import { Tab, Tabs } from "baseui/tabs-motion";
 import type { Key, ReactNode } from "react";
 
-import type { RecordListTab, RecordSummary } from "../../types";
+import type {
+  RecordListTab,
+  RecordSummary,
+  RetryableRequest,
+} from "../../types";
 
 interface RecordListTabsProperties<Summary extends RecordSummary> {
   activeTabKey: Key;
@@ -11,6 +15,7 @@ interface RecordListTabsProperties<Summary extends RecordSummary> {
   errorLabel: string;
   errorTestIdentifier: string;
   onTabChange: (tabKey: Key) => void;
+  otherRequests: RetryableRequest[];
   tabs: RecordListTab<Summary>[];
 }
 
@@ -20,20 +25,23 @@ const RecordListTabs = <Summary extends RecordSummary>({
   errorLabel,
   errorTestIdentifier,
   onTabChange,
+  otherRequests,
   tabs,
 }: RecordListTabsProperties<Summary>) => {
-  const failedTabs = tabs.filter(({ error }) => error !== null);
-  const retryFailedTabs = async () => {
-    await Promise.all(failedTabs.map(({ retry }) => retry()));
+  const failedRequests = [...tabs, ...otherRequests].filter(
+    ({ error }) => error !== null,
+  );
+  const retryFailedRequests = async () => {
+    await Promise.all(failedRequests.map(({ retry }) => retry()));
   };
 
   return (
     <>
-      {failedTabs.length > 0 ? (
+      {failedRequests.length > 0 ? (
         <Block role="alert" data-testid={errorTestIdentifier}>
           <Banner
             kind={KIND.negative}
-            action={{ label: "Try again", onClick: retryFailedTabs }}
+            action={{ label: "Try again", onClick: retryFailedRequests }}
             overrides={{
               Root: { props: { "aria-label": errorLabel } },
               TrailingButtonContainer: {
@@ -41,7 +49,7 @@ const RecordListTabs = <Summary extends RecordSummary>({
               },
             }}
           >
-            {failedTabs[0].error?.message}
+            {failedRequests[0].error?.message}
           </Banner>
         </Block>
       ) : null}

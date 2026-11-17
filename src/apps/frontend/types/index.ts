@@ -24,13 +24,19 @@ import type {
   RecordListTabText,
   RecordSearch,
   RecordSummary,
+  RetryableRequest,
 } from "./record-list-tab";
+import {
+  RecordSourceNames,
+  type ListRecordSourcesParameters,
+} from "./record-source";
 import type { SearchPage, SearchPosition } from "./search-page";
 import type { SearchPreview } from "./search-preview";
 import { ServiceResponse } from "./service-response";
 
 export {
   AsynchronousOperationError,
+  RecordSourceNames,
   ServiceResponse,
   type ActiveAllergyIntolerancePreview,
   type AsynchronousResult,
@@ -40,6 +46,7 @@ export {
   type DiagnosticReportSearch,
   type Fact,
   type ListDiagnosticReportsParameters,
+  type ListRecordSourcesParameters,
   type MedicationRequestPage,
   type MedicationRequestSearch,
   type MedicationsByReference,
@@ -50,6 +57,7 @@ export {
   type RecordSummary,
   type ResultHolder,
   type ResultsByIdentifier,
+  type RetryableRequest,
   type SearchPage,
   type SearchPosition,
   type SearchPreview,

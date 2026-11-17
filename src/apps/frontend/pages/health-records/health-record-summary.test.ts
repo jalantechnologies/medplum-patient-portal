@@ -12,7 +12,9 @@ import {
   OBSERVATION_STATUS,
   RESOURCE_TYPE,
 } from "../../constants/fhir";
-import { codeFrom } from "../../test-medplum";
+import { codeFrom, oakDermatology, RECEIVED_AT } from "../../test-medplum";
+import { showDatesInChicago } from "../../test-time-zone";
+import { RecordSourceNames } from "../../types";
 import {
   summarizeAllergyIntolerance,
   summarizeCondition,
@@ -20,6 +22,8 @@ import {
 } from "./health-record-summary";
 
 const homer = createReference(HomerSimpson);
+
+const noSourceNames = new RecordSourceNames();
 
 const clinicVerification = {
   system: "http://example.org/clinic-verification",
@@ -34,27 +38,33 @@ const summarizeAllergyStatus = (
   clinicalStatus: CodeableConcept | undefined,
   verificationStatus: CodeableConcept | undefined,
 ) =>
-  summarizeAllergyIntolerance({
-    resourceType: RESOURCE_TYPE.ALLERGY_INTOLERANCE,
-    id: "amoxicillin",
-    patient: homer,
-    code: { text: "Amoxicillin" },
-    clinicalStatus,
-    verificationStatus,
-  });
+  summarizeAllergyIntolerance(
+    {
+      resourceType: RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+      id: "amoxicillin",
+      patient: homer,
+      code: { text: "Amoxicillin" },
+      clinicalStatus,
+      verificationStatus,
+    },
+    noSourceNames,
+  );
 
 const summarizeConditionStatus = (
   clinicalStatus: CodeableConcept | undefined,
   verificationStatus: CodeableConcept | undefined,
 ) =>
-  summarizeCondition({
-    resourceType: RESOURCE_TYPE.CONDITION,
-    id: "asthma",
-    subject: homer,
-    code: { text: "Asthma" },
-    clinicalStatus,
-    verificationStatus,
-  });
+  summarizeCondition(
+    {
+      resourceType: RESOURCE_TYPE.CONDITION,
+      id: "asthma",
+      subject: homer,
+      code: { text: "Asthma" },
+      clinicalStatus,
+      verificationStatus,
+    },
+    noSourceNames,
+  );
 
 const allergyClinical = (code: string) =>
   codeFrom(CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL, code);
@@ -81,34 +91,43 @@ describe("naming a health record", () => {
     [
       "a condition",
       (code: CodeableConcept) =>
-        summarizeCondition({
-          resourceType: RESOURCE_TYPE.CONDITION,
-          id: "eczema",
-          subject: homer,
-          code,
-        }),
+        summarizeCondition(
+          {
+            resourceType: RESOURCE_TYPE.CONDITION,
+            id: "eczema",
+            subject: homer,
+            code,
+          },
+          noSourceNames,
+        ),
       "Condition",
     ],
     [
       "an allergy",
       (code: CodeableConcept) =>
-        summarizeAllergyIntolerance({
-          resourceType: RESOURCE_TYPE.ALLERGY_INTOLERANCE,
-          id: "peanut",
-          patient: homer,
-          code,
-        }),
+        summarizeAllergyIntolerance(
+          {
+            resourceType: RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+            id: "peanut",
+            patient: homer,
+            code,
+          },
+          noSourceNames,
+        ),
       "Allergy",
     ],
     [
       "a measurement",
       (code: CodeableConcept) =>
-        summarizeVitalSign({
-          resourceType: RESOURCE_TYPE.OBSERVATION,
-          id: "weight",
-          status: OBSERVATION_STATUS.FINAL,
-          code,
-        }),
+        summarizeVitalSign(
+          {
+            resourceType: RESOURCE_TYPE.OBSERVATION,
+            id: "weight",
+            status: OBSERVATION_STATUS.FINAL,
+            code,
+          },
+          noSourceNames,
+        ),
       "Measurement",
     ],
   ])(
@@ -129,12 +148,15 @@ describe("summarizeVitalSign", () => {
     [OBSERVATION_STATUS.ENTERED_IN_ERROR, "Entered in error"],
   ])("words the status %s as %s", (status, words) => {
     expect(
-      summarizeVitalSign({
-        resourceType: RESOURCE_TYPE.OBSERVATION,
-        id: "blood-pressure",
-        status,
-        code: { text: "Blood pressure" },
-      }).status,
+      summarizeVitalSign(
+        {
+          resourceType: RESOURCE_TYPE.OBSERVATION,
+          id: "blood-pressure",
+          status,
+          code: { text: "Blood pressure" },
+        },
+        noSourceNames,
+      ).status,
     ).toBe(words);
   });
 });
@@ -257,6 +279,105 @@ describe("summarizeCondition", () => {
           verificationStatus,
         ).status,
       ).toBe("Active");
+    },
+  );
+});
+
+describe("where a health record came from", () => {
+  const meta = { source: oakDermatology.address, lastUpdated: RECEIVED_AT };
+  const oakSourceNames = new RecordSourceNames([
+    [oakDermatology.address, oakDermatology.name],
+  ]);
+  const summarizers = [
+    [
+      "a condition",
+      (
+        withMeta: typeof meta | undefined,
+        recordSourceNames: RecordSourceNames,
+      ) =>
+        summarizeCondition(
+          {
+            resourceType: RESOURCE_TYPE.CONDITION,
+            id: "eczema",
+            subject: homer,
+            meta: withMeta,
+          },
+          recordSourceNames,
+        ),
+    ],
+    [
+      "an allergy",
+      (
+        withMeta: typeof meta | undefined,
+        recordSourceNames: RecordSourceNames,
+      ) =>
+        summarizeAllergyIntolerance(
+          {
+            resourceType: RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+            id: "penicillin",
+            patient: homer,
+            meta: withMeta,
+          },
+          recordSourceNames,
+        ),
+    ],
+    [
+      "a measurement",
+      (
+        withMeta: typeof meta | undefined,
+        recordSourceNames: RecordSourceNames,
+      ) =>
+        summarizeVitalSign(
+          {
+            resourceType: RESOURCE_TYPE.OBSERVATION,
+            id: "blood-pressure",
+            status: OBSERVATION_STATUS.FINAL,
+            code: { text: "Blood pressure" },
+            meta: withMeta,
+          },
+          recordSourceNames,
+        ),
+    ],
+  ] as const;
+
+  it.each(summarizers)(
+    "names the source of %s and words when the portal received it, in the patient's time zone",
+    (_kind, summarize) => {
+      showDatesInChicago();
+
+      expect(summarize(meta, oakSourceNames)).toMatchObject({
+        received: "October 28, 2026 · 4:10 PM Central Time",
+        source: oakDermatology.name,
+      });
+    },
+  );
+
+  it.each(summarizers)(
+    "names no source for %s whose source the patient's sources do not name",
+    (_kind, summarize) => {
+      expect(summarize(meta, noSourceNames)).toMatchObject({ source: "" });
+    },
+  );
+
+  it.each(summarizers)(
+    "names no source and no received date for %s that names neither",
+    (_kind, summarize) => {
+      expect(summarize(undefined, oakSourceNames)).toMatchObject({
+        received: "",
+        source: "",
+      });
+    },
+  );
+
+  it.each(summarizers)(
+    "words no received time for %s whose last update is not a valid time",
+    (_kind, summarize) => {
+      expect(
+        summarize(
+          { ...meta, lastUpdated: "2026-10-28T99:00:00Z" },
+          oakSourceNames,
+        ),
+      ).toMatchObject({ received: "" });
     },
   );
 });

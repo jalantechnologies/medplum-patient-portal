@@ -72,8 +72,10 @@ const HealthRecordDialog: FC<HealthRecordDialogProperties> = ({
             data-testid="health-record-details"
           >
             <RecordDetail label="Patient" value={patientName} />
+            <RecordDetail label="Source" value={record.source} />
             <RecordDetail label="Date" value={record.date} />
             <RecordDetail label="Verification" value={record.verification} />
+            <RecordDetail label="Received" value={record.received} />
             <RecordDetail label="Author" value={record.author} />
           </Block>
         </ModalBody>

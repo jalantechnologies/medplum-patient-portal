@@ -1,7 +1,9 @@
 import { describeActiveCarePlans } from "./care-plan-text";
 import { describeCount } from "./count-text";
+import { joinDetails, omitRepeatedDetail } from "./detail-line";
 import {
   formatRecordDate,
+  formatRecordDateTime,
   humanizeCode,
   nameAllergyIntolerance,
   nameCodeableConcept,
@@ -18,8 +20,11 @@ export {
   describeActiveCarePlans,
   describeCount,
   formatRecordDate,
+  formatRecordDateTime,
   humanizeCode,
+  joinDetails,
   nameAllergyIntolerance,
   nameCodeableConcept,
+  omitRepeatedDetail,
   readHealthRecordsTabKey,
 };

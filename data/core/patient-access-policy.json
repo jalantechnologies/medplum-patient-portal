@@ -28,6 +28,11 @@
       "interaction": ["search"]
     },
     {
+      "resourceType": "List",
+      "criteria": "List?subject=%patient",
+      "interaction": ["search"]
+    },
+    {
       "resourceType": "Medication",
       "interaction": ["read", "vread"]
     },
@@ -40,6 +45,10 @@
       "resourceType": "Observation",
       "criteria": "Observation?patient=%patient",
       "interaction": ["search"]
+    },
+    {
+      "resourceType": "Organization",
+      "interaction": ["read"]
     }
   ]
 }

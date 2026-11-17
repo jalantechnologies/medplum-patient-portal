@@ -138,6 +138,55 @@
       }
     },
     {
+      "fullUrl": "urn:uuid:64329a20-4acb-46e4-8c0d-783c4c4ae37a",
+      "resource": {
+        "resourceType": "List",
+        "identifier": [
+          {
+            "system": "urn:ietf:rfc:3986",
+            "value": "urn:uuid:a16b76cd-a224-453e-a336-3980664ab7ec"
+          }
+        ],
+        "status": "current",
+        "mode": "working",
+        "title": "Record sources",
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "entry": [
+          {
+            "item": {
+              "reference": "urn:uuid:bc2dd428-5677-41fb-9cf5-fb3ac6b39ff4",
+              "display": "Oak Dermatology"
+            }
+          },
+          {
+            "item": {
+              "reference": "urn:uuid:8b221265-727d-462f-9a02-006d92caf276",
+              "display": "Harbor Laboratory"
+            }
+          },
+          {
+            "item": {
+              "reference": "urn:uuid:8f3744a9-2c33-41f2-b892-5023a6fd2bb3",
+              "display": "Maple Dental"
+            }
+          },
+          {
+            "item": {
+              "reference": "urn:uuid:21c8967a-275f-4754-9622-8358ae7d3eb1",
+              "display": "Pine Family Clinic"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "List?identifier=urn:ietf:rfc:3986|urn:uuid:a16b76cd-a224-453e-a336-3980664ab7ec"
+      }
+    },
+    {
       "fullUrl": "urn:uuid:6c059563-920d-4401-9d65-349573d0c744",
       "resource": {
         "resourceType": "CarePlan",

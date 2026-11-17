@@ -18,9 +18,11 @@ import type {
   CodeSystemConcept,
   Condition,
   DiagnosticReport,
+  List,
   Medication,
   MedicationRequest,
   Observation,
+  Organization,
   Patient,
   Reference,
   Resource,
@@ -41,7 +43,10 @@ import {
   CONDITION_VERIFICATION_STATUS,
   DIAGNOSTIC_REPORT_STATUS,
   IMAGING_SERVICE_SECTION,
+  IDENTIFIER_SYSTEM,
   LABORATORY_SERVICE_SECTION,
+  LIST_MODE,
+  LIST_STATUS,
   MEDICATION_REQUEST_INTENT,
   MEDICATION_REQUEST_STATUS,
   OBSERVATION_CATEGORY,
@@ -224,6 +229,12 @@ describe("patient access policy", () => {
       code: { text: "Vitamin D" },
       subject: patient,
     }),
+    [RESOURCE_TYPE.LIST]: (patient): List => ({
+      resourceType: RESOURCE_TYPE.LIST,
+      status: LIST_STATUS.CURRENT,
+      mode: LIST_MODE.WORKING,
+      subject: patient,
+    }),
     [RESOURCE_TYPE.MEDICATION_REQUEST]: (patient): MedicationRequest => ({
       resourceType: RESOURCE_TYPE.MEDICATION_REQUEST,
       status: MEDICATION_REQUEST_STATUS.ACTIVE,
@@ -261,7 +272,10 @@ describe("patient access policy", () => {
     (policyResource) => policyResource.resourceType,
   );
 
-  const resourceTypesAboutNoPatient: string[] = [RESOURCE_TYPE.MEDICATION];
+  const resourceTypesAboutNoPatient: string[] = [
+    RESOURCE_TYPE.MEDICATION,
+    RESOURCE_TYPE.ORGANIZATION,
+  ];
   const patientRecordTypes = policyResourceTypes.filter(
     (resourceType) => !resourceTypesAboutNoPatient.includes(resourceType),
   );
@@ -285,6 +299,25 @@ describe("patient access policy", () => {
       expect(
         listAllowedInteractions(medication, fillPolicyFor(patient)),
       ).toEqual([AccessPolicyInteraction.READ, AccessPolicyInteraction.VREAD]);
+    }
+  });
+
+  it("lets every patient only read a clinic by its identifier, never search clinics, so no patient can find the clinics another patient visits", () => {
+    const clinic: Organization = {
+      resourceType: RESOURCE_TYPE.ORGANIZATION,
+      identifier: [
+        {
+          system: IDENTIFIER_SYSTEM.URI,
+          value: "https://fhir.oak-dermatology.example",
+        },
+      ],
+      name: "Oak Synthetic Dermatology",
+    };
+
+    for (const patient of [quinn, harper]) {
+      expect(listAllowedInteractions(clinic, fillPolicyFor(patient))).toEqual([
+        AccessPolicyInteraction.READ,
+      ]);
     }
   });
 

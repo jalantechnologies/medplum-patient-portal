@@ -16,8 +16,14 @@ import {
   RESOURCE_TYPE,
   TIMING_PERIOD_UNIT,
 } from "../../constants/fhir";
-import type { MedicationsByReference } from "../../types";
+import { oakDermatology, RECEIVED_AT } from "../../test-medplum";
+import { showDatesInChicago } from "../../test-time-zone";
+import { RecordSourceNames, type MedicationsByReference } from "../../types";
 import { summarizeMedicationRequest } from "./medication-summary";
+
+const oakSourceNames = new RecordSourceNames([
+  [oakDermatology.address, oakDermatology.name],
+]);
 
 const summarize = (
   overrides: Partial<MedicationRequest>,
@@ -33,6 +39,7 @@ const summarize = (
       ...overrides,
     },
     { medications, nextPosition: null, resources: [] },
+    oakSourceNames,
   );
 
 const amlodipine: WithId<Medication> = {
@@ -433,5 +440,24 @@ describe("summarizeMedicationRequest", () => {
     expect(summarize({})).toEqual(
       expect.objectContaining({ date: "", prescriber: "" }),
     );
+  });
+});
+
+describe("where a prescription came from", () => {
+  it("names its source and the day the portal received it, in the patient's time zone", () => {
+    showDatesInChicago();
+
+    expect(
+      summarize({
+        meta: { source: oakDermatology.address, lastUpdated: RECEIVED_AT },
+      }),
+    ).toMatchObject({
+      received: "October 28, 2026",
+      source: oakDermatology.name,
+    });
+  });
+
+  it("names no source and no received date when the prescription names neither", () => {
+    expect(summarize({})).toMatchObject({ received: "", source: "" });
   });
 });

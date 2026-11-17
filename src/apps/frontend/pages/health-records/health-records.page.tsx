@@ -12,13 +12,20 @@ import useHealthRecords from "./health-records.hook";
 
 const HealthRecords: FC = () => {
   const { fullName, recordOwner } = usePatientName();
-  const { activeTabKey, openTab, tabs } = useHealthRecords();
-  const [viewedRecord, setViewedRecord] =
-    useState<Nullable<HealthRecordSummary>>(null);
+  const { activeTabKey, openTab, recordSourceRequest, tabs } =
+    useHealthRecords();
+  const [viewedRecordIdentifier, setViewedRecordIdentifier] =
+    useState<Nullable<string>>(null);
   const [isRecordOpen, setIsRecordOpen] = useState(false);
+  const viewedRecord =
+    tabs
+      .find(({ key }) => key === activeTabKey)
+      ?.records.find(
+        ({ identifier }) => identifier === viewedRecordIdentifier,
+      ) ?? null;
 
-  const viewRecord = (record: HealthRecordSummary) => {
-    setViewedRecord(record);
+  const viewRecord = ({ identifier }: HealthRecordSummary) => {
+    setViewedRecordIdentifier(identifier);
     setIsRecordOpen(true);
   };
 
@@ -47,6 +54,7 @@ const HealthRecords: FC = () => {
         errorLabel="Health records error"
         errorTestIdentifier="health-records-error"
         onTabChange={openTab}
+        otherRequests={[recordSourceRequest]}
         tabs={tabs}
       >
         {(tab) => <HealthRecordList tab={tab} onViewRecord={viewRecord} />}

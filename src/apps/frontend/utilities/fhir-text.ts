@@ -3,6 +3,7 @@ import type { AllergyIntolerance, CodeableConcept } from "@medplum/fhirtypes";
 
 import constant from "../constants";
 import { DATE_FORMAT } from "../constants/date-format";
+import { joinDetails } from "./detail-line";
 
 const CODE_WORD_SEPARATOR = "-";
 const DATE_PART_SEPARATOR = "-";
@@ -43,3 +44,11 @@ export const formatRecordDate = (date: string | undefined): string => {
   }
   return formatDate(date, constant.LOCALE, selectCalendarDateFormat(date));
 };
+
+export const formatRecordDateTime = (date: string | undefined): string =>
+  date?.includes(TIME_SEPARATOR)
+    ? joinDetails(
+        formatRecordDate(date),
+        formatDateTime(date, constant.LOCALE, DATE_FORMAT.TIME),
+      )
+    : formatRecordDate(date);

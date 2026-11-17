@@ -16,6 +16,7 @@ import { readJson } from "@medplum/definitions";
 import type {
   Bundle,
   BundleEntry,
+  List,
   OperationOutcome,
   Organization,
   Patient,
@@ -171,7 +172,8 @@ describe("example data", () => {
     const records = resources.filter(
       (resource) =>
         !isSource(resource) &&
-        !isResource<Patient>(resource, RESOURCE_TYPE.PATIENT),
+        !isResource<Patient>(resource, RESOURCE_TYPE.PATIENT) &&
+        !isResource<List>(resource, RESOURCE_TYPE.LIST),
     );
 
     for (const record of records) {
@@ -191,6 +193,24 @@ describe("example data", () => {
     expect(patients).toHaveLength(1);
     expect((patients[0].identifier ?? []).map(({ system }) => system)).toEqual(
       sourceAddresses().map((address) => `${address}/${RESOURCE_TYPE.PATIENT}`),
+    );
+  });
+
+  it("lists her sources on a list of her own, which the portal reads to name each record's source", () => {
+    const patientEntry = (exampleBundle.entry ?? []).find(({ resource }) =>
+      isResource<Patient>(resource, RESOURCE_TYPE.PATIENT),
+    );
+    const sourceEntries = (exampleBundle.entry ?? []).filter(({ resource }) =>
+      isResource<Organization>(resource, RESOURCE_TYPE.ORGANIZATION),
+    );
+    const lists = resources.filter((resource) =>
+      isResource<List>(resource, RESOURCE_TYPE.LIST),
+    );
+
+    expect(lists).toHaveLength(1);
+    expect(lists[0].subject?.reference).toBe(patientEntry?.fullUrl);
+    expect(lists[0].entry?.map(({ item }) => item.reference)).toEqual(
+      sourceEntries.map(({ fullUrl }) => fullUrl),
     );
   });
 

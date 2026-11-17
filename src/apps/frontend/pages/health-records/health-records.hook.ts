@@ -1,4 +1,9 @@
-import { getReferenceString } from "@medplum/core";
+import { getReferenceString, type WithId } from "@medplum/core";
+import type {
+  AllergyIntolerance,
+  Condition,
+  Observation,
+} from "@medplum/fhirtypes";
 import { useMedplumProfile } from "@medplum/react-hooks";
 import type { Key } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
@@ -8,8 +13,10 @@ import {
   useAllergyIntoleranceContext,
   useConditionContext,
   useObservationContext,
+  useRecordSourceContext,
 } from "../../contexts";
-import { useRecordListTab } from "../../hooks";
+import { useRecordListTab, useRecordSourceNames } from "../../hooks";
+import type { RecordSourceNames } from "../../types";
 import {
   buildHealthRecordsTabSearch,
   readHealthRecordsTabKey,
@@ -41,6 +48,7 @@ const HEALTH_RECORD_TAB_TEXT = {
 const useConditionTab = (
   activeTabKey: Key,
   patientReference: string | undefined,
+  recordSourceNames: RecordSourceNames,
 ) => {
   const {
     conditionPage,
@@ -57,7 +65,8 @@ const useConditionTab = (
     list: listConditions,
     page: conditionPage,
     patientReference,
-    summarize: summarizeCondition,
+    summarize: (condition: WithId<Condition>) =>
+      summarizeCondition(condition, recordSourceNames),
     text: HEALTH_RECORD_TAB_TEXT.CONDITIONS,
   });
 };
@@ -65,6 +74,7 @@ const useConditionTab = (
 const useAllergyIntoleranceTab = (
   activeTabKey: Key,
   patientReference: string | undefined,
+  recordSourceNames: RecordSourceNames,
 ) => {
   const {
     allergyIntolerancePage,
@@ -81,7 +91,8 @@ const useAllergyIntoleranceTab = (
     list: listAllergyIntolerances,
     page: allergyIntolerancePage,
     patientReference,
-    summarize: summarizeAllergyIntolerance,
+    summarize: (allergyIntolerance: WithId<AllergyIntolerance>) =>
+      summarizeAllergyIntolerance(allergyIntolerance, recordSourceNames),
     text: HEALTH_RECORD_TAB_TEXT.ALLERGIES,
   });
 };
@@ -89,6 +100,7 @@ const useAllergyIntoleranceTab = (
 const useVitalSignTab = (
   activeTabKey: Key,
   patientReference: string | undefined,
+  recordSourceNames: RecordSourceNames,
 ) => {
   const {
     isVitalSignPageLoading,
@@ -105,7 +117,8 @@ const useVitalSignTab = (
     list: listVitalSigns,
     page: vitalSignPage,
     patientReference,
-    summarize: summarizeVitalSign,
+    summarize: (vitalSign: WithId<Observation>) =>
+      summarizeVitalSign(vitalSign, recordSourceNames),
     text: HEALTH_RECORD_TAB_TEXT.MEASUREMENTS,
   });
 };
@@ -117,10 +130,14 @@ const useHealthRecords = () => {
   const navigate = useNavigate();
   const [searchParameters] = useSearchParams();
   const activeTabKey = readHealthRecordsTabKey(searchParameters);
+  const { recordSourceNames, recordSourceRequest } = useRecordSourceNames({
+    ...useRecordSourceContext(),
+    patientReference,
+  });
   const tabs = [
-    useConditionTab(activeTabKey, patientReference),
-    useAllergyIntoleranceTab(activeTabKey, patientReference),
-    useVitalSignTab(activeTabKey, patientReference),
+    useConditionTab(activeTabKey, patientReference, recordSourceNames),
+    useAllergyIntoleranceTab(activeTabKey, patientReference, recordSourceNames),
+    useVitalSignTab(activeTabKey, patientReference, recordSourceNames),
   ];
 
   const openTab = (tabKey: Key) =>
@@ -135,7 +152,7 @@ const useHealthRecords = () => {
       { replace: true, state },
     );
 
-  return { activeTabKey, openTab, tabs };
+  return { activeTabKey, openTab, recordSourceRequest, tabs };
 };
 
 export default useHealthRecords;

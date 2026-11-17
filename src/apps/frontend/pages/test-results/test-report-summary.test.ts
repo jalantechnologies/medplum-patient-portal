@@ -18,8 +18,9 @@ import {
   REFERENCE_HISTORY_SEGMENT,
   RESOURCE_TYPE,
 } from "../../constants/fhir";
+import { harborLaboratory, RECEIVED_AT } from "../../test-medplum";
 import { showDatesInChicago } from "../../test-time-zone";
-import type { DiagnosticReportKind } from "../../types";
+import { RecordSourceNames, type DiagnosticReportKind } from "../../types";
 import { summarizeDiagnosticReport } from "./test-report-summary";
 
 const homer = createReference(HomerSimpson);
@@ -40,12 +41,16 @@ const containedReference = ({ id }: Observation) => ({
   reference: `${CONTAINED_REFERENCE_PREFIX}${id}`,
 });
 
+const harborSourceNames = new RecordSourceNames([
+  [harborLaboratory.address, harborLaboratory.name],
+]);
+
 const summarize = (
   overrides: Partial<DiagnosticReport>,
   sharedResults: WithId<Observation>[] = [],
   kind: DiagnosticReportKind = DIAGNOSTIC_REPORT_KIND.LABORATORY,
 ) =>
-  summarizeDiagnosticReport(kind)(
+  summarizeDiagnosticReport(kind, harborSourceNames)(
     {
       resourceType: RESOURCE_TYPE.DIAGNOSTIC_REPORT,
       id: "vitamin-d",
@@ -611,5 +616,30 @@ describe("summarizeDiagnosticReport", () => {
     expect(
       summarizeOnlyResult({ code: { coding: [{ code: "2345-7" }] } }).test,
     ).toBe("Test");
+  });
+});
+
+describe("where a report came from", () => {
+  it("names its source, and words when its source last updated it and when the portal received it, in the patient's time zone", () => {
+    showDatesInChicago();
+
+    expect(
+      summarize({
+        issued: "2026-10-19T09:00:00-05:00",
+        meta: { source: harborLaboratory.address, lastUpdated: RECEIVED_AT },
+      }),
+    ).toMatchObject({
+      received: "October 28, 2026",
+      source: harborLaboratory.name,
+      sourceUpdated: "October 19, 2026",
+    });
+  });
+
+  it("names no source and words neither date when the report gives none", () => {
+    expect(summarize({})).toMatchObject({
+      received: "",
+      source: "",
+      sourceUpdated: "",
+    });
   });
 });

@@ -22,6 +22,7 @@ import {
 import type {
   MedicationRequestPage,
   MedicationsByReference,
+  RecordSourceNames,
 } from "../../types";
 import {
   formatRecordDate,
@@ -35,6 +36,8 @@ export interface MedicationSummary {
   instructions: string[];
   isDoNotPerform: boolean;
   prescriber: string;
+  received: string;
+  source: string;
   status: string;
   title: string;
 }
@@ -142,6 +145,7 @@ const nameMedication = (
 export const summarizeMedicationRequest = (
   medicationRequest: WithId<MedicationRequest>,
   { medications }: MedicationRequestPage,
+  recordSourceNames: RecordSourceNames,
 ): MedicationSummary => ({
   date: formatRecordDate(medicationRequest.authoredOn),
   identifier: medicationRequest.id,
@@ -150,6 +154,8 @@ export const summarizeMedicationRequest = (
     .flatMap(describeDosage),
   isDoNotPerform: medicationRequest.doNotPerform ?? false,
   prescriber: medicationRequest.requester?.display ?? "",
+  received: formatRecordDate(medicationRequest.meta?.lastUpdated),
+  source: recordSourceNames.findName(medicationRequest.meta?.source),
   status: humanizeCode(medicationRequest.status),
   title: nameMedication(medicationRequest, medications),
 });

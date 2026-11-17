@@ -11,6 +11,7 @@ import type { FC } from "react";
 import { RecordDetail, RecordListTabContent } from "../../components";
 import { useRecordDetailColumns } from "../../hooks";
 import type { RecordListTab } from "../../types";
+import { joinDetails, omitRepeatedDetail } from "../../utilities";
 import type { MedicationSummary } from "./medication-summary";
 
 interface MedicationListProperties {
@@ -27,6 +28,10 @@ const MedicationCard: FC<MedicationCardProperties> = ({
   testIdentifier,
 }) => {
   const recordDetailColumns = useRecordDetailColumns();
+  const prescriberAndSource = joinDetails(
+    medication.prescriber,
+    omitRepeatedDetail(medication.source, medication.prescriber),
+  );
 
   return (
     <Block as="li" display="block" data-testid={testIdentifier}>
@@ -42,9 +47,9 @@ const MedicationCard: FC<MedicationCardProperties> = ({
             <HeadingSmall as="h2" margin="0">
               {medication.title}
             </HeadingSmall>
-            {medication.prescriber ? (
+            {prescriberAndSource ? (
               <ParagraphSmall margin="0" color="contentSecondary">
-                {medication.prescriber}
+                {prescriberAndSource}
               </ParagraphSmall>
             ) : null}
           </Block>
@@ -74,7 +79,7 @@ const MedicationCard: FC<MedicationCardProperties> = ({
             {instruction}
           </ParagraphMedium>
         ))}
-        {medication.date ? (
+        {medication.date || medication.received ? (
           <Block
             as="dl"
             display="grid"
@@ -87,6 +92,7 @@ const MedicationCard: FC<MedicationCardProperties> = ({
               label={medication.isDoNotPerform ? "Recorded" : "Prescribed"}
               value={medication.date}
             />
+            <RecordDetail label="Received" value={medication.received} />
           </Block>
         ) : null}
       </Card>

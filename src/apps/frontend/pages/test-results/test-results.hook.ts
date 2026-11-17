@@ -3,19 +3,12 @@ import { useMedplumProfile } from "@medplum/react-hooks";
 import { useState, type Key } from "react";
 
 import { DIAGNOSTIC_REPORT_KIND } from "../../constants/fhir";
-import { useDiagnosticReportContext } from "../../contexts";
-import { useRecordListTab } from "../../hooks";
+import {
+  useDiagnosticReportContext,
+  useRecordSourceContext,
+} from "../../contexts";
+import { useRecordListTab, useRecordSourceNames } from "../../hooks";
 import { summarizeDiagnosticReport } from "./test-report-summary";
-
-const summarizeLaboratoryReport = summarizeDiagnosticReport(
-  DIAGNOSTIC_REPORT_KIND.LABORATORY,
-);
-const summarizeImagingReport = summarizeDiagnosticReport(
-  DIAGNOSTIC_REPORT_KIND.IMAGING,
-);
-const summarizeOtherReport = summarizeDiagnosticReport(
-  DIAGNOSTIC_REPORT_KIND.OTHER,
-);
 
 const MISSING_REPORT_NOTICE =
   "The source may not have shared a report, or this type of test may not have been ordered.";
@@ -49,31 +42,49 @@ const useTestResults = () => {
   const [activeTabKey, setActiveTabKey] = useState<Key>(
     TEST_RESULTS_TAB_TEXT.LABORATORY.key,
   );
+  const { recordSourceNames, recordSourceRequest } = useRecordSourceNames({
+    ...useRecordSourceContext(),
+    patientReference,
+  });
   const tabs = [
     useRecordListTab({
       ...laboratoryReports,
       activeTabKey,
       patientReference,
-      summarize: summarizeLaboratoryReport,
+      summarize: summarizeDiagnosticReport(
+        DIAGNOSTIC_REPORT_KIND.LABORATORY,
+        recordSourceNames,
+      ),
       text: TEST_RESULTS_TAB_TEXT.LABORATORY,
     }),
     useRecordListTab({
       ...imagingReports,
       activeTabKey,
       patientReference,
-      summarize: summarizeImagingReport,
+      summarize: summarizeDiagnosticReport(
+        DIAGNOSTIC_REPORT_KIND.IMAGING,
+        recordSourceNames,
+      ),
       text: TEST_RESULTS_TAB_TEXT.IMAGING,
     }),
     useRecordListTab({
       ...otherReports,
       activeTabKey,
       patientReference,
-      summarize: summarizeOtherReport,
+      summarize: summarizeDiagnosticReport(
+        DIAGNOSTIC_REPORT_KIND.OTHER,
+        recordSourceNames,
+      ),
       text: TEST_RESULTS_TAB_TEXT.OTHER,
     }),
   ];
 
-  return { activeTabKey, openTab: setActiveTabKey, tabs };
+  return {
+    activeTabKey,
+    openTab: setActiveTabKey,
+    recordSourceRequest,
+    tabs,
+  };
 };
 
 export default useTestResults;

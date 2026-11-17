@@ -43,8 +43,21 @@ import {
   SEARCH_VALUE_SEPARATOR,
   TIMING_PERIOD_UNIT,
 } from "../../constants/fhir";
-import { MedicationRequestProvider } from "../../providers";
-import { createMedicationRequest, interceptSearches } from "../../test-medplum";
+import {
+  MedicationRequestProvider,
+  RecordSourceProvider,
+} from "../../providers";
+import {
+  addListedOrganizations,
+  createMedicationRequest,
+  createRecordSources,
+  includeListedOrganizations,
+  interceptSearches,
+  networkFailure,
+  oakDermatology,
+  RECEIVED_AT,
+  receiveRecordsAt,
+} from "../../test-medplum";
 import { TestProviders } from "../../test-providers";
 import Medications from "./medications.page";
 
@@ -55,9 +68,11 @@ const PAST_MEDICATIONS = "past-medications";
 const renderMedications = (medplum: MockClient) =>
   render(
     <TestProviders medplum={medplum}>
-      <MedicationRequestProvider>
-        <Medications />
-      </MedicationRequestProvider>
+      <RecordSourceProvider>
+        <MedicationRequestProvider>
+          <Medications />
+        </MedicationRequestProvider>
+      </RecordSourceProvider>
     </TestProviders>,
   );
 
@@ -92,9 +107,13 @@ const listMedicationTitles = (container: HTMLElement, tabKey: string) =>
     .map((card) => within(card).getByRole("heading", { level: 2 }).textContent);
 
 const parseSearchRequests = (search: MockInstance<MockClient["search"]>) =>
-  search.mock.calls.map(([resourceType, query]) =>
-    parseSearchRequest(`${resourceType}${String(query)}`),
-  );
+  search.mock.calls
+    .filter(
+      ([resourceType]) => resourceType === RESOURCE_TYPE.MEDICATION_REQUEST,
+    )
+    .map(([resourceType, query]) =>
+      parseSearchRequest(`${resourceType}${String(query)}`),
+    );
 
 const createMedication = (
   medplum: MockClient,
@@ -183,6 +202,7 @@ describe("Medications", () => {
   });
 
   it("lists the patient's prescriptions newest first, each with who prescribed it, its status, how to take it and when it was prescribed", async () => {
+    receiveRecordsAt(RECEIVED_AT);
     showDatesInChicago();
     const medplum = new MockClient({ profile: HomerSimpson });
     await createMedicationRequest(
@@ -213,8 +233,8 @@ describe("Medications", () => {
 
     const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
     expect(listMedicationTexts(list, ALL_MEDICATIONS)).toEqual([
-      "Triamcinolone 0.1% creamDr. Mira SyntheticActiveApply a thin layer to affected skin twice daily for up to 14 days.PrescribedOctober 20, 2026",
-      "Amlodipine 5 mg tabletDr. Mira SyntheticStoppedOne tablet daily.PrescribedMay 14, 2025",
+      "Triamcinolone 0.1% creamDr. Mira SyntheticActiveApply a thin layer to affected skin twice daily for up to 14 days.PrescribedOctober 20, 2026ReceivedOctober 28, 2026",
+      "Amlodipine 5 mg tabletDr. Mira SyntheticStoppedOne tablet daily.PrescribedMay 14, 2025ReceivedOctober 28, 2026",
     ]);
     expect(list.tagName).toBe("UL");
     expect(
@@ -222,7 +242,100 @@ describe("Medications", () => {
     ).toBe("LI");
   });
 
+  it("names the clinic each prescription came from after who prescribed it", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology]);
+    includeListedOrganizations(medplum);
+    await createMedicationRequest(
+      medplum,
+      "Triamcinolone 0.1% cream",
+      "2026-10-20",
+      { meta: { source: oakDermatology.address } },
+    );
+    await createMedicationRequest(
+      medplum,
+      "Amlodipine 5 mg tablet",
+      "2025-05-14",
+    );
+
+    renderMedications(medplum);
+
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    await waitFor(() =>
+      expect(listMedicationTexts(list, ALL_MEDICATIONS)).toEqual([
+        "Triamcinolone 0.1% creamDr. Mira Synthetic · Oak Synthetic DermatologyActivePrescribedOctober 20, 2026ReceivedOctober 28, 2026",
+        "Amlodipine 5 mg tabletDr. Mira SyntheticActivePrescribedMay 14, 2025ReceivedOctober 28, 2026",
+      ]),
+    );
+  });
+
+  it("names the clinic once when the clinic itself is the prescriber", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology]);
+    includeListedOrganizations(medplum);
+    await createMedicationRequest(
+      medplum,
+      "Triamcinolone 0.1% cream",
+      "2026-10-20",
+      {
+        meta: { source: oakDermatology.address },
+        requester: { display: oakDermatology.name },
+      },
+    );
+
+    renderMedications(medplum);
+
+    const card = await screen.findByTestId(`${ALL_MEDICATIONS}-record`);
+    await waitFor(() =>
+      expect(card).toHaveTextContent(
+        /^Triamcinolone 0\.1% creamOak Synthetic DermatologyActive/,
+      ),
+    );
+  });
+
+  it("shows an error with a way to try again when the clinics could not be read, and names the clinic once the patient tries again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology]);
+    await createMedicationRequest(
+      medplum,
+      "Triamcinolone 0.1% cream",
+      "2026-10-20",
+      { meta: { source: oakDermatology.address } },
+    );
+    let areSourcesReachable = false;
+    interceptSearches(medplum, async (search, resourceType) => {
+      if (resourceType === RESOURCE_TYPE.LIST && !areSourcesReachable) {
+        throw networkFailure();
+      }
+      return addListedOrganizations(medplum, await search(), resourceType);
+    });
+
+    renderMedications(medplum);
+
+    expect(await screen.findByTestId("medications-error")).toHaveTextContent(
+      constant.DEFAULT_ERROR_MESSAGE,
+    );
+    const card = await screen.findByTestId(`${ALL_MEDICATIONS}-record`);
+    expect(card).not.toHaveTextContent(oakDermatology.name);
+    areSourcesReachable = true;
+    await user.click(
+      within(screen.getByTestId("medications-error-retry")).getByRole("button"),
+    );
+
+    await waitFor(() =>
+      expect(card).toHaveTextContent(
+        `Dr. Mira Synthetic · ${oakDermatology.name}`,
+      ),
+    );
+    expect(screen.queryByTestId("medications-error")).not.toBeInTheDocument();
+  });
+
   it("shows how much to take, how often and whether as needed when a prescription's instructions are coded", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
     const medplum = new MockClient({ profile: HomerSimpson });
     await createMedicationRequest(
       medplum,
@@ -259,9 +372,9 @@ describe("Medications", () => {
 
     const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
     expect(listMedicationTexts(list, ALL_MEDICATIONS)).toEqual([
-      "Lisinopril 10 mg tabletDr. Mira SyntheticActiveDose: 1 · DailyPrescribedOctober 20, 2026",
-      "Albuterol inhalerDr. Mira SyntheticActiveAs neededPrescribedOctober 19, 2026",
-      "Triamcinolone 0.1% creamDr. Mira SyntheticActiveTwice a dayPrescribedOctober 18, 2026",
+      "Lisinopril 10 mg tabletDr. Mira SyntheticActiveDose: 1 · DailyPrescribedOctober 20, 2026ReceivedOctober 28, 2026",
+      "Albuterol inhalerDr. Mira SyntheticActiveAs neededPrescribedOctober 19, 2026ReceivedOctober 28, 2026",
+      "Triamcinolone 0.1% creamDr. Mira SyntheticActiveTwice a dayPrescribedOctober 18, 2026ReceivedOctober 28, 2026",
     ]);
   });
 
@@ -673,6 +786,8 @@ describe("Medications", () => {
   });
 
   it("marks an order not to take a medicine, and says when it was recorded rather than prescribed", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
     const medplum = new MockClient({ profile: HomerSimpson });
     await createMedicationRequest(medplum, "Warfarin", "2026-10-20", {
       doNotPerform: true,
@@ -682,7 +797,7 @@ describe("Medications", () => {
 
     const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
     expect(listMedicationTexts(list, ALL_MEDICATIONS)).toEqual([
-      "WarfarinDr. Mira SyntheticDo not takeActiveRecordedOctober 20, 2026",
+      "WarfarinDr. Mira SyntheticDo not takeActiveRecordedOctober 20, 2026ReceivedOctober 28, 2026",
     ]);
   });
 
@@ -812,8 +927,10 @@ describe("Medications", () => {
       `${PAST_MEDICATIONS}-empty`,
     );
 
-    for (const [resourceType, , options] of search.mock.calls) {
-      expect(resourceType).toBe(RESOURCE_TYPE.MEDICATION_REQUEST);
+    expect(
+      new Set(search.mock.calls.map(([resourceType]) => resourceType)),
+    ).toEqual(new Set([RESOURCE_TYPE.MEDICATION_REQUEST, RESOURCE_TYPE.LIST]));
+    for (const [, , options] of search.mock.calls) {
       expect(options).toEqual(expect.objectContaining({ cache: "reload" }));
     }
     const searchedFor = (

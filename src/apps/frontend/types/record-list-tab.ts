@@ -13,6 +13,11 @@ export interface RecordSummary {
   identifier: string;
 }
 
+export interface RetryableRequest {
+  error: Nullable<AsynchronousOperationError>;
+  retry: () => Promise<void>;
+}
+
 export interface RecordSearch<
   Resource,
   Page extends SearchPage<Resource> = SearchPage<Resource>,
@@ -27,15 +32,12 @@ export interface RecordSearch<
   page: Nullable<Page>;
 }
 
-export interface RecordListTab<
-  Summary extends RecordSummary,
-> extends RecordListTabText {
-  error: Nullable<AsynchronousOperationError>;
+export interface RecordListTab<Summary extends RecordSummary>
+  extends RecordListTabText, RetryableRequest {
   hasFailed: boolean;
   hasMoreRecords: boolean;
   isLoading: boolean;
   isRequesting: boolean;
   listMoreRecords: () => void;
   records: Summary[];
-  retry: () => Promise<void>;
 }

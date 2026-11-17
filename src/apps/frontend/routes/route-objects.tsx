@@ -21,6 +21,7 @@ import {
   DiagnosticReportProvider,
   MedicationRequestProvider,
   ObservationProvider,
+  RecordSourceProvider,
 } from "../providers";
 import { ProtectedRoute } from "./guards/protected-route";
 import { PublicRoute } from "./guards/public-route";
@@ -40,9 +41,11 @@ export const routeObjects = [
             element: (
               <CarePlanProvider>
                 <AppointmentProvider>
-                  <ApplicationLayout>
-                    <Outlet />
-                  </ApplicationLayout>
+                  <RecordSourceProvider>
+                    <ApplicationLayout>
+                      <Outlet />
+                    </ApplicationLayout>
+                  </RecordSourceProvider>
                 </AppointmentProvider>
               </CarePlanProvider>
             ),

@@ -31,6 +31,7 @@ import {
 import type {
   DiagnosticReportKind,
   DiagnosticReportPage,
+  RecordSourceNames,
   ResultHolder,
   ResultsByIdentifier,
 } from "../../types";
@@ -80,7 +81,10 @@ export interface TestReportSummary {
   hasDocument: boolean;
   identifier: string;
   performer: string;
+  received: string;
   results: TestResultSummary[];
+  source: string;
+  sourceUpdated: string;
   status: string;
   title: string;
 }
@@ -328,7 +332,7 @@ const describeEffectiveDate = (
 };
 
 export const summarizeDiagnosticReport =
-  (kind: DiagnosticReportKind) =>
+  (kind: DiagnosticReportKind, recordSourceNames: RecordSourceNames) =>
   (
     report: WithId<DiagnosticReport>,
     { results }: DiagnosticReportPage,
@@ -338,7 +342,10 @@ export const summarizeDiagnosticReport =
     hasDocument: Boolean(report.presentedForm?.length),
     identifier: report.id,
     performer: report.performer?.find(({ display }) => display)?.display ?? "",
+    received: formatRecordDate(report.meta?.lastUpdated),
     results: summarizeResults(report.result, { holder: report, results }, []),
+    source: recordSourceNames.findName(report.meta?.source),
+    sourceUpdated: formatRecordDate(report.issued),
     status: humanizeCode(report.status),
     title: nameCodeableConcept(report.code) || "Test report",
   });

@@ -7,6 +7,7 @@ import type {
   BundleEntrySearch,
   CarePlan,
   DiagnosticReport,
+  List,
   Medication,
   MedicationRequest,
   Observation,
@@ -21,6 +22,7 @@ export const RESOURCE_TYPE = {
   CARE_PLAN: "CarePlan",
   CONDITION: "Condition",
   DIAGNOSTIC_REPORT: "DiagnosticReport",
+  LIST: "List",
   MEDICATION: "Medication",
   MEDICATION_REQUEST: "MedicationRequest",
   OBSERVATION: "Observation",
@@ -340,6 +342,7 @@ export const SEARCH_PARAMETER = {
   ID: "_id",
   IDENTIFIER: "identifier",
   INTENT: "intent",
+  ITEM: "item",
   MEDICATION: "medication",
   PATIENT: "patient",
   PROFILE: "profile",
@@ -362,6 +365,7 @@ export const BUNDLE_LINK_RELATION = {
 
 export const BUNDLE_TYPE = {
   BATCH: "batch",
+  SEARCHSET: "searchset",
   TRANSACTION: "transaction",
   TRANSACTION_RESPONSE: "transaction-response",
 } as const satisfies Record<string, Bundle["type"]>;
@@ -370,6 +374,18 @@ export const BUNDLE_REQUEST_METHOD = {
   GET: "GET",
   PUT: "PUT",
 } as const satisfies Record<string, BundleEntryRequest["method"]>;
+
+export const LIST_STATUS = {
+  CURRENT: "current",
+  ENTERED_IN_ERROR: "entered-in-error",
+  RETIRED: "retired",
+} as const satisfies Record<string, List["status"]>;
+
+export const LIST_MODE = {
+  CHANGES: "changes",
+  SNAPSHOT: "snapshot",
+  WORKING: "working",
+} as const satisfies Record<string, List["mode"]>;
 
 export const IDENTIFIER_SYSTEM = {
   URI: "urn:ietf:rfc:3986",
