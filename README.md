@@ -86,9 +86,16 @@ Then run `npm run load:example`, open the portal and sign in with that email and
 | `npm run format`        | Formats every file with Prettier                               |
 | `npm run format:check`  | Checks the formatting of every file without changing it        |
 
+## Documentation
+
+- [Product requirements](docs/product-requirements.md): what the portal does, for whom, and how each part is accepted.
+- [Architecture](docs/architecture.md): how it is built.
+- [Decision records](docs/decisions/README.md): why it is built this way.
+- [AGENTS.md](AGENTS.md): the standards every change follows, for people and AI coding assistants alike.
+
 ## Contributing
 
-Every change goes through a reviewed pull request; nothing is pushed to `main` directly.
+A feature starts from an issue that names the requirement it delivers. Every change goes through a reviewed pull request; nothing is pushed to `main` directly.
 
 - A pre-commit hook checks the formatting, the code lint and the Markdown lint of the staged files. It reports problems and never changes the files.
 - A pre-push hook refuses any push to `main`.
