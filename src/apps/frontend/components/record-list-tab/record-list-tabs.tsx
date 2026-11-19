@@ -14,6 +14,7 @@ interface RecordListTabsProperties<Summary extends RecordSummary> {
   children: (tab: RecordListTab<Summary>) => ReactNode;
   errorLabel: string;
   errorTestIdentifier: string;
+  filterControls: ReactNode;
   onTabChange: (tabKey: Key) => void;
   otherRequests: RetryableRequest[];
   tabs: RecordListTab<Summary>[];
@@ -24,6 +25,7 @@ const RecordListTabs = <Summary extends RecordSummary>({
   children,
   errorLabel,
   errorTestIdentifier,
+  filterControls,
   onTabChange,
   otherRequests,
   tabs,
@@ -67,6 +69,7 @@ const RecordListTabs = <Summary extends RecordSummary>({
               TabPanel: { props: { "data-testid": `${tab.key}-panel` } },
             }}
           >
+            {filterControls}
             {children(tab)}
           </Tab>
         ))}

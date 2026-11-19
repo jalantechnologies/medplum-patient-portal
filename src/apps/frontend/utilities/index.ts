@@ -13,6 +13,7 @@ import {
   buildHealthRecordsTabSearch,
   readHealthRecordsTabKey,
 } from "./health-records-address";
+import { isSameRecordFilter } from "./record-filter";
 
 export {
   buildHealthRecordsTabPath,
@@ -22,6 +23,7 @@ export {
   formatRecordDate,
   formatRecordDateTime,
   humanizeCode,
+  isSameRecordFilter,
   joinDetails,
   nameAllergyIntolerance,
   nameCodeableConcept,

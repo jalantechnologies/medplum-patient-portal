@@ -1,4 +1,5 @@
 import {
+  escapeSearchValue,
   formatSearchQuery,
   MedplumClient,
   OperationOutcomeError,
@@ -32,6 +33,7 @@ import {
   AsynchronousOperationError,
   ServiceResponse,
   type Nullable,
+  type RecordFilter,
   type SearchPage,
   type SearchPosition,
   type SearchPreview,
@@ -276,6 +278,34 @@ export default class MedplumService {
             : newest,
         undefined,
       );
+  }
+
+  protected static toRecordFilters({
+    sourceAddresses,
+    text,
+  }: RecordFilter): Filter[] {
+    const sourceFilters: Filter[] =
+      sourceAddresses.length > 0
+        ? [
+            {
+              code: SEARCH_PARAMETER.SOURCE,
+              operator: Operator.EQUALS,
+              value: sourceAddresses
+                .map(escapeSearchValue)
+                .join(SEARCH_VALUE_SEPARATOR),
+            },
+          ]
+        : [];
+    const textFilters: Filter[] = text
+      ? [
+          {
+            code: SEARCH_PARAMETER.CODE,
+            operator: Operator.TEXT,
+            value: escapeSearchValue(text),
+          },
+        ]
+      : [];
+    return [...sourceFilters, ...textFilters];
   }
 
   protected static isOfType<

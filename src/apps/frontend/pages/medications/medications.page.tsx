@@ -2,14 +2,20 @@ import { Block } from "baseui/block";
 import { HeadingMedium, ParagraphSmall } from "baseui/typography";
 import type { FC } from "react";
 
-import { RecordListTabs } from "../../components";
+import { RecordFilterControls, RecordListTabs } from "../../components";
 import { usePatientName } from "../../hooks";
 import MedicationList from "./medication-list";
 import useMedications from "./medications.hook";
 
 const Medications: FC = () => {
   const { recordOwner } = usePatientName();
-  const { activeTabKey, openTab, recordSourceRequest, tabs } = useMedications();
+  const {
+    activeTabKey,
+    openTab,
+    recordFilterChoices,
+    recordSourceRequest,
+    tabs,
+  } = useMedications();
 
   return (
     <Block data-testid="medications">
@@ -28,6 +34,7 @@ const Medications: FC = () => {
         activeTabKey={activeTabKey}
         errorLabel="Medications error"
         errorTestIdentifier="medications-error"
+        filterControls={<RecordFilterControls {...recordFilterChoices} />}
         onTabChange={openTab}
         otherRequests={[recordSourceRequest]}
         tabs={tabs}

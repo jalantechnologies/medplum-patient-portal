@@ -1,7 +1,10 @@
 import {
   createReference,
+  formatSearchQuery,
   isResource,
+  Operator,
   parseSearchRequest,
+  splitSearchOnComma,
   tryParseReference,
   type QueryTypes,
   type SearchRequest,
@@ -20,6 +23,7 @@ import type {
   Organization,
   Patient,
   Reference,
+  Resource,
   ResourceType,
 } from "@medplum/fhirtypes";
 import { HomerSimpson, MockClient } from "@medplum/mock";
@@ -41,6 +45,7 @@ import {
   OBSERVATION_STATUS,
   RESOURCE_TYPE,
   SEARCH_ENTRY_MODE,
+  SEARCH_PARAMETER,
 } from "./constants/fhir";
 
 export const doctor = { display: "Dr. Mira Synthetic" };
@@ -203,6 +208,7 @@ export const interceptSearches = (
     search: () => Promise<Bundle>,
     resourceType: string,
     query: Parameters<MockClient["search"]>[1],
+    options: Parameters<MockClient["search"]>[2],
   ) => Promise<Bundle>,
 ) => {
   const search = medplum.search.bind(medplum);
@@ -213,7 +219,74 @@ export const interceptSearches = (
         () => search(resourceType, query, options),
         resourceType,
         query,
+        options,
       )) as typeof medplum.search);
+};
+
+const EVERY_CANDIDATE_COUNT = 1000;
+
+const listCodeNames = (resource: Resource | undefined): string[] => {
+  const code =
+    resource && "code" in resource
+      ? (resource.code as CodeableConcept | undefined)
+      : undefined;
+  return [code?.text, ...(code?.coding ?? []).map(({ display }) => display)]
+    .filter((name): name is string => Boolean(name))
+    .map((name) => name.toLowerCase());
+};
+
+// MockClient compares a code exactly and ignores :text, while Medplum's server matches any part of code.text or of a coding's display, ignoring case and the spaces around each value (buildTokenColumnsWhereConditionTextAndContains in token-column.ts).
+export const searchCodeTextAsServer = async (
+  medplum: MockClient,
+  resourceType: string,
+  query: QueryTypes,
+  options: Parameters<MockClient["search"]>[2],
+): Promise<Bundle> => {
+  const searchRequest = readSearchRequest(
+    medplum,
+    resourceType as ResourceType,
+    query,
+  );
+  const textFilter = searchRequest.filters?.find(
+    ({ code, operator }) =>
+      code === SEARCH_PARAMETER.CODE && operator === Operator.TEXT,
+  );
+  if (!textFilter) {
+    return MockClient.prototype.search.call(
+      medplum,
+      resourceType as ResourceType,
+      query,
+      options,
+    );
+  }
+  const everyCandidate = await MockClient.prototype.search.call(
+    medplum,
+    resourceType as ResourceType,
+    formatSearchQuery({
+      ...searchRequest,
+      filters: searchRequest.filters?.filter((filter) => filter !== textFilter),
+      offset: 0,
+      count: EVERY_CANDIDATE_COUNT,
+    }),
+    options,
+  );
+  const searchedTexts = splitSearchOnComma(textFilter.value).map((text) =>
+    text.trim().toLowerCase(),
+  );
+  const matches = (everyCandidate.entry ?? []).filter(({ resource }) =>
+    listCodeNames(resource).some((name) =>
+      searchedTexts.some((text) => name.includes(text)),
+    ),
+  );
+  const offset = searchRequest.offset ?? 0;
+  return {
+    ...everyCandidate,
+    total: matches.length,
+    entry: matches.slice(
+      offset,
+      offset + (searchRequest.count ?? matches.length),
+    ),
+  };
 };
 
 export const interceptBatches = (

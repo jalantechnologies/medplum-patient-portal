@@ -1,5 +1,4 @@
-import { Operator, type Filter, type WithId } from "@medplum/core";
-import type { AllergyIntolerance } from "@medplum/fhirtypes";
+import { Operator, type Filter } from "@medplum/core";
 
 import {
   ALLERGY_INTOLERANCE_CLINICAL_STATUS,
@@ -11,8 +10,8 @@ import {
 import {
   ServiceResponse,
   type ActiveAllergyIntolerancePreview,
-  type Nullable,
-  type SearchPage,
+  type AllergyIntolerancePage,
+  type ListAllergyIntolerancesParameters,
 } from "../../types";
 import MedplumService from "../medplum/medplum.service";
 
@@ -25,16 +24,21 @@ const RULED_OUT_VERIFICATION_STATUSES = [
 ];
 
 export default class AllergyIntoleranceService extends MedplumService {
-  listAllergyIntolerances = (
-    patientReference: string,
-    previousPage: Nullable<SearchPage<WithId<AllergyIntolerance>>> = null,
-  ): Promise<ServiceResponse<SearchPage<WithId<AllergyIntolerance>>>> =>
+  listAllergyIntolerances = ({
+    patientReference,
+    previousPage,
+    recordFilter,
+  }: ListAllergyIntolerancesParameters): Promise<
+    ServiceResponse<AllergyIntolerancePage>
+  > =>
     this.searchPage(
       RESOURCE_TYPE.ALLERGY_INTOLERANCE,
       {
         dateParameter: SEARCH_PARAMETER.DATE,
-        filters:
-          AllergyIntoleranceService.buildRecordedFilters(patientReference),
+        filters: [
+          ...AllergyIntoleranceService.buildRecordedFilters(patientReference),
+          ...MedplumService.toRecordFilters(recordFilter),
+        ],
       },
       previousPage,
     );

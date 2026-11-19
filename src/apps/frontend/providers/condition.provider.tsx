@@ -2,8 +2,9 @@ import { useMedplumContext } from "@medplum/react-hooks";
 import { useMemo, type FC, type PropsWithChildren } from "react";
 
 import { ConditionContext } from "../contexts";
-import { useAsynchronousResult } from "../hooks";
+import { useRecordSearch } from "../hooks";
 import { ConditionService } from "../services";
+import type { ConditionSearch } from "../types";
 
 export const ConditionProvider: FC<PropsWithChildren> = ({ children }) => {
   const { medplum } = useMedplumContext();
@@ -11,31 +12,11 @@ export const ConditionProvider: FC<PropsWithChildren> = ({ children }) => {
     () => new ConditionService(medplum),
     [medplum],
   );
-
-  const {
-    error: conditionPageError,
-    isLoading: isConditionPageLoading,
-    isRequesting: isConditionPageRequesting,
-    load: listConditions,
-    result: conditionPage,
-  } = useAsynchronousResult(conditionService.listConditions);
-
-  const value = useMemo(
-    () => ({
-      conditionPage,
-      conditionPageError,
-      isConditionPageLoading,
-      isConditionPageRequesting,
-      listConditions,
-    }),
-    [
-      conditionPage,
-      conditionPageError,
-      isConditionPageLoading,
-      isConditionPageRequesting,
-      listConditions,
-    ],
+  const conditions: ConditionSearch = useRecordSearch(
+    conditionService.listConditions,
   );
+
+  const value = useMemo(() => ({ conditions }), [conditions]);
 
   return (
     <ConditionContext.Provider value={value}>

@@ -24,9 +24,9 @@ import {
 } from "../../constants/fhir";
 import {
   ServiceResponse,
+  type ListMedicationRequestsParameters,
   type MedicationRequestPage,
   type MedicationsByReference,
-  type Nullable,
 } from "../../types";
 import MedplumService from "../medplum/medplum.service";
 
@@ -88,38 +88,34 @@ export default class MedicationRequestService extends MedplumService {
   };
 
   listMedicationRequests = (
-    patientReference: string,
-    previousPage: Nullable<MedicationRequestPage> = null,
+    parameters: ListMedicationRequestsParameters,
   ): Promise<ServiceResponse<MedicationRequestPage>> =>
-    this.listPrescriptionsWithStatuses(
-      patientReference,
-      LISTED_STATUSES,
-      previousPage,
-    );
+    this.listPrescriptionsWithStatuses(parameters, LISTED_STATUSES);
 
   listPastMedicationRequests = (
-    patientReference: string,
-    previousPage: Nullable<MedicationRequestPage> = null,
+    parameters: ListMedicationRequestsParameters,
   ): Promise<ServiceResponse<MedicationRequestPage>> =>
-    this.listPrescriptionsWithStatuses(
-      patientReference,
-      PAST_STATUSES,
-      previousPage,
-    );
+    this.listPrescriptionsWithStatuses(parameters, PAST_STATUSES);
 
   private async listPrescriptionsWithStatuses(
-    patientReference: string,
+    {
+      patientReference,
+      previousPage,
+      recordFilter,
+    }: ListMedicationRequestsParameters,
     statuses: MedicationRequest["status"][],
-    previousPage: Nullable<MedicationRequestPage>,
   ): Promise<ServiceResponse<MedicationRequestPage>> {
     const { includedResources, page } = await this.readNextPage(
       RESOURCE_TYPE.MEDICATION_REQUEST,
       {
         dateParameter: SEARCH_PARAMETER.AUTHORED_ON,
-        filters: MedicationRequestService.buildPrescriptionFilters(
-          patientReference,
-          statuses,
-        ),
+        filters: [
+          ...MedicationRequestService.buildPrescriptionFilters(
+            patientReference,
+            statuses,
+          ),
+          ...MedplumService.toRecordFilters(recordFilter),
+        ],
         include: [MedicationRequestService.prescribedMedication],
       },
       previousPage,

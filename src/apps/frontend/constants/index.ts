@@ -1,5 +1,6 @@
 const constant = {
   LOCALE: "en-US",
+  SEARCH_INPUT_DELAY_MILLISECONDS: 300,
   SEARCH_PAGE_SIZE: 100,
   SEARCH_PREVIEW_SIZE: 3,
   DEFAULT_ERROR_MESSAGE: "Something went wrong. Please try again.",

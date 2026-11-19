@@ -3,6 +3,7 @@ import { useCallback, useEffect } from "react";
 import {
   RecordSourceNames,
   type AsynchronousOperationError,
+  type ListedRecordSourceNames,
   type ListRecordSourcesParameters,
   type Nullable,
   type RetryableRequest,
@@ -13,7 +14,7 @@ interface RecordSourceNamesSource {
     parameters: ListRecordSourcesParameters,
   ) => Promise<unknown>;
   patientReference: string | undefined;
-  recordSourceNames: Nullable<RecordSourceNames>;
+  recordSourceNames: Nullable<ListedRecordSourceNames>;
   recordSourceNamesError: Nullable<AsynchronousOperationError>;
 }
 
@@ -43,6 +44,7 @@ const useRecordSourceNames = ({
   return {
     recordSourceNames: recordSourceNames ?? NO_RECORD_SOURCE_NAMES,
     recordSourceRequest,
+    recordSources: recordSourceNames?.sources ?? null,
   };
 };
 

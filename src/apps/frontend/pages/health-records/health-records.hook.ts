@@ -15,8 +15,12 @@ import {
   useObservationContext,
   useRecordSourceContext,
 } from "../../contexts";
-import { useRecordListTab, useRecordSourceNames } from "../../hooks";
-import type { RecordSourceNames } from "../../types";
+import {
+  useRecordFilter,
+  useRecordListTab,
+  useRecordSourceNames,
+} from "../../hooks";
+import type { RecordListFilter, RecordSourceNames } from "../../types";
 import {
   buildHealthRecordsTabSearch,
   readHealthRecordsTabKey,
@@ -45,83 +49,60 @@ const HEALTH_RECORD_TAB_TEXT = {
   },
 } as const;
 
-const useConditionTab = (
-  activeTabKey: Key,
-  patientReference: string | undefined,
-  recordSourceNames: RecordSourceNames,
-) => {
-  const {
-    conditionPage,
-    conditionPageError,
-    isConditionPageLoading,
-    isConditionPageRequesting,
-    listConditions,
-  } = useConditionContext();
-  return useRecordListTab({
+interface HealthRecordTabSource {
+  activeTabKey: Key;
+  patientReference: string | undefined;
+  recordListFilter: RecordListFilter;
+  recordSourceNames: RecordSourceNames;
+}
+
+const useConditionTab = ({
+  activeTabKey,
+  patientReference,
+  recordListFilter,
+  recordSourceNames,
+}: HealthRecordTabSource) =>
+  useRecordListTab({
+    ...useConditionContext().conditions,
+    ...recordListFilter,
     activeTabKey,
-    error: conditionPageError,
-    isLoading: isConditionPageLoading,
-    isRequesting: isConditionPageRequesting,
-    list: listConditions,
-    page: conditionPage,
     patientReference,
     summarize: (condition: WithId<Condition>) =>
       summarizeCondition(condition, recordSourceNames),
     text: HEALTH_RECORD_TAB_TEXT.CONDITIONS,
   });
-};
 
-const useAllergyIntoleranceTab = (
-  activeTabKey: Key,
-  patientReference: string | undefined,
-  recordSourceNames: RecordSourceNames,
-) => {
-  const {
-    allergyIntolerancePage,
-    allergyIntolerancePageError,
-    isAllergyIntolerancePageLoading,
-    isAllergyIntolerancePageRequesting,
-    listAllergyIntolerances,
-  } = useAllergyIntoleranceContext();
-  return useRecordListTab({
+const useAllergyIntoleranceTab = ({
+  activeTabKey,
+  patientReference,
+  recordListFilter,
+  recordSourceNames,
+}: HealthRecordTabSource) =>
+  useRecordListTab({
+    ...useAllergyIntoleranceContext().allergyIntolerances,
+    ...recordListFilter,
     activeTabKey,
-    error: allergyIntolerancePageError,
-    isLoading: isAllergyIntolerancePageLoading,
-    isRequesting: isAllergyIntolerancePageRequesting,
-    list: listAllergyIntolerances,
-    page: allergyIntolerancePage,
     patientReference,
     summarize: (allergyIntolerance: WithId<AllergyIntolerance>) =>
       summarizeAllergyIntolerance(allergyIntolerance, recordSourceNames),
     text: HEALTH_RECORD_TAB_TEXT.ALLERGIES,
   });
-};
 
-const useVitalSignTab = (
-  activeTabKey: Key,
-  patientReference: string | undefined,
-  recordSourceNames: RecordSourceNames,
-) => {
-  const {
-    isVitalSignPageLoading,
-    isVitalSignPageRequesting,
-    listVitalSigns,
-    vitalSignPage,
-    vitalSignPageError,
-  } = useObservationContext();
-  return useRecordListTab({
+const useVitalSignTab = ({
+  activeTabKey,
+  patientReference,
+  recordListFilter,
+  recordSourceNames,
+}: HealthRecordTabSource) =>
+  useRecordListTab({
+    ...useObservationContext().vitalSigns,
+    ...recordListFilter,
     activeTabKey,
-    error: vitalSignPageError,
-    isLoading: isVitalSignPageLoading,
-    isRequesting: isVitalSignPageRequesting,
-    list: listVitalSigns,
-    page: vitalSignPage,
     patientReference,
     summarize: (vitalSign: WithId<Observation>) =>
       summarizeVitalSign(vitalSign, recordSourceNames),
     text: HEALTH_RECORD_TAB_TEXT.MEASUREMENTS,
   });
-};
 
 const useHealthRecords = () => {
   const profile = useMedplumProfile();
@@ -130,14 +111,26 @@ const useHealthRecords = () => {
   const navigate = useNavigate();
   const [searchParameters] = useSearchParams();
   const activeTabKey = readHealthRecordsTabKey(searchParameters);
-  const { recordSourceNames, recordSourceRequest } = useRecordSourceNames({
-    ...useRecordSourceContext(),
-    patientReference,
+  const { recordSourceNames, recordSourceRequest, recordSources } =
+    useRecordSourceNames({
+      ...useRecordSourceContext(),
+      patientReference,
+    });
+  const { recordFilterChoices, recordListFilter } = useRecordFilter({
+    hasRecordSourcesFailed: recordSourceRequest.error !== null,
+    isSearchable: true,
+    recordSources,
   });
+  const tabSource = {
+    activeTabKey,
+    patientReference,
+    recordListFilter,
+    recordSourceNames,
+  };
   const tabs = [
-    useConditionTab(activeTabKey, patientReference, recordSourceNames),
-    useAllergyIntoleranceTab(activeTabKey, patientReference, recordSourceNames),
-    useVitalSignTab(activeTabKey, patientReference, recordSourceNames),
+    useConditionTab(tabSource),
+    useAllergyIntoleranceTab(tabSource),
+    useVitalSignTab(tabSource),
   ];
 
   const openTab = (tabKey: Key) =>
@@ -152,7 +145,13 @@ const useHealthRecords = () => {
       { replace: true, state },
     );
 
-  return { activeTabKey, openTab, recordSourceRequest, tabs };
+  return {
+    activeTabKey,
+    openTab,
+    recordFilterChoices,
+    recordSourceRequest,
+    tabs,
+  };
 };
 
 export default useHealthRecords;

@@ -2,7 +2,7 @@ import type { WithId } from "@medplum/core";
 import type { DiagnosticReport, Observation } from "@medplum/fhirtypes";
 
 import type { DIAGNOSTIC_REPORT_KIND } from "../constants/fhir";
-import type { Nullable } from "./common";
+import type { ListRecordsParameters } from "./record-filter";
 import type { RecordSearch } from "./record-list-tab";
 import type { SearchPage } from "./search-page";
 
@@ -24,8 +24,6 @@ export type DiagnosticReportSearch = RecordSearch<
   DiagnosticReportPage
 >;
 
-export interface ListDiagnosticReportsParameters {
+export interface ListDiagnosticReportsParameters extends ListRecordsParameters<DiagnosticReportPage> {
   kind: DiagnosticReportKind;
-  patientReference: string;
-  previousPage: Nullable<DiagnosticReportPage>;
 }

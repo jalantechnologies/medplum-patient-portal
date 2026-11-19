@@ -54,6 +54,7 @@ export default class DiagnosticReportService extends MedplumService {
   private static toFilters({
     kind,
     patientReference,
+    recordFilter,
   }: ListDiagnosticReportsParameters): Filter[] {
     const categoryFilterByKind = {
       [DIAGNOSTIC_REPORT_KIND.IMAGING]: {
@@ -92,6 +93,7 @@ export default class DiagnosticReportService extends MedplumService {
         operator,
         value: categories.join(SEARCH_VALUE_SEPARATOR),
       },
+      ...MedplumService.toRecordFilters(recordFilter),
     ];
   }
 

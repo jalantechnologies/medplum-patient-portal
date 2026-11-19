@@ -109,6 +109,24 @@
       }
     },
     {
+      "fullUrl": "urn:uuid:e51d4def-3577-4356-8344-2c39091420ff",
+      "resource": {
+        "resourceType": "Practitioner",
+        "meta": { "source": "https://fhir.pine-family-clinic.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.pine-family-clinic.example/Practitioner",
+            "value": "ruth-alvarez"
+          }
+        ],
+        "name": [{ "prefix": ["Dr."], "given": ["Ruth"], "family": "Alvarez" }]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Practitioner?identifier=https://fhir.pine-family-clinic.example/Practitioner|ruth-alvarez"
+      }
+    },
+    {
       "fullUrl": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
       "resource": {
         "resourceType": "Patient",
@@ -710,6 +728,377 @@
       "request": {
         "method": "PUT",
         "url": "Immunization?identifier=https://fhir.pine-family-clinic.example/Immunization|influenza"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:b5a5f193-3807-447a-a6f7-8e15f7404593",
+      "resource": {
+        "resourceType": "Condition",
+        "meta": { "source": "https://fhir.pine-family-clinic.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.pine-family-clinic.example/Condition",
+            "value": "seasonal-allergic-rhinitis"
+          }
+        ],
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active",
+              "display": "Active"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
+              "code": "confirmed",
+              "display": "Confirmed"
+            }
+          ]
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "367498001",
+              "display": "Seasonal allergic rhinitis"
+            }
+          ],
+          "text": "Seasonal allergic rhinitis"
+        },
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "recordedDate": "2026-09-14",
+        "recorder": {
+          "reference": "urn:uuid:e51d4def-3577-4356-8344-2c39091420ff",
+          "display": "Dr. Ruth Alvarez"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Condition?identifier=https://fhir.pine-family-clinic.example/Condition|seasonal-allergic-rhinitis"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:35bf8fc3-4a91-4317-9089-aa75a174a39c",
+      "resource": {
+        "resourceType": "AllergyIntolerance",
+        "meta": { "source": "https://fhir.pine-family-clinic.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.pine-family-clinic.example/AllergyIntolerance",
+            "value": "grass-pollen"
+          }
+        ],
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-clinical",
+              "code": "active",
+              "display": "Active"
+            }
+          ]
+        },
+        "verificationStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/allergyintolerance-verification",
+              "code": "confirmed",
+              "display": "Confirmed"
+            }
+          ]
+        },
+        "category": ["environment"],
+        "code": {
+          "coding": [
+            {
+              "system": "http://snomed.info/sct",
+              "code": "256277009",
+              "display": "Grass pollen"
+            }
+          ],
+          "text": "Grass pollen"
+        },
+        "patient": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "recordedDate": "2026-09-14",
+        "recorder": {
+          "reference": "urn:uuid:e51d4def-3577-4356-8344-2c39091420ff",
+          "display": "Dr. Ruth Alvarez"
+        },
+        "reaction": [
+          {
+            "manifestation": [
+              {
+                "coding": [
+                  {
+                    "system": "http://snomed.info/sct",
+                    "code": "76067001",
+                    "display": "Sneezing"
+                  }
+                ],
+                "text": "Sneezing"
+              }
+            ]
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "AllergyIntolerance?identifier=https://fhir.pine-family-clinic.example/AllergyIntolerance|grass-pollen"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:16137e5f-25d5-48c4-9ec1-0028a5add926",
+      "resource": {
+        "resourceType": "Observation",
+        "meta": { "source": "https://fhir.pine-family-clinic.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.pine-family-clinic.example/Observation",
+            "value": "body-weight"
+          }
+        ],
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "vital-signs",
+                "display": "Vital Signs"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ],
+          "text": "Body weight"
+        },
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "effectiveDateTime": "2026-09-14",
+        "performer": [
+          {
+            "reference": "urn:uuid:21c8967a-275f-4754-9622-8358ae7d3eb1",
+            "display": "Pine Family Clinic"
+          }
+        ],
+        "valueQuantity": {
+          "value": 68,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation?identifier=https://fhir.pine-family-clinic.example/Observation|body-weight"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:759c77e8-e43a-44f7-a9fc-6b66934a31a4",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "meta": { "source": "https://fhir.pine-family-clinic.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.pine-family-clinic.example/MedicationRequest",
+            "value": "cetirizine-tablet"
+          }
+        ],
+        "status": "active",
+        "intent": "order",
+        "medicationCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "1014678",
+              "display": "cetirizine hydrochloride 10 MG Oral Tablet"
+            }
+          ],
+          "text": "Cetirizine 10 mg tablet"
+        },
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "authoredOn": "2026-09-14",
+        "requester": {
+          "reference": "urn:uuid:e51d4def-3577-4356-8344-2c39091420ff",
+          "display": "Dr. Ruth Alvarez"
+        },
+        "reasonReference": [
+          {
+            "reference": "urn:uuid:b5a5f193-3807-447a-a6f7-8e15f7404593",
+            "display": "Seasonal allergic rhinitis"
+          }
+        ],
+        "dosageInstruction": [
+          {
+            "text": "Take one tablet by mouth once daily when allergy symptoms occur."
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "MedicationRequest?identifier=https://fhir.pine-family-clinic.example/MedicationRequest|cetirizine-tablet"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:3430178e-4f44-4a57-9938-6eaee7a8d1ed",
+      "resource": {
+        "resourceType": "DiagnosticReport",
+        "meta": { "source": "https://fhir.pine-family-clinic.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.pine-family-clinic.example/DiagnosticReport",
+            "value": "hemoglobin-a1c-report"
+          }
+        ],
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v2-0074",
+                "code": "LAB",
+                "display": "Laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4548-4",
+              "display": "Hemoglobin A1c/Hemoglobin.total in Blood"
+            }
+          ],
+          "text": "Hemoglobin A1c"
+        },
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "effectiveDateTime": "2026-09-14",
+        "issued": "2026-09-15T08:30:00-05:00",
+        "performer": [
+          {
+            "reference": "urn:uuid:21c8967a-275f-4754-9622-8358ae7d3eb1",
+            "display": "Pine Family Clinic"
+          }
+        ],
+        "result": [
+          {
+            "reference": "urn:uuid:c639b044-2d17-49ff-bdbd-28f131f7f441",
+            "display": "Hemoglobin A1c"
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "DiagnosticReport?identifier=https://fhir.pine-family-clinic.example/DiagnosticReport|hemoglobin-a1c-report"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:c639b044-2d17-49ff-bdbd-28f131f7f441",
+      "resource": {
+        "resourceType": "Observation",
+        "meta": { "source": "https://fhir.pine-family-clinic.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.pine-family-clinic.example/Observation",
+            "value": "hemoglobin-a1c"
+          }
+        ],
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "laboratory",
+                "display": "Laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "4548-4",
+              "display": "Hemoglobin A1c/Hemoglobin.total in Blood"
+            }
+          ],
+          "text": "Hemoglobin A1c"
+        },
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "effectiveDateTime": "2026-09-14",
+        "issued": "2026-09-15T08:30:00-05:00",
+        "performer": [
+          {
+            "reference": "urn:uuid:21c8967a-275f-4754-9622-8358ae7d3eb1",
+            "display": "Pine Family Clinic"
+          }
+        ],
+        "valueQuantity": {
+          "value": 5.4,
+          "unit": "%",
+          "system": "http://unitsofmeasure.org",
+          "code": "%"
+        },
+        "interpretation": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v3-ObservationInterpretation",
+                "code": "N",
+                "display": "Normal"
+              }
+            ]
+          }
+        ],
+        "referenceRange": [
+          {
+            "low": {
+              "value": 4.0,
+              "unit": "%",
+              "system": "http://unitsofmeasure.org",
+              "code": "%"
+            },
+            "high": {
+              "value": 5.6,
+              "unit": "%",
+              "system": "http://unitsofmeasure.org",
+              "code": "%"
+            }
+          }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Observation?identifier=https://fhir.pine-family-clinic.example/Observation|hemoglobin-a1c"
       }
     },
     {
