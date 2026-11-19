@@ -58,6 +58,10 @@ Two environment variables, read and checked once when the app starts:
 | `VITE_MEDPLUM_SERVER_ADDRESS`     | The Medplum server's address                |
 | `VITE_MEDPLUM_PROJECT_IDENTIFIER` | The Medplum project that patients belong to |
 
+## Hosting
+
+The demo is the portal's static files on Cloudflare Workers, with a Medplum project kept for the demo as its backend, holding synthetic patients only ([0016](decisions/0016-hosting-the-demo.md)). Each page address serves the app, which routes in the browser. A maintainer deploys it as the README's "Deploying the demo" section describes.
+
 ## Quality checks
 
 Every tool runs at its default or recommended settings, apart from the few exceptions [0006](decisions/0006-recommended-setup-with-default-settings.md) lists:

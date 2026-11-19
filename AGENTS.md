@@ -8,7 +8,7 @@ This file is the single source of truth for standards in this repository, for pe
 
 **Stack:** TypeScript · React 18 · Vite · [Base Web](https://baseweb.design/) · Medplum's SDK (`@medplum/core`, `@medplum/react-hooks`)
 
-**Status:** early development. The project uses Vite's recommended setup at default settings ([decision 0006](docs/decisions/0006-recommended-setup-with-default-settings.md)), on the Node.js version in `.nvmrc`. The commands are listed in the README: `serve`, `build`, `preview`, `test`, `lint`, `lint:markdown`, `format`, `format:check` and `load:example`, each run with `npm run`.
+**Status:** early development. The project uses Vite's recommended setup at default settings ([decision 0006](docs/decisions/0006-recommended-setup-with-default-settings.md)), on the Node.js version in `.nvmrc`. The commands are listed in the README: `serve`, `build`, `preview`, `test`, `lint`, `lint:markdown`, `format`, `format:check`, `load:example` and `deploy:demo`, each run with `npm run`.
 
 ## Code written with AI assistants
 
