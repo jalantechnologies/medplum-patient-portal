@@ -798,7 +798,7 @@ describe("Health records", () => {
       await within(panel).findAllByTestId("allergies-record"),
     ).toHaveLength(2);
     expect(listRecordTexts(panel, "allergies")).toEqual([
-      "PenicillinMarch 12, 2024Dr. Mira SyntheticActiveView record",
+      "PenicillinMarch 12, 2024Dr. Mira SyntheticUnconfirmedView record",
       "LatexMay 2, 2022Dr. Mira SyntheticResolvedView record",
     ]);
 
@@ -843,7 +843,7 @@ describe("Health records", () => {
     const rows = await within(panel).findAllByTestId("allergies-record");
     expect(rows.map((row) => row.textContent)).toEqual([
       "AmoxicillinMarch 13, 2024Dr. Mira SyntheticRuled outView record",
-      "PenicillinMarch 12, 2024Dr. Mira SyntheticActiveView record",
+      "PenicillinMarch 12, 2024Dr. Mira SyntheticUnconfirmedView record",
     ]);
 
     await user.click(within(rows[0]).getByTestId("allergies-record-view"));
@@ -889,6 +889,55 @@ describe("Health records", () => {
     ).toHaveTextContent(
       "PatientHomer SimpsonDateOctober 21, 2026VerificationRefutedReceivedOctober 28, 2026 · 4:10 PM Central TimeAuthorDr. Mira Synthetic",
     );
+  });
+
+  it("shows unconfirmed allergies and conditions as Unconfirmed, in the list and in their records", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2024-03-12",
+    );
+    await createCondition(medplum, "Asthma", "2026-10-21", {
+      verificationStatus: codeFrom(
+        CODE_SYSTEM.CONDITION_VERIFICATION,
+        CONDITION_VERIFICATION_STATUS.UNCONFIRMED,
+      ),
+    });
+
+    renderHealthRecords(medplum);
+
+    const conditionRows = within(
+      await screen.findByTestId("conditions-list"),
+    ).getAllByTestId("conditions-record");
+    expect(conditionRows.map((row) => row.textContent)).toEqual([
+      "AsthmaOctober 21, 2026Dr. Mira SyntheticUnconfirmedView record",
+    ]);
+
+    await user.click(
+      within(conditionRows[0]).getByTestId("conditions-record-view"),
+    );
+    const conditionDialog = await screen.findByTestId("health-record-dialog");
+    expect(conditionDialog).toHaveTextContent("Unconfirmed");
+    expect(conditionDialog).not.toHaveTextContent("Active");
+
+    await user.click(screen.getByTestId("health-record-close"));
+    const allergyPanel = await openTab(user, "allergies");
+    const allergyRows =
+      await within(allergyPanel).findAllByTestId("allergies-record");
+    expect(allergyRows.map((row) => row.textContent)).toEqual([
+      "PenicillinMarch 12, 2024Dr. Mira SyntheticUnconfirmedView record",
+    ]);
+
+    await user.click(
+      within(allergyRows[0]).getByTestId("allergies-record-view"),
+    );
+    const allergyDialog = await screen.findByTestId("health-record-dialog");
+    expect(allergyDialog).toHaveTextContent("Unconfirmed");
+    expect(allergyDialog).not.toHaveTextContent("Active");
   });
 
   it("lists vital signs as measurements and leaves out laboratory results", async () => {

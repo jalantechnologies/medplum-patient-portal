@@ -201,10 +201,6 @@ describe("summarizeAllergyIntolerance", () => {
 
   it.each([
     [
-      "unconfirmed",
-      allergyVerification(ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED),
-    ],
-    [
       "confirmed",
       allergyVerification(ALLERGY_INTOLERANCE_VERIFICATION_STATUS.CONFIRMED),
     ],
@@ -220,6 +216,17 @@ describe("summarizeAllergyIntolerance", () => {
       ).toBe("Active");
     },
   );
+
+  it("words an unconfirmed allergy as Unconfirmed, even when clinical status is active", () => {
+    expect(
+      summarizeAllergyStatus(
+        allergyClinical(ALLERGY_INTOLERANCE_CLINICAL_STATUS.ACTIVE),
+        allergyVerification(
+          ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED,
+        ),
+      ).status,
+    ).toBe("Unconfirmed");
+  });
 });
 
 describe("summarizeCondition", () => {
@@ -281,6 +288,15 @@ describe("summarizeCondition", () => {
       ).toBe("Active");
     },
   );
+
+  it("words an unconfirmed condition as Unconfirmed, even when clinical status is active", () => {
+    expect(
+      summarizeConditionStatus(
+        conditionClinical(CONDITION_CLINICAL_STATUS.ACTIVE),
+        conditionVerification(CONDITION_VERIFICATION_STATUS.UNCONFIRMED),
+      ).status,
+    ).toBe("Unconfirmed");
+  });
 });
 
 describe("where a health record came from", () => {

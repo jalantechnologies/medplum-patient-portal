@@ -40,11 +40,13 @@ interface ClinicalRecordStatus {
   clinicalStatus: CodeableConcept | undefined;
   clinicalSystem: string;
   refutedCode: string;
+  unconfirmedCode: string;
   verificationStatus: CodeableConcept | undefined;
   verificationSystem: string;
 }
 
 const RULED_OUT_STATUS = "Ruled out";
+const UNCONFIRMED_STATUS = "Unconfirmed";
 
 const humanizeStatus = (
   status: CodeableConcept | undefined,
@@ -55,13 +57,21 @@ const describeClinicalRecordStatus = ({
   clinicalStatus,
   clinicalSystem,
   refutedCode,
+  unconfirmedCode,
   verificationStatus,
   verificationSystem,
-}: ClinicalRecordStatus): string =>
-  verificationStatus &&
-  getCodeBySystem(verificationStatus, verificationSystem) === refutedCode
-    ? RULED_OUT_STATUS
-    : humanizeStatus(clinicalStatus, clinicalSystem);
+}: ClinicalRecordStatus): string => {
+  const verificationCode =
+    verificationStatus &&
+    getCodeBySystem(verificationStatus, verificationSystem);
+  if (verificationCode === refutedCode) {
+    return RULED_OUT_STATUS;
+  }
+  if (verificationCode === unconfirmedCode) {
+    return UNCONFIRMED_STATUS;
+  }
+  return humanizeStatus(clinicalStatus, clinicalSystem);
+};
 
 export const summarizeCondition = (
   condition: WithId<Condition>,
@@ -76,6 +86,7 @@ export const summarizeCondition = (
     clinicalStatus: condition.clinicalStatus,
     clinicalSystem: CODE_SYSTEM.CONDITION_CLINICAL,
     refutedCode: CONDITION_VERIFICATION_STATUS.REFUTED,
+    unconfirmedCode: CONDITION_VERIFICATION_STATUS.UNCONFIRMED,
     verificationStatus: condition.verificationStatus,
     verificationSystem: CODE_SYSTEM.CONDITION_VERIFICATION,
   }),
@@ -100,6 +111,7 @@ export const summarizeAllergyIntolerance = (
     clinicalStatus: allergyIntolerance.clinicalStatus,
     clinicalSystem: CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL,
     refutedCode: ALLERGY_INTOLERANCE_VERIFICATION_STATUS.REFUTED,
+    unconfirmedCode: ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED,
     verificationStatus: allergyIntolerance.verificationStatus,
     verificationSystem: CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
   }),
