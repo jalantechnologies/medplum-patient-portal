@@ -1,6 +1,7 @@
 import type { WithId } from "@medplum/core";
 import type { Medication, MedicationRequest } from "@medplum/fhirtypes";
 
+import type { ListRecordsParameters } from "./record-filter";
 import type { RecordSearch } from "./record-list-tab";
 import type { SearchPage } from "./search-page";
 
@@ -16,3 +17,6 @@ export type MedicationRequestSearch = RecordSearch<
   WithId<MedicationRequest>,
   MedicationRequestPage
 >;
+
+export type ListMedicationRequestsParameters =
+  ListRecordsParameters<MedicationRequestPage>;

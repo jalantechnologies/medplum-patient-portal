@@ -5,6 +5,7 @@ import {
   Operator,
   type IncludeTarget,
   type SearchRequest,
+  type WithId,
 } from "@medplum/core";
 import type { List, Organization, Resource } from "@medplum/fhirtypes";
 
@@ -37,7 +38,7 @@ export default class RecordSourceService extends MedplumService {
     parameters: ListRecordSourcesParameters,
   ): Promise<ServiceResponse<ListedRecordSourceNames>> => {
     const searchRequest = RecordSourceService.toSearchRequest(parameters);
-    const resources: Resource[] = [];
+    const resources: WithId<Resource>[] = [];
     for await (const page of this.medplumClient.searchResourcePages(
       searchRequest.resourceType,
       formatSearchQuery(searchRequest),
@@ -103,11 +104,11 @@ export default class RecordSourceService extends MedplumService {
   }
 
   private static listListedOrganizations(
-    resources: Resource[],
-  ): Organization[] {
+    resources: WithId<Resource>[],
+  ): WithId<Organization>[] {
     const organizationsByReference = new Map(
       resources
-        .filter((resource) =>
+        .filter((resource): resource is WithId<Organization> =>
           isResource<Organization>(resource, RESOURCE_TYPE.ORGANIZATION),
         )
         .map((organization) => [
@@ -128,7 +129,9 @@ export default class RecordSourceService extends MedplumService {
   }
 
   // A snapshot list may be out of date, and a list of changes holds additions and removals (FHIR allows an entry marked deleted only there), not the sources themselves.
-  private static isWorkingList(resource: Resource): resource is List {
+  private static isWorkingList(
+    resource: WithId<Resource>,
+  ): resource is WithId<List> {
     return (
       isResource<List>(resource, RESOURCE_TYPE.LIST) &&
       resource.mode === LIST_MODE.WORKING
@@ -136,13 +139,15 @@ export default class RecordSourceService extends MedplumService {
   }
 
   private static toRecordSource({
+    id,
     identifier,
     name,
-  }: Organization): RecordSource {
+  }: WithId<Organization>): RecordSource {
     return {
       addresses: (identifier ?? []).flatMap(({ system, value }) =>
         system === IDENTIFIER_SYSTEM.URI && value ? [value] : [],
       ),
+      identifier: id,
       name,
     };
   }

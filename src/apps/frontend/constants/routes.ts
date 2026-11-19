@@ -8,6 +8,8 @@ const routes = {
 };
 
 export const ROUTE_SEARCH_PARAMETER = {
+  SEARCH: "search",
+  SOURCE: "source",
   TAB: "tab",
 } as const;
 

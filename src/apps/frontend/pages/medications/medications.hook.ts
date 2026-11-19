@@ -7,7 +7,11 @@ import {
   useMedicationRequestContext,
   useRecordSourceContext,
 } from "../../contexts";
-import { useRecordListTab, useRecordSourceNames } from "../../hooks";
+import {
+  useRecordFilter,
+  useRecordListTab,
+  useRecordSourceNames,
+} from "../../hooks";
 import type { MedicationRequestPage } from "../../types";
 import { summarizeMedicationRequest } from "./medication-summary";
 
@@ -37,9 +41,15 @@ const useMedications = () => {
   const [activeTabKey, setActiveTabKey] = useState<Key>(
     MEDICATION_TAB_TEXT.ALL.key,
   );
-  const { recordSourceNames, recordSourceRequest } = useRecordSourceNames({
-    ...useRecordSourceContext(),
-    patientReference,
+  const { recordSourceNames, recordSourceRequest, recordSources } =
+    useRecordSourceNames({
+      ...useRecordSourceContext(),
+      patientReference,
+    });
+  const { recordFilterChoices, recordListFilter } = useRecordFilter({
+    hasRecordSourcesFailed: recordSourceRequest.error !== null,
+    isSearchable: false,
+    recordSources,
   });
   const summarize = (
     medicationRequest: WithId<MedicationRequest>,
@@ -48,6 +58,7 @@ const useMedications = () => {
   const tabs = [
     useRecordListTab({
       ...allMedicationRequests,
+      ...recordListFilter,
       activeTabKey,
       patientReference,
       summarize,
@@ -55,6 +66,7 @@ const useMedications = () => {
     }),
     useRecordListTab({
       ...pastMedicationRequests,
+      ...recordListFilter,
       activeTabKey,
       patientReference,
       summarize,
@@ -65,6 +77,7 @@ const useMedications = () => {
   return {
     activeTabKey,
     openTab: setActiveTabKey,
+    recordFilterChoices,
     recordSourceRequest,
     tabs,
   };

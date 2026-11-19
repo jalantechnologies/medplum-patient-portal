@@ -1,5 +1,6 @@
 import type { AsynchronousOperationError } from "./asynchronous-operation";
 import type { Nullable } from "./common";
+import type { ListRecordsParameters, RecordFilter } from "./record-filter";
 import type { SearchPage } from "./search-page";
 
 export interface RecordListTabText {
@@ -23,19 +24,19 @@ export interface RecordSearch<
   Page extends SearchPage<Resource> = SearchPage<Resource>,
 > {
   error: Nullable<AsynchronousOperationError>;
-  isLoading: boolean;
   isRequesting: boolean;
-  list: (
-    patientReference: string,
-    previousPage?: Nullable<Page>,
-  ) => Promise<unknown>;
+  list: (parameters: ListRecordsParameters<Page>) => Promise<unknown>;
   page: Nullable<Page>;
+  pageRecordFilter: Nullable<RecordFilter>;
+  requestedRecordFilter: Nullable<RecordFilter>;
 }
 
 export interface RecordListTab<Summary extends RecordSummary>
   extends RecordListTabText, RetryableRequest {
+  clearRecordFilter: () => void;
   hasFailed: boolean;
   hasMoreRecords: boolean;
+  isFiltered: boolean;
   isLoading: boolean;
   isRequesting: boolean;
   listMoreRecords: () => void;

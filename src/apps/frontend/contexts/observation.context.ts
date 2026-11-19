@@ -1,22 +1,9 @@
-import type { WithId } from "@medplum/core";
-import type { Observation } from "@medplum/fhirtypes";
 import { createContext, useContext } from "react";
 
-import type {
-  AsynchronousOperationError,
-  Nullable,
-  SearchPage,
-} from "../types";
+import type { Nullable, VitalSignSearch } from "../types";
 
 type ObservationContextType = {
-  isVitalSignPageLoading: boolean;
-  isVitalSignPageRequesting: boolean;
-  listVitalSigns: (
-    patientReference: string,
-    previousPage?: Nullable<SearchPage<WithId<Observation>>>,
-  ) => Promise<Nullable<SearchPage<WithId<Observation>>>>;
-  vitalSignPage: Nullable<SearchPage<WithId<Observation>>>;
-  vitalSignPageError: Nullable<AsynchronousOperationError>;
+  vitalSigns: VitalSignSearch;
 };
 
 export const ObservationContext =

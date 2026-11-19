@@ -16,6 +16,11 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import {
+  createMemoryRouter,
+  RouterProvider,
+  type InitialEntry,
+} from "react-router";
 import { describe, expect, it, vi, type MockInstance } from "vitest";
 
 import constant from "../../constants";
@@ -34,6 +39,7 @@ import {
   SEARCH_PARAMETER,
   SEARCH_VALUE_SEPARATOR,
 } from "../../constants/fhir";
+import routes from "../../constants/routes";
 import {
   DiagnosticReportProvider,
   RecordSourceProvider,
@@ -57,6 +63,15 @@ import {
   receiveRecordsAt,
 } from "../../test-medplum";
 import { TestProviders } from "../../test-providers";
+import {
+  ALL_SOURCES,
+  answerAsServer,
+  chooseRecordSource,
+  isSourceFilter,
+  isTextFilter,
+  listFilterValues,
+  searchRecords,
+} from "../../test-record-filter";
 import { showDatesInChicago } from "../../test-time-zone";
 import TestResults from "./test-results.page";
 
@@ -81,16 +96,32 @@ const createMedplumWithoutSampleReport = async () => {
   return medplum;
 };
 
-const renderTestResults = (medplum: MockClient) =>
-  render(
+const renderTestResults = (
+  medplum: MockClient,
+  path: InitialEntry = routes.TEST_RESULTS,
+) => {
+  const router = createMemoryRouter(
+    [
+      {
+        path: routes.TEST_RESULTS,
+        element: (
+          <DiagnosticReportProvider>
+            <TestResults />
+          </DiagnosticReportProvider>
+        ),
+      },
+    ],
+    { initialEntries: [path] },
+  );
+  const result = render(
     <TestProviders medplum={medplum}>
       <RecordSourceProvider>
-        <DiagnosticReportProvider>
-          <TestResults />
-        </DiagnosticReportProvider>
+        <RouterProvider router={router} />
       </RecordSourceProvider>
     </TestProviders>,
   );
+  return { ...result, router };
+};
 
 const openTab = async (
   user: ReturnType<typeof userEvent.setup>,
@@ -1265,5 +1296,148 @@ describe("Test results", () => {
     expect(
       await within(list).findByTestId(`${LABORATORY_RESULTS}-record-results`),
     ).toBeVisible();
+  });
+});
+
+describe("Test results, narrowed to a source or a search", () => {
+  it("narrows each tab to the chosen source, finds a report by name, and keeps both in the address", async () => {
+    const user = userEvent.setup();
+    const medplum = await createMedplumWithoutSampleReport();
+    await createRecordSources(medplum, [harborLaboratory, oakDermatology]);
+    await createDiagnosticReport(medplum, "Vitamin D", "2026-10-18", [], {
+      meta: { source: harborLaboratory.address },
+    });
+    await createDiagnosticReport(medplum, "Hemoglobin A1c", "2026-09-14", [], {
+      meta: { source: oakDermatology.address },
+    });
+    await createDiagnosticReport(
+      medplum,
+      "XR Chest 2 Views",
+      "2026-08-01",
+      [],
+      {
+        category: [radiology],
+        meta: { source: harborLaboratory.address },
+      },
+    );
+    await createDiagnosticReport(medplum, "XR Hand", "2026-07-01", [], {
+      category: [radiology],
+      meta: { source: oakDermatology.address },
+    });
+    const search = answerAsServer(medplum);
+    const { router } = renderTestResults(medplum);
+    const laboratory = screen.getByTestId(`${LABORATORY_RESULTS}-panel`);
+    await waitFor(() =>
+      expect(listReportTitles(laboratory, LABORATORY_RESULTS)).toEqual([
+        "Vitamin D",
+        "Hemoglobin A1c",
+      ]),
+    );
+
+    await chooseRecordSource(user, harborLaboratory.name);
+
+    await waitFor(() =>
+      expect(listReportTitles(laboratory, LABORATORY_RESULTS)).toEqual([
+        "Vitamin D",
+      ]),
+    );
+    const imaging = await openTab(user, IMAGING);
+    await waitFor(() =>
+      expect(listReportTitles(imaging, IMAGING)).toEqual(["XR Chest 2 Views"]),
+    );
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.DIAGNOSTIC_REPORT,
+        isSourceFilter,
+      ).at(-1),
+    ).toBe(harborLaboratory.address);
+    await openTab(user, LABORATORY_RESULTS);
+    await chooseRecordSource(user, ALL_SOURCES);
+    await searchRecords(user, "a1c");
+
+    await waitFor(() =>
+      expect(listReportTitles(laboratory, LABORATORY_RESULTS)).toEqual([
+        "Hemoglobin A1c",
+      ]),
+    );
+    expect(router.state.location.search).toBe("?search=a1c");
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.DIAGNOSTIC_REPORT,
+        isTextFilter,
+      ).at(-1),
+    ).toBe("a1c");
+  });
+
+  it("keeps the chosen source and search when the patient asks for more", async () => {
+    const user = userEvent.setup();
+    const medplum = await createMedplumWithoutSampleReport();
+    await createRecordSources(medplum, [harborLaboratory, oakDermatology]);
+    const reportCount = constant.SEARCH_PAGE_SIZE + 1;
+    for (let index = 0; index < reportCount; index += 1) {
+      await createDiagnosticReport(
+        medplum,
+        `Vitamin D ${index + 1}`,
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+        [],
+        { meta: { source: harborLaboratory.address } },
+      );
+    }
+    await createDiagnosticReport(
+      medplum,
+      "Vitamin D at the clinic",
+      "2026-10-20",
+      [],
+      {
+        meta: { source: oakDermatology.address },
+      },
+    );
+    await createDiagnosticReport(medplum, "Lipid panel", "2026-10-21", [], {
+      meta: { source: harborLaboratory.address },
+    });
+    const search = answerAsServer(medplum);
+    renderTestResults(medplum);
+    const laboratory = screen.getByTestId(`${LABORATORY_RESULTS}-panel`);
+    await within(laboratory).findByTestId(`${LABORATORY_RESULTS}-list`);
+    await chooseRecordSource(user, harborLaboratory.name);
+    await searchRecords(user, "vitamin");
+    await waitFor(() =>
+      expect(listReportTitles(laboratory, LABORATORY_RESULTS)[0]).toBe(
+        `Vitamin D ${reportCount}`,
+      ),
+    );
+
+    await user.click(
+      within(laboratory).getByTestId(`${LABORATORY_RESULTS}-more`),
+    );
+
+    await waitFor(() =>
+      expect(listReportTitles(laboratory, LABORATORY_RESULTS)).toHaveLength(
+        reportCount,
+      ),
+    );
+    expect(listReportTitles(laboratory, LABORATORY_RESULTS)).not.toContain(
+      "Vitamin D at the clinic",
+    );
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.DIAGNOSTIC_REPORT,
+        isSourceFilter,
+      ).at(-1),
+    ).toBe(harborLaboratory.address);
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.DIAGNOSTIC_REPORT,
+        isTextFilter,
+      ).at(-1),
+    ).toBe("vitamin");
   });
 });

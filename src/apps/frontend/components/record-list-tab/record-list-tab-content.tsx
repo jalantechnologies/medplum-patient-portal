@@ -51,6 +51,21 @@ const RecordListTabNotice = <Summary extends RecordSummary>({
       </ParagraphSmall>
     );
   }
+  if (tab.isFiltered) {
+    return (
+      <Block
+        display="grid"
+        gridGap="scale100"
+        data-testid={`${tab.key}-no-match`}
+      >
+        <LabelMedium>No records available</LabelMedium>
+        <ParagraphSmall margin="0" color="contentSecondary">
+          No matching records are available. This does not establish that you
+          have no relevant history.
+        </ParagraphSmall>
+      </Block>
+    );
+  }
   return (
     <Block display="grid" gridGap="scale100" data-testid={`${tab.key}-empty`}>
       <LabelMedium>{tab.emptyTitle}</LabelMedium>
@@ -88,6 +103,7 @@ const RecordListTabContent = <Summary extends RecordSummary>({
   tab,
 }: RecordListTabContentProperties<Summary>) => {
   const hasRecords = tab.records.length > 0;
+  const canClearRecordFilter = !hasRecords && !tab.isLoading && tab.isFiltered;
 
   return (
     <Block data-testid={`${tab.key}-content`}>
@@ -102,6 +118,18 @@ const RecordListTabContent = <Summary extends RecordSummary>({
       </Block>
       {hasRecords ? (
         <RecordListTabRecords tab={tab}>{children}</RecordListTabRecords>
+      ) : null}
+      {canClearRecordFilter ? (
+        <Block paddingTop="scale300">
+          <Button
+            kind={BUTTON_KIND.tertiary}
+            size={BUTTON_SIZE.compact}
+            onClick={tab.clearRecordFilter}
+            data-testid={`${tab.key}-clear-filters`}
+          >
+            Clear filters
+          </Button>
+        </Block>
       ) : null}
     </Block>
   );

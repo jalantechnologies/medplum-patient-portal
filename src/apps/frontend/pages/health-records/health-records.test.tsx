@@ -1,10 +1,12 @@
 import {
   createReference,
+  escapeSearchValue,
   formatSearchQuery,
   getReferenceString,
   getSearchParameter,
   Operator,
   parseSearchRequest,
+  type SearchRequest,
 } from "@medplum/core";
 import type {
   Bundle,
@@ -16,6 +18,7 @@ import type {
 } from "@medplum/fhirtypes";
 import { HomerSimpson, MockClient } from "@medplum/mock";
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -47,6 +50,7 @@ import {
   RESOURCE_TYPE,
   SEARCH_ENTRY_MODE,
   SEARCH_PARAMETER,
+  SEARCH_VALUE_SEPARATOR,
 } from "../../constants/fhir";
 import routes from "../../constants/routes";
 import {
@@ -72,6 +76,19 @@ import {
   receiveRecordsAt,
 } from "../../test-medplum";
 import { TestProviders } from "../../test-providers";
+import {
+  ALL_SOURCES,
+  answerAsServer,
+  chooseNextRecordSourceByKeyboard,
+  chooseRecordSource,
+  getSearchBox,
+  getSourceMenu,
+  isSourceFilter,
+  isTextFilter,
+  listFilterValues,
+  listSourceOptionNames,
+  searchRecords,
+} from "../../test-record-filter";
 import HealthRecords from "./health-records.page";
 
 const homer = createReference(HomerSimpson);
@@ -638,7 +655,7 @@ describe("Health records", () => {
     );
   });
 
-  it("names a clinic at each of its addresses, and the record whose address carries the request after a '#'", async () => {
+  it("names a clinic at each of its addresses, and no clinic on a record whose address carries the request after a '#', which choosing the clinic would not list", async () => {
     const medplum = new MockClient({ profile: HomerSimpson });
     const formerAddress = "https://fhir.oak-dermatology-former.example";
     const oak = await createClinic(medplum, oakDermatology, {
@@ -670,7 +687,7 @@ describe("Health records", () => {
       expect(listRecordTexts(list, "conditions")).toEqual([
         "EczemaOak Synthetic Dermatology · October 20, 2026Dr. Mira SyntheticActiveView record",
         "RosaceaOak Synthetic Dermatology · March 12, 2024Dr. Mira SyntheticActiveView record",
-        "AcneOak Synthetic Dermatology · May 1, 2023Dr. Mira SyntheticActiveView record",
+        "AcneMay 1, 2023Dr. Mira SyntheticActiveView record",
       ]),
     );
   });
@@ -1536,6 +1553,905 @@ describe("Health records", () => {
     expect(screen.getByTestId("measurements-tab")).toHaveAttribute(
       "aria-selected",
       "true",
+    );
+  });
+});
+
+const listClinics = (medplum: MockClient, clinics: Organization[]) =>
+  createSourceList(medplum, {
+    entry: clinics.map((clinic) => ({ item: createReference(clinic) })),
+  });
+
+const readSourceFilter = (searchRequest: SearchRequest) =>
+  searchRequest.filters?.find(isSourceFilter)?.value;
+
+const createDeferred = () => {
+  let resolve = () => {};
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+};
+
+const createClinics = async (medplum: MockClient) => {
+  const oak = await createClinic(medplum, oakDermatology);
+  const maple = await createClinic(medplum, mapleDental);
+  await listClinics(medplum, [oak, maple]);
+  return { maple, oak };
+};
+
+const createMoreOakConditionsThanOnePage = async (medplum: MockClient) => {
+  const conditionCount = constant.SEARCH_PAGE_SIZE + 1;
+  for (let index = 0; index < conditionCount; index += 1) {
+    await createCondition(
+      medplum,
+      `Eczema ${index + 1}`,
+      new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+      { meta: { source: oakDermatology.address } },
+    );
+  }
+  await createCondition(medplum, "Tooth decay", "2026-10-20", {
+    meta: { source: mapleDental.address },
+  });
+  return conditionCount;
+};
+
+const countConditionRequests = (
+  medplum: MockClient,
+  search: ReturnType<typeof answerAsServer>,
+  sourceAddress: string,
+) =>
+  search.mock.calls.filter(
+    ([resourceType, query]) =>
+      resourceType === RESOURCE_TYPE.CONDITION &&
+      readSourceFilter(
+        readSearchRequest(medplum, RESOURCE_TYPE.CONDITION, query as string),
+      ) === sourceAddress,
+  ).length;
+
+const showEveryOakCondition = async (
+  user: ReturnType<typeof userEvent.setup>,
+  panel: HTMLElement,
+  conditionCount: number,
+) => {
+  await waitFor(() =>
+    expect(within(panel).getAllByTestId("conditions-record")).toHaveLength(
+      constant.SEARCH_PAGE_SIZE,
+    ),
+  );
+  await user.click(within(panel).getByTestId("conditions-more"));
+  await waitFor(() =>
+    expect(within(panel).getAllByTestId("conditions-record")).toHaveLength(
+      conditionCount,
+    ),
+  );
+};
+
+describe("Health records, narrowed to a source or a search", () => {
+  it("lists every named source on the patient's list after All sources, in the order of her list", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const oak = await createClinic(medplum, oakDermatology);
+    const maple = await createClinic(medplum, mapleDental);
+    const unnamedClinic = await createClinic(medplum, cedarCardiology, {
+      name: undefined,
+    });
+    const clinicWithNoAddress = await createClinic(medplum, pineFamilyClinic, {
+      identifier: [],
+    });
+    await listClinics(medplum, [
+      maple,
+      oak,
+      unnamedClinic,
+      clinicWithNoAddress,
+    ]);
+    answerAsServer(medplum);
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    await user.click(getSourceMenu());
+
+    await waitFor(() =>
+      expect(listSourceOptionNames()).toEqual([
+        ALL_SOURCES,
+        mapleDental.name,
+        oakDermatology.name,
+      ]),
+    );
+  });
+
+  it("narrows every tab to the chosen source at each of its addresses, keeps it in the address beside the tab without a history entry, and lists every record again for All sources", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const oakAddresses = [
+      oakDermatology.address,
+      `${oakDermatology.address}/v2`,
+    ];
+    const oak = await createClinic(medplum, oakDermatology, {
+      identifier: oakAddresses.map((value) => ({
+        system: IDENTIFIER_SYSTEM.URI,
+        value,
+      })),
+    });
+    const maple = await createClinic(medplum, mapleDental);
+    await listClinics(medplum, [oak, maple]);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: oakAddresses[0] },
+    });
+    await createCondition(medplum, "Rosacea", "2026-09-01", {
+      meta: { source: oakAddresses[1] },
+    });
+    await createCondition(medplum, "Tooth decay", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2024-03-12",
+      {
+        meta: { source: oakDermatology.address },
+      },
+    );
+    await createAllergyIntolerance(medplum, { text: "Latex" }, "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    const search = answerAsServer(medplum);
+    const { router } = renderHealthRecords(medplum);
+    const conditions = screen.getByTestId("conditions-panel");
+    await within(conditions).findByTestId("conditions-list");
+
+    await chooseRecordSource(user, oakDermatology.name);
+
+    await waitFor(() =>
+      expect(listRecordTitles(conditions, "conditions")).toEqual([
+        "Eczema",
+        "Rosacea",
+      ]),
+    );
+    expect(router.state.location.search).toBe(`?source=${oak.id}`);
+    expect(router.state.historyAction).toBe("REPLACE");
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.CONDITION,
+        isSourceFilter,
+      ).at(-1),
+    ).toBe(oakAddresses.join(SEARCH_VALUE_SEPARATOR));
+    expect(
+      getSearchParameter(RESOURCE_TYPE.CONDITION, SEARCH_PARAMETER.SOURCE),
+    ).toBeDefined();
+    const allergies = await openTab(user, "allergies");
+    await waitFor(() =>
+      expect(listRecordTitles(allergies, "allergies")).toEqual(["Penicillin"]),
+    );
+    expect(router.state.location.search).toBe(
+      `?source=${oak.id}&tab=allergies`,
+    );
+
+    await chooseRecordSource(user, ALL_SOURCES);
+
+    await waitFor(() =>
+      expect(listRecordTitles(allergies, "allergies")).toEqual([
+        "Latex",
+        "Penicillin",
+      ]),
+    );
+    expect(router.state.location.search).toBe("?tab=allergies");
+    expect(getSourceMenu()).toHaveAccessibleName(
+      `Selected ${ALL_SOURCES}. Source`,
+    );
+  });
+
+  it("chooses a source with the keyboard alone", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const { oak } = await createClinics(medplum);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: oakDermatology.address },
+    });
+    await createCondition(medplum, "Tooth decay", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    answerAsServer(medplum);
+    const { router } = renderHealthRecords(medplum);
+    const conditions = screen.getByTestId("conditions-panel");
+    await within(conditions).findByTestId("conditions-list");
+    await waitFor(() =>
+      expect(listRecordTexts(conditions, "conditions")[0]).toContain(
+        oakDermatology.name,
+      ),
+    );
+
+    chooseNextRecordSourceByKeyboard(2);
+
+    await waitFor(() =>
+      expect(router.state.location.search).toBe(`?source=${oak.id}`),
+    );
+    await waitFor(() =>
+      expect(listRecordTitles(conditions, "conditions")).toEqual(["Eczema"]),
+    );
+    expect(getSourceMenu()).toHaveFocus();
+  });
+
+  it("opens with the source and search named in the address, and asks for no records until the patient's sources say which addresses the source has", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const { oak } = await createClinics(medplum);
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2024-03-12",
+      {
+        meta: { source: oakDermatology.address },
+      },
+    );
+    await createAllergyIntolerance(medplum, { text: "Peanut" }, "2024-05-01", {
+      meta: { source: oakDermatology.address },
+    });
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2025-04-08",
+      {
+        meta: { source: mapleDental.address },
+      },
+    );
+    const sourcesArrive = createDeferred();
+    const search = answerAsServer(medplum, async (resourceType) => {
+      if (resourceType === RESOURCE_TYPE.LIST) {
+        await sourcesArrive.promise;
+      }
+    });
+
+    renderHealthRecords(
+      medplum,
+      `/health-records?tab=allergies&source=${oak.id}&search=penic`,
+    );
+
+    const panel = screen.getByTestId("allergies-panel");
+    expect(within(panel).getByTestId("allergies-loading")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(search).toHaveBeenCalledWith(
+        RESOURCE_TYPE.LIST,
+        expect.anything(),
+        expect.anything(),
+      ),
+    );
+    expect(
+      search.mock.calls.filter(
+        ([resourceType]) => resourceType === RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+      ),
+    ).toEqual([]);
+    expect(getSearchBox()).toHaveValue("penic");
+    expect(getSourceMenu()).toHaveAccessibleName("Loading sources. Source");
+    sourcesArrive.resolve();
+
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "allergies")).toEqual(["Penicillin"]),
+    );
+    expect(listRecordTexts(panel, "allergies")[0]).toContain(
+      oakDermatology.name,
+    );
+    expect(
+      new Set(
+        listFilterValues(
+          medplum,
+          search,
+          RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+          isSourceFilter,
+        ),
+      ),
+    ).toEqual(new Set([oakDermatology.address]));
+    expect(
+      new Set(
+        listFilterValues(
+          medplum,
+          search,
+          RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+          isTextFilter,
+        ),
+      ),
+    ).toEqual(new Set(["penic"]));
+    expect(getSourceMenu()).toHaveAccessibleName(
+      `Selected ${oakDermatology.name}. Source`,
+    );
+  });
+
+  it("lists every record under All sources when the address names a source that is not on the patient's list", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createClinics(medplum);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: oakDermatology.address },
+    });
+    await createCondition(medplum, "Tooth decay", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    const search = answerAsServer(medplum);
+
+    renderHealthRecords(medplum, "/health-records?source=unknown-clinic");
+
+    const conditions = screen.getByTestId("conditions-panel");
+    await within(conditions).findByTestId("conditions-list");
+    expect(listRecordTitles(conditions, "conditions")).toEqual([
+      "Eczema",
+      "Tooth decay",
+    ]);
+    expect(getSourceMenu()).toHaveAccessibleName(
+      `Selected ${ALL_SOURCES}. Source`,
+    );
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.CONDITION,
+        isSourceFilter,
+      ),
+    ).not.toContain(expect.any(String));
+  });
+
+  it("says the records could not be read when a source is chosen and the patient's sources cannot be read, and lists that source's records once the patient tries again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const { oak } = await createClinics(medplum);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: oakDermatology.address },
+    });
+    await createCondition(medplum, "Tooth decay", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    let areSourcesReachable = false;
+    const search = answerAsServer(medplum, async (resourceType) => {
+      if (resourceType === RESOURCE_TYPE.LIST && !areSourcesReachable) {
+        throw networkFailure();
+      }
+    });
+
+    renderHealthRecords(medplum, `/health-records?source=${oak.id}`);
+
+    const panel = screen.getByTestId("conditions-panel");
+    expect(
+      await within(panel).findByTestId("conditions-unavailable"),
+    ).toHaveTextContent("Could not load");
+    expect(screen.getByTestId("health-records-error")).toHaveTextContent(
+      constant.DEFAULT_ERROR_MESSAGE,
+    );
+    expect(getSourceMenu()).toHaveAccessibleName(
+      "Could not load sources. Source",
+    );
+    expect(
+      within(panel).getByTestId("conditions-clear-filters"),
+    ).toBeInTheDocument();
+    expect(
+      search.mock.calls.filter(
+        ([resourceType]) => resourceType === RESOURCE_TYPE.CONDITION,
+      ),
+    ).toEqual([]);
+    areSourcesReachable = true;
+    await user.click(
+      within(screen.getByTestId("health-records-error-retry")).getByRole(
+        "button",
+      ),
+    );
+
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "conditions")).toEqual(["Eczema"]),
+    );
+    expect(
+      screen.queryByTestId("health-records-error"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lists every record when the patient clears a source that could not be looked up because her sources cannot be read", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const { oak } = await createClinics(medplum);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: oakDermatology.address },
+    });
+    await createCondition(medplum, "Tooth decay", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    answerAsServer(medplum, async (resourceType) => {
+      if (resourceType === RESOURCE_TYPE.LIST) {
+        throw networkFailure();
+      }
+    });
+    const { router } = renderHealthRecords(
+      medplum,
+      `/health-records?source=${oak.id}`,
+    );
+    const panel = screen.getByTestId("conditions-panel");
+    await within(panel).findByTestId("conditions-unavailable");
+
+    await user.click(within(panel).getByTestId("conditions-clear-filters"));
+
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "conditions")).toEqual([
+        "Eczema",
+        "Tooth decay",
+      ]),
+    );
+    expect(router.state.location.search).toBe("");
+    expect(getSourceMenu()).toHaveAccessibleName(
+      `Selected ${ALL_SOURCES}. Source`,
+    );
+    expect(getSearchBox()).toHaveFocus();
+  });
+
+  it("finds a record by any part of its name or of a coding's display, ignoring case, asking once when the patient stops typing, and tells a screen reader how many it found", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createAllergyIntolerance(
+      medplum,
+      {
+        coding: [{ code: "91935009", display: "Allergy to peanut" }],
+      },
+      "2025-04-08",
+    );
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2024-03-12",
+    );
+    const search = answerAsServer(medplum);
+    const { router } = renderHealthRecords(
+      medplum,
+      "/health-records?tab=allergies",
+    );
+    const panel = screen.getByTestId("allergies-panel");
+    await within(panel).findByTestId("allergies-list");
+
+    await searchRecords(user, "PEANUT");
+
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "allergies")).toEqual([
+        "Allergy to peanut",
+      ]),
+    );
+    expect(within(panel).getByTestId("allergies-status")).toHaveTextContent(
+      "1 record shown",
+    );
+    expect(router.state.location.search).toBe("?tab=allergies&search=PEANUT");
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+        isTextFilter,
+      ).filter((value) => value !== undefined),
+    ).toEqual(["PEANUT", "PEANUT"]);
+  });
+
+  it("searches for a name with a comma in it as one name, and leaves out the spaces around it", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createCondition(medplum, "Eczema, atopic", "2026-10-20");
+    await createCondition(medplum, "Atopy", "2026-09-01");
+    const search = answerAsServer(medplum);
+    renderHealthRecords(medplum);
+    const conditions = screen.getByTestId("conditions-panel");
+    await within(conditions).findByTestId("conditions-list");
+
+    await searchRecords(user, "  eczema, atopic ");
+
+    await waitFor(() =>
+      expect(listRecordTitles(conditions, "conditions")).toEqual([
+        "Eczema, atopic",
+      ]),
+    );
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.CONDITION,
+        isTextFilter,
+      ).at(-1),
+    ).toBe(escapeSearchValue("eczema, atopic"));
+  });
+
+  it("says when nothing matches, and clears the source and the search on request, listing every record with focus back in the search box", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const { oak } = await createClinics(medplum);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: oakDermatology.address },
+    });
+    await createCondition(medplum, "Tooth decay", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    answerAsServer(medplum);
+    const { router } = renderHealthRecords(
+      medplum,
+      `/health-records?source=${oak.id}&search=decay`,
+    );
+    const panel = screen.getByTestId("conditions-panel");
+
+    const notice = await within(panel).findByTestId("conditions-no-match");
+    expect(notice).toHaveTextContent(
+      "No records availableNo matching records are available. This does not establish that you have no relevant history.",
+    );
+    expect(
+      within(within(panel).getByTestId("conditions-status")).queryByRole(
+        "button",
+      ),
+    ).not.toBeInTheDocument();
+    await user.click(within(panel).getByTestId("conditions-clear-filters"));
+
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "conditions")).toEqual([
+        "Eczema",
+        "Tooth decay",
+      ]),
+    );
+    expect(router.state.location.search).toBe("");
+    expect(getSearchBox()).toHaveValue("");
+    expect(getSearchBox()).toHaveFocus();
+    expect(getSourceMenu()).toHaveAccessibleName(
+      `Selected ${ALL_SOURCES}. Source`,
+    );
+  });
+
+  it("says a kind of record has nothing in it, with no way to clear, when no source or search is chosen", async () => {
+    renderHealthRecords(new MockClient({ profile: HomerSimpson }));
+
+    expect(await screen.findByTestId("conditions-empty")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("conditions-clear-filters"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the chosen source and search when the patient asks for more", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const { oak } = await createClinics(medplum);
+    const conditionCount = constant.SEARCH_PAGE_SIZE + 1;
+    for (let index = 0; index < conditionCount; index += 1) {
+      await createCondition(
+        medplum,
+        `Eczema ${index + 1}`,
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+        { meta: { source: oakDermatology.address } },
+      );
+    }
+    await createCondition(medplum, "Eczema at the dentist", "2026-10-20", {
+      meta: { source: mapleDental.address },
+    });
+    const search = answerAsServer(medplum);
+    renderHealthRecords(medplum, `/health-records?source=${oak.id}&search=ecz`);
+    const panel = screen.getByTestId("conditions-panel");
+    await waitFor(() =>
+      expect(within(panel).getAllByTestId("conditions-record")).toHaveLength(
+        constant.SEARCH_PAGE_SIZE,
+      ),
+    );
+
+    await user.click(within(panel).getByTestId("conditions-more"));
+
+    await waitFor(() =>
+      expect(within(panel).getAllByTestId("conditions-record")).toHaveLength(
+        conditionCount,
+      ),
+    );
+    expect(listRecordTitles(panel, "conditions")).not.toContain(
+      "Eczema at the dentist",
+    );
+    const nextPageRequest = readSearchRequest(
+      medplum,
+      RESOURCE_TYPE.CONDITION,
+      search.mock.calls.filter(
+        ([resourceType]) => resourceType === RESOURCE_TYPE.CONDITION,
+      )[1][1] as string,
+    );
+    expect(nextPageRequest.offset).toBe(constant.SEARCH_PAGE_SIZE);
+    expect(nextPageRequest.filters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: SEARCH_PARAMETER.SOURCE,
+          value: oakDermatology.address,
+        }),
+        expect.objectContaining({
+          code: SEARCH_PARAMETER.CODE,
+          operator: Operator.TEXT,
+          value: "ecz",
+        }),
+      ]),
+    );
+  });
+
+  it("keeps every record already shown for a source when the patient comes back to it before the other source's answer arrives, and drops that answer", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const { oak } = await createClinics(medplum);
+    const conditionCount = await createMoreOakConditionsThanOnePage(medplum);
+    let isMapleHeld = false;
+    const mapleAnswer = createDeferred();
+    const search = answerAsServer(
+      medplum,
+      async (resourceType, searchRequest) => {
+        if (
+          resourceType === RESOURCE_TYPE.CONDITION &&
+          isMapleHeld &&
+          readSourceFilter(searchRequest) === mapleDental.address
+        ) {
+          await mapleAnswer.promise;
+        }
+      },
+    );
+    renderHealthRecords(medplum, `/health-records?source=${oak.id}`);
+    const panel = screen.getByTestId("conditions-panel");
+    await showEveryOakCondition(user, panel, conditionCount);
+    isMapleHeld = true;
+    const oakRequestCount = countConditionRequests(
+      medplum,
+      search,
+      oakDermatology.address,
+    );
+
+    await chooseRecordSource(user, mapleDental.name);
+    await within(panel).findByTestId("conditions-loading");
+    await chooseRecordSource(user, oakDermatology.name);
+
+    expect(within(panel).getAllByTestId("conditions-record")).toHaveLength(
+      conditionCount,
+    );
+    await act(async () => {
+      mapleAnswer.resolve();
+      await mapleAnswer.promise;
+    });
+    expect(within(panel).getAllByTestId("conditions-record")).toHaveLength(
+      conditionCount,
+    );
+    expect(
+      countConditionRequests(medplum, search, oakDermatology.address),
+    ).toBe(oakRequestCount);
+  });
+
+  it("keeps every record already shown for a source when the patient comes back to it after the other source failed, and shows no failure", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const { oak } = await createClinics(medplum);
+    const conditionCount = await createMoreOakConditionsThanOnePage(medplum);
+    const search = answerAsServer(
+      medplum,
+      async (resourceType, searchRequest) => {
+        if (
+          resourceType === RESOURCE_TYPE.CONDITION &&
+          readSourceFilter(searchRequest) === mapleDental.address
+        ) {
+          throw networkFailure();
+        }
+      },
+    );
+    renderHealthRecords(medplum, `/health-records?source=${oak.id}`);
+    const panel = screen.getByTestId("conditions-panel");
+    await showEveryOakCondition(user, panel, conditionCount);
+    const oakRequestCount = countConditionRequests(
+      medplum,
+      search,
+      oakDermatology.address,
+    );
+    await chooseRecordSource(user, mapleDental.name);
+    await within(panel).findByTestId("conditions-unavailable");
+
+    await chooseRecordSource(user, oakDermatology.name);
+
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("health-records-error"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(within(panel).getAllByTestId("conditions-record")).toHaveLength(
+      conditionCount,
+    );
+    expect(
+      countConditionRequests(medplum, search, oakDermatology.address),
+    ).toBe(oakRequestCount);
+  });
+
+  it("never shows the records of the source chosen before while the next source's records load, nor an answer that arrives after the patient chose again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createClinics(medplum);
+    await createCondition(medplum, "Eczema", "2026-10-20", {
+      meta: { source: oakDermatology.address },
+    });
+    await createCondition(medplum, "Tooth decay", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    let heldSource: string | null = null;
+    const heldAnswer = createDeferred();
+    answerAsServer(medplum, async (resourceType, searchRequest) => {
+      if (
+        resourceType === RESOURCE_TYPE.CONDITION &&
+        heldSource !== null &&
+        readSourceFilter(searchRequest) === heldSource
+      ) {
+        await heldAnswer.promise;
+      }
+    });
+    renderHealthRecords(medplum);
+    const panel = screen.getByTestId("conditions-panel");
+    await within(panel).findByTestId("conditions-list");
+    await chooseRecordSource(user, oakDermatology.name);
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "conditions")).toEqual(["Eczema"]),
+    );
+    heldSource = mapleDental.address;
+
+    await chooseRecordSource(user, mapleDental.name);
+
+    expect(
+      await within(panel).findByTestId("conditions-loading"),
+    ).toBeInTheDocument();
+    expect(
+      within(panel).queryByTestId("conditions-record"),
+    ).not.toBeInTheDocument();
+    heldSource = null;
+    await chooseRecordSource(user, oakDermatology.name);
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "conditions")).toEqual(["Eczema"]),
+    );
+    await act(async () => {
+      heldAnswer.resolve();
+      await heldAnswer.promise;
+    });
+    expect(listRecordTitles(panel, "conditions")).toEqual(["Eczema"]);
+  });
+
+  it("never shows a failure from the source chosen before once the patient chooses another source, in the banner or in the tab that failed", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const { oak } = await createClinics(medplum);
+    await createCondition(medplum, "Tooth decay", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    await createAllergyIntolerance(medplum, { text: "Latex" }, "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    answerAsServer(medplum, async (resourceType, searchRequest) => {
+      if (
+        resourceType === RESOURCE_TYPE.CONDITION &&
+        readSourceFilter(searchRequest) === oakDermatology.address
+      ) {
+        throw networkFailure();
+      }
+    });
+    renderHealthRecords(medplum, `/health-records?source=${oak.id}`);
+    const conditions = screen.getByTestId("conditions-panel");
+    await within(conditions).findByTestId("conditions-unavailable");
+    const allergies = await openTab(user, "allergies");
+    await within(allergies).findByTestId("allergies-no-match");
+    expect(screen.getByTestId("health-records-error")).toBeInTheDocument();
+
+    await chooseRecordSource(user, mapleDental.name);
+
+    await waitFor(() =>
+      expect(listRecordTitles(allergies, "allergies")).toEqual(["Latex"]),
+    );
+    expect(
+      screen.queryByTestId("health-records-error"),
+    ).not.toBeInTheDocument();
+    const shownStatuses: string[] = [];
+    const observer = new MutationObserver(() =>
+      shownStatuses.push(
+        within(conditions).queryByTestId("conditions-status")?.textContent ??
+          "",
+      ),
+    );
+    observer.observe(conditions, {
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+    await openTab(user, "conditions");
+    await waitFor(() =>
+      expect(listRecordTitles(conditions, "conditions")).toEqual([
+        "Tooth decay",
+      ]),
+    );
+    observer.disconnect();
+    expect(shownStatuses).not.toContain("Could not load");
+  });
+
+  it("asks again for a tab opened after the source changed, and shows the answer it already has when the patient comes back to a source", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createClinics(medplum);
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2024-03-12",
+      {
+        meta: { source: oakDermatology.address },
+      },
+    );
+    await createAllergyIntolerance(medplum, { text: "Latex" }, "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    const search = answerAsServer(medplum);
+    renderHealthRecords(medplum);
+    const allergies = await openTab(user, "allergies");
+    await within(allergies).findByTestId("allergies-list");
+    await openTab(user, "conditions");
+
+    await chooseRecordSource(user, mapleDental.name);
+    await screen.findByTestId("conditions-no-match");
+    await openTab(user, "allergies");
+
+    await waitFor(() =>
+      expect(listRecordTitles(allergies, "allergies")).toEqual(["Latex"]),
+    );
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+        isSourceFilter,
+      ).at(-1),
+    ).toBe(mapleDental.address);
+  });
+
+  it("keeps showing a record opened while a search was being typed once the saved search leaves it out of the list", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createCondition(medplum, "Eczema", "2026-10-20");
+    await createCondition(medplum, "Tooth decay", "2025-04-08");
+    answerAsServer(medplum);
+    const { router } = renderHealthRecords(medplum);
+    const conditions = screen.getByTestId("conditions-panel");
+    await within(conditions).findByTestId("conditions-list");
+    const [, toothDecay] =
+      within(conditions).getAllByTestId("conditions-record");
+
+    await searchRecords(user, "ecz");
+    await user.click(within(toothDecay).getByTestId("conditions-record-view"));
+
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?search=ecz"),
+    );
+    await waitFor(() =>
+      expect(listRecordTitles(conditions, "conditions")).toEqual(["Eczema"]),
+    );
+    const dialog = screen.getByTestId("health-record-dialog");
+    expect(dialog).toHaveAccessibleName("Tooth decay");
+    expect(
+      within(dialog).getByTestId("health-record-details"),
+    ).toBeInTheDocument();
+  });
+
+  it("puts the box back to the address when a link to the page or the back button changes it, and writes nothing back into the address", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createCondition(medplum, "Eczema", "2026-10-20");
+    await createCondition(medplum, "Tooth decay", "2025-04-08");
+    answerAsServer(medplum);
+    const { router } = renderHealthRecords(medplum);
+    const conditions = screen.getByTestId("conditions-panel");
+    await within(conditions).findByTestId("conditions-list");
+    await searchRecords(user, "ecz");
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?search=ecz"),
+    );
+    const waitLongerThanTyping = () =>
+      act(
+        () =>
+          new Promise((settle) =>
+            setTimeout(settle, constant.SEARCH_INPUT_DELAY_MILLISECONDS * 2),
+          ),
+      );
+
+    await act(() => router.navigate(routes.HEALTH_RECORDS));
+
+    expect(getSearchBox()).toHaveValue("");
+    await waitLongerThanTyping();
+    expect(router.state.location.search).toBe("");
+
+    await act(() => router.navigate(-1));
+
+    expect(getSearchBox()).toHaveValue("ecz");
+    await waitLongerThanTyping();
+    expect(router.state.location.search).toBe("?search=ecz");
+    await waitFor(() =>
+      expect(listRecordTitles(conditions, "conditions")).toEqual(["Eczema"]),
     );
   });
 });

@@ -2,8 +2,9 @@ import { useMedplumContext } from "@medplum/react-hooks";
 import { useMemo, type FC, type PropsWithChildren } from "react";
 
 import { ObservationContext } from "../contexts";
-import { useAsynchronousResult } from "../hooks";
+import { useRecordSearch } from "../hooks";
 import { ObservationService } from "../services";
+import type { VitalSignSearch } from "../types";
 
 export const ObservationProvider: FC<PropsWithChildren> = ({ children }) => {
   const { medplum } = useMedplumContext();
@@ -11,31 +12,11 @@ export const ObservationProvider: FC<PropsWithChildren> = ({ children }) => {
     () => new ObservationService(medplum),
     [medplum],
   );
-
-  const {
-    error: vitalSignPageError,
-    isLoading: isVitalSignPageLoading,
-    isRequesting: isVitalSignPageRequesting,
-    load: listVitalSigns,
-    result: vitalSignPage,
-  } = useAsynchronousResult(observationService.listVitalSigns);
-
-  const value = useMemo(
-    () => ({
-      isVitalSignPageLoading,
-      isVitalSignPageRequesting,
-      listVitalSigns,
-      vitalSignPage,
-      vitalSignPageError,
-    }),
-    [
-      isVitalSignPageLoading,
-      isVitalSignPageRequesting,
-      listVitalSigns,
-      vitalSignPage,
-      vitalSignPageError,
-    ],
+  const vitalSigns: VitalSignSearch = useRecordSearch(
+    observationService.listVitalSigns,
   );
+
+  const value = useMemo(() => ({ vitalSigns }), [vitalSigns]);
 
   return (
     <ObservationContext.Provider value={value}>

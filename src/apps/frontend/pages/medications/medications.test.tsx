@@ -23,6 +23,11 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
+  createMemoryRouter,
+  RouterProvider,
+  type InitialEntry,
+} from "react-router";
+import {
   describe,
   expect,
   it,
@@ -43,6 +48,7 @@ import {
   SEARCH_VALUE_SEPARATOR,
   TIMING_PERIOD_UNIT,
 } from "../../constants/fhir";
+import routes from "../../constants/routes";
 import {
   MedicationRequestProvider,
   RecordSourceProvider,
@@ -53,28 +59,53 @@ import {
   createRecordSources,
   includeListedOrganizations,
   interceptSearches,
+  mapleDental,
   networkFailure,
   oakDermatology,
   RECEIVED_AT,
   receiveRecordsAt,
 } from "../../test-medplum";
 import { TestProviders } from "../../test-providers";
+import {
+  ALL_SOURCES,
+  answerAsServer,
+  chooseRecordSource,
+  isSourceFilter,
+  isTextFilter,
+  listFilterValues,
+} from "../../test-record-filter";
 import Medications from "./medications.page";
 
 const homer = createReference(HomerSimpson);
 const ALL_MEDICATIONS = "all-medications";
 const PAST_MEDICATIONS = "past-medications";
 
-const renderMedications = (medplum: MockClient) =>
-  render(
+const renderMedications = (
+  medplum: MockClient,
+  path: InitialEntry = routes.MEDICATIONS,
+) => {
+  const router = createMemoryRouter(
+    [
+      {
+        path: routes.MEDICATIONS,
+        element: (
+          <MedicationRequestProvider>
+            <Medications />
+          </MedicationRequestProvider>
+        ),
+      },
+    ],
+    { initialEntries: [path] },
+  );
+  const result = render(
     <TestProviders medplum={medplum}>
       <RecordSourceProvider>
-        <MedicationRequestProvider>
-          <Medications />
-        </MedicationRequestProvider>
+        <RouterProvider router={router} />
       </RecordSourceProvider>
     </TestProviders>,
   );
+  return { ...result, router };
+};
 
 const showDatesInChicago = () => {
   vi.stubEnv("TZ", "America/Chicago");
@@ -1042,5 +1073,141 @@ describe("Medications", () => {
     expect(status.textContent).toBe("1 record shown");
     expect(status).not.toContainElement(list);
     expect(list).toBeVisible();
+  });
+});
+
+describe("Medications, narrowed to a source", () => {
+  it("narrows both tabs to the chosen source and lists every prescription again for All sources, with no search, even when the address names one", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology, mapleDental]);
+    await createMedicationRequest(
+      medplum,
+      "Triamcinolone 0.1% cream",
+      "2026-10-20",
+      { meta: { source: oakDermatology.address } },
+    );
+    await createMedicationRequest(
+      medplum,
+      "Chlorhexidine rinse",
+      "2025-04-08",
+      {
+        meta: { source: mapleDental.address },
+      },
+    );
+    await createMedicationRequest(
+      medplum,
+      "Hydrocortisone 1% cream",
+      "2025-01-10",
+      {
+        status: MEDICATION_REQUEST_STATUS.COMPLETED,
+        meta: { source: oakDermatology.address },
+      },
+    );
+    const search = answerAsServer(medplum);
+    const { router } = renderMedications(medplum, "/medications?search=cream");
+    const allMedications = screen.getByTestId(`${ALL_MEDICATIONS}-panel`);
+    await waitFor(() =>
+      expect(listMedicationTitles(allMedications, ALL_MEDICATIONS)).toEqual([
+        "Triamcinolone 0.1% cream",
+        "Chlorhexidine rinse",
+        "Hydrocortisone 1% cream",
+      ]),
+    );
+    expect(screen.queryByTestId("record-search")).not.toBeInTheDocument();
+
+    await chooseRecordSource(user, oakDermatology.name);
+
+    await waitFor(() =>
+      expect(listMedicationTitles(allMedications, ALL_MEDICATIONS)).toEqual([
+        "Triamcinolone 0.1% cream",
+        "Hydrocortisone 1% cream",
+      ]),
+    );
+    const pastMedications = await openTab(user, PAST_MEDICATIONS);
+    await waitFor(() =>
+      expect(listMedicationTitles(pastMedications, PAST_MEDICATIONS)).toEqual([
+        "Hydrocortisone 1% cream",
+      ]),
+    );
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.MEDICATION_REQUEST,
+        isSourceFilter,
+      ).at(-1),
+    ).toBe(oakDermatology.address);
+    expect(router.state.location.search).toMatch(/^\?search=cream&source=/);
+    await chooseRecordSource(user, ALL_SOURCES);
+    await waitFor(() =>
+      expect(listMedicationTitles(pastMedications, PAST_MEDICATIONS)).toEqual([
+        "Hydrocortisone 1% cream",
+      ]),
+    );
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.MEDICATION_REQUEST,
+        isTextFilter,
+      ).filter((value) => value !== undefined),
+    ).toEqual([]);
+  });
+
+  it("keeps the chosen source when the patient asks for more", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology, mapleDental]);
+    const prescriptionCount = constant.SEARCH_PAGE_SIZE + 1;
+    for (let index = 0; index < prescriptionCount; index += 1) {
+      await createMedicationRequest(
+        medplum,
+        `Cream ${index + 1}`,
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+        { meta: { source: oakDermatology.address } },
+      );
+    }
+    await createMedicationRequest(
+      medplum,
+      "Chlorhexidine rinse",
+      "2026-10-20",
+      {
+        meta: { source: mapleDental.address },
+      },
+    );
+    const search = answerAsServer(medplum);
+    renderMedications(medplum);
+    const allMedications = screen.getByTestId(`${ALL_MEDICATIONS}-panel`);
+    await within(allMedications).findByTestId(`${ALL_MEDICATIONS}-list`);
+    await chooseRecordSource(user, oakDermatology.name);
+    await waitFor(() =>
+      expect(listMedicationTitles(allMedications, ALL_MEDICATIONS)[0]).toBe(
+        `Cream ${prescriptionCount}`,
+      ),
+    );
+
+    await user.click(
+      within(allMedications).getByTestId(`${ALL_MEDICATIONS}-more`),
+    );
+
+    await waitFor(() =>
+      expect(
+        within(allMedications).getAllByTestId(`${ALL_MEDICATIONS}-record`),
+      ).toHaveLength(prescriptionCount),
+    );
+    expect(listMedicationTitles(allMedications, ALL_MEDICATIONS)).not.toContain(
+      "Chlorhexidine rinse",
+    );
+    expect(
+      new Set(
+        listFilterValues(
+          medplum,
+          search,
+          RESOURCE_TYPE.MEDICATION_REQUEST,
+          isSourceFilter,
+        ).slice(-2),
+      ),
+    ).toEqual(new Set([oakDermatology.address]));
   });
 });

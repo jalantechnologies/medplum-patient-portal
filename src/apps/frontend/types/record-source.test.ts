@@ -26,20 +26,18 @@ describe("RecordSourceNames", () => {
     expect(recordSourceNames.findName(undefined)).toBe("");
   });
 
-  it("names the source of an address written with the request after a '#', or with a trailing slash, as some servers write Meta.source", () => {
+  it("names no source for an address in another form than the source's own, with the request after a '#' or with a trailing slash, since Medplum's _source search would not find the record under that source", () => {
     expect(
       recordSourceNames.findName(
         `${oakDermatology.address}#4f6b8a71-2c3d-4e5f-9a0b-1c2d3e4f5a6b`,
       ),
-    ).toBe(oakDermatology.name);
-    expect(recordSourceNames.findName(`${oakDermatology.address}/`)).toBe(
-      oakDermatology.name,
-    );
+    ).toBe("");
+    expect(recordSourceNames.findName(`${oakDermatology.address}/`)).toBe("");
     expect(
       new RecordSourceNames([
         [`${mapleDental.address}/`, mapleDental.name],
       ]).findName(mapleDental.address),
-    ).toBe(mapleDental.name);
+    ).toBe("");
   });
 
   it("keeps the first name given for an address that a later source repeats", () => {
@@ -53,17 +51,30 @@ describe("RecordSourceNames", () => {
 });
 
 describe("ListedRecordSourceNames", () => {
-  const pineFamilyClinic = { addresses: [] };
-  const unnamedClinic = { addresses: ["https://fhir.unnamed-clinic.example"] };
-  const listedRecordSourceNames = new ListedRecordSourceNames([
+  const pineFamilyClinic = { addresses: [], identifier: "pine-family-clinic" };
+  const unnamedClinic = {
+    addresses: ["https://fhir.unnamed-clinic.example"],
+    identifier: "unnamed-clinic",
+  };
+  const listedSources = [
     {
       addresses: [oakDermatology.address, `${oakDermatology.address}/v2`],
+      identifier: "oak-dermatology",
       name: oakDermatology.name,
     },
-    { addresses: [mapleDental.address], name: mapleDental.name },
+    {
+      addresses: [mapleDental.address],
+      identifier: "maple-dental",
+      name: mapleDental.name,
+    },
     { ...pineFamilyClinic, name: "Pine Synthetic Family Clinic" },
     unnamedClinic,
-  ]);
+  ];
+  const listedRecordSourceNames = new ListedRecordSourceNames(listedSources);
+
+  it("keeps every listed source, in the order listed, for the source menu", () => {
+    expect(listedRecordSourceNames.sources).toEqual(listedSources);
+  });
 
   it("counts each source once, whatever number of addresses it has, and one with no address or no name", () => {
     expect(listedRecordSourceNames.sourceCount).toBe(4);

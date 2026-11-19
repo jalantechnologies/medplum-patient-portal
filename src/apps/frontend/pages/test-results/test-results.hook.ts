@@ -7,7 +7,11 @@ import {
   useDiagnosticReportContext,
   useRecordSourceContext,
 } from "../../contexts";
-import { useRecordListTab, useRecordSourceNames } from "../../hooks";
+import {
+  useRecordFilter,
+  useRecordListTab,
+  useRecordSourceNames,
+} from "../../hooks";
 import { summarizeDiagnosticReport } from "./test-report-summary";
 
 const MISSING_REPORT_NOTICE =
@@ -42,13 +46,20 @@ const useTestResults = () => {
   const [activeTabKey, setActiveTabKey] = useState<Key>(
     TEST_RESULTS_TAB_TEXT.LABORATORY.key,
   );
-  const { recordSourceNames, recordSourceRequest } = useRecordSourceNames({
-    ...useRecordSourceContext(),
-    patientReference,
+  const { recordSourceNames, recordSourceRequest, recordSources } =
+    useRecordSourceNames({
+      ...useRecordSourceContext(),
+      patientReference,
+    });
+  const { recordFilterChoices, recordListFilter } = useRecordFilter({
+    hasRecordSourcesFailed: recordSourceRequest.error !== null,
+    isSearchable: true,
+    recordSources,
   });
   const tabs = [
     useRecordListTab({
       ...laboratoryReports,
+      ...recordListFilter,
       activeTabKey,
       patientReference,
       summarize: summarizeDiagnosticReport(
@@ -59,6 +70,7 @@ const useTestResults = () => {
     }),
     useRecordListTab({
       ...imagingReports,
+      ...recordListFilter,
       activeTabKey,
       patientReference,
       summarize: summarizeDiagnosticReport(
@@ -69,6 +81,7 @@ const useTestResults = () => {
     }),
     useRecordListTab({
       ...otherReports,
+      ...recordListFilter,
       activeTabKey,
       patientReference,
       summarize: summarizeDiagnosticReport(
@@ -82,6 +95,7 @@ const useTestResults = () => {
   return {
     activeTabKey,
     openTab: setActiveTabKey,
+    recordFilterChoices,
     recordSourceRequest,
     tabs,
   };

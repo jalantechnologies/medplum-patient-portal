@@ -2,8 +2,9 @@ import { useMedplumContext } from "@medplum/react-hooks";
 import { useMemo, type FC, type PropsWithChildren } from "react";
 
 import { AllergyIntoleranceContext } from "../contexts";
-import { useAsynchronousResult } from "../hooks";
+import { useAsynchronousResult, useRecordSearch } from "../hooks";
 import { AllergyIntoleranceService } from "../services";
+import type { AllergyIntoleranceSearch } from "../types";
 
 export const AllergyIntoleranceProvider: FC<PropsWithChildren> = ({
   children,
@@ -14,13 +15,9 @@ export const AllergyIntoleranceProvider: FC<PropsWithChildren> = ({
     [medplum],
   );
 
-  const {
-    error: allergyIntolerancePageError,
-    isLoading: isAllergyIntolerancePageLoading,
-    isRequesting: isAllergyIntolerancePageRequesting,
-    load: listAllergyIntolerances,
-    result: allergyIntolerancePage,
-  } = useAsynchronousResult(allergyIntoleranceService.listAllergyIntolerances);
+  const allergyIntolerances: AllergyIntoleranceSearch = useRecordSearch(
+    allergyIntoleranceService.listAllergyIntolerances,
+  );
 
   const {
     error: activeAllergyIntolerancePreviewError,
@@ -35,23 +32,15 @@ export const AllergyIntoleranceProvider: FC<PropsWithChildren> = ({
     () => ({
       activeAllergyIntolerancePreview,
       activeAllergyIntolerancePreviewError,
-      allergyIntolerancePage,
-      allergyIntolerancePageError,
+      allergyIntolerances,
       isActiveAllergyIntolerancePreviewLoading,
-      isAllergyIntolerancePageLoading,
-      isAllergyIntolerancePageRequesting,
-      listAllergyIntolerances,
       previewActiveAllergyIntolerances,
     }),
     [
       activeAllergyIntolerancePreview,
       activeAllergyIntolerancePreviewError,
-      allergyIntolerancePage,
-      allergyIntolerancePageError,
+      allergyIntolerances,
       isActiveAllergyIntolerancePreviewLoading,
-      isAllergyIntolerancePageLoading,
-      isAllergyIntolerancePageRequesting,
-      listAllergyIntolerances,
       previewActiveAllergyIntolerances,
     ],
   );

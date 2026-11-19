@@ -11,7 +11,7 @@ import type {
   DiagnosticReportKind,
   DiagnosticReportPage,
   DiagnosticReportSearch,
-  Nullable,
+  ListRecordsParameters,
 } from "../types";
 
 const useDiagnosticReportSearch = (
@@ -19,15 +19,8 @@ const useDiagnosticReportSearch = (
   kind: DiagnosticReportKind,
 ): DiagnosticReportSearch => {
   const listReportsOfKind = useCallback(
-    (
-      patientReference: string,
-      previousPage: Nullable<DiagnosticReportPage> = null,
-    ) =>
-      diagnosticReportService.listReports({
-        kind,
-        patientReference,
-        previousPage,
-      }),
+    (parameters: ListRecordsParameters<DiagnosticReportPage>) =>
+      diagnosticReportService.listReports({ ...parameters, kind }),
     [diagnosticReportService, kind],
   );
   return useRecordSearch<WithId<DiagnosticReport>, DiagnosticReportPage>(

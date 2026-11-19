@@ -2,14 +2,20 @@ import { Block } from "baseui/block";
 import { HeadingMedium, ParagraphSmall } from "baseui/typography";
 import type { FC } from "react";
 
-import { RecordListTabs } from "../../components";
+import { RecordFilterControls, RecordListTabs } from "../../components";
 import { usePatientName } from "../../hooks";
 import TestReportList from "./test-report-list";
 import useTestResults from "./test-results.hook";
 
 const TestResults: FC = () => {
   const { recordOwner } = usePatientName();
-  const { activeTabKey, openTab, recordSourceRequest, tabs } = useTestResults();
+  const {
+    activeTabKey,
+    openTab,
+    recordFilterChoices,
+    recordSourceRequest,
+    tabs,
+  } = useTestResults();
 
   return (
     <Block data-testid="test-results">
@@ -35,6 +41,7 @@ const TestResults: FC = () => {
         activeTabKey={activeTabKey}
         errorLabel="Test results error"
         errorTestIdentifier="test-results-error"
+        filterControls={<RecordFilterControls {...recordFilterChoices} />}
         onTabChange={openTab}
         otherRequests={[recordSourceRequest]}
         tabs={tabs}

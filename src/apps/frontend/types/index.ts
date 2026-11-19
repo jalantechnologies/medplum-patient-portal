@@ -1,4 +1,9 @@
 import type { ActiveAllergyIntolerancePreview } from "./active-allergy-intolerance-preview";
+import type {
+  AllergyIntolerancePage,
+  AllergyIntoleranceSearch,
+  ListAllergyIntolerancesParameters,
+} from "./allergy-intolerance";
 import {
   AsynchronousOperationError,
   type AsynchronousResult,
@@ -6,6 +11,11 @@ import {
 } from "./asynchronous-operation";
 import type { ListCarePlanPreviewParameters } from "./care-plan";
 import type { Nullable } from "./common";
+import type {
+  ConditionPage,
+  ConditionSearch,
+  ListConditionsParameters,
+} from "./condition";
 import type {
   DiagnosticReportKind,
   DiagnosticReportPage,
@@ -16,10 +26,22 @@ import type {
 } from "./diagnostic-report";
 import type { Fact } from "./fact";
 import type {
+  ListMedicationRequestsParameters,
   MedicationRequestPage,
   MedicationRequestSearch,
   MedicationsByReference,
 } from "./medication-request";
+import type {
+  ListVitalSignsParameters,
+  VitalSignPage,
+  VitalSignSearch,
+} from "./observation";
+import type {
+  ListRecordsParameters,
+  RecordFilter,
+  RecordFilterChoices,
+  RecordListFilter,
+} from "./record-filter";
 import type {
   RecordListTab,
   RecordListTabText,
@@ -44,20 +66,32 @@ export {
   RecordSourceNames,
   ServiceResponse,
   type ActiveAllergyIntolerancePreview,
+  type AllergyIntolerancePage,
+  type AllergyIntoleranceSearch,
   type AsynchronousResult,
   type AsynchronousResultState,
+  type ConditionPage,
+  type ConditionSearch,
   type DiagnosticReportKind,
   type DiagnosticReportPage,
   type DiagnosticReportSearch,
   type Fact,
   type FindLastReceivedParameters,
+  type ListAllergyIntolerancesParameters,
   type ListCarePlanPreviewParameters,
+  type ListConditionsParameters,
   type ListDiagnosticReportsParameters,
+  type ListMedicationRequestsParameters,
+  type ListRecordsParameters,
   type ListRecordSourcesParameters,
+  type ListVitalSignsParameters,
   type MedicationRequestPage,
   type MedicationRequestSearch,
   type MedicationsByReference,
   type Nullable,
+  type RecordFilter,
+  type RecordFilterChoices,
+  type RecordListFilter,
   type RecordListTab,
   type RecordListTabText,
   type RecordSearch,
@@ -69,4 +103,6 @@ export {
   type SearchPage,
   type SearchPosition,
   type SearchPreview,
+  type VitalSignPage,
+  type VitalSignSearch,
 };

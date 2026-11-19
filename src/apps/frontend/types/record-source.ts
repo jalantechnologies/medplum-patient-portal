@@ -1,6 +1,3 @@
-const ADDRESS_FRAGMENT_SEPARATOR = "#";
-const TRAILING_SLASHES = /\/+$/;
-
 export interface ListRecordSourcesParameters {
   patientReference: string;
 }
@@ -11,6 +8,7 @@ export interface FindLastReceivedParameters {
 
 export interface RecordSource {
   addresses: string[];
+  identifier: string;
   name?: string;
 }
 
@@ -21,31 +19,25 @@ export class RecordSourceNames {
     sourceNames: Iterable<readonly [address: string, name: string]> = [],
   ) {
     for (const [address, name] of sourceNames) {
-      const addressKey = RecordSourceNames.toAddressKey(address);
-      if (!this.namesByAddress.has(addressKey)) {
-        this.namesByAddress.set(addressKey, name);
+      if (!this.namesByAddress.has(address)) {
+        this.namesByAddress.set(address, name);
       }
     }
   }
 
+  // Medplum's _source search compares an address exactly, so a name compares it exactly too: a record named for a source is then among that source's records when the patient chooses it.
   findName(address: string | undefined): string {
     if (!address) {
       return "";
     }
-    return (
-      this.namesByAddress.get(RecordSourceNames.toAddressKey(address)) ?? ""
-    );
-  }
-
-  // FHIR leaves the form of Meta.source to each server, and some servers, such as HAPI FHIR, add the request that wrote the record after a "#", so the same source can come with more than one form of its address.
-  private static toAddressKey(address: string): string {
-    const [addressWithoutFragment] = address.split(ADDRESS_FRAGMENT_SEPARATOR);
-    return addressWithoutFragment.replace(TRAILING_SLASHES, "");
+    return this.namesByAddress.get(address) ?? "";
   }
 }
 
 export class ListedRecordSourceNames extends RecordSourceNames {
   readonly sourceCount: number;
+
+  readonly sources: readonly RecordSource[];
 
   constructor(sources: readonly RecordSource[]) {
     super(
@@ -54,5 +46,6 @@ export class ListedRecordSourceNames extends RecordSourceNames {
       ),
     );
     this.sourceCount = sources.length;
+    this.sources = sources;
   }
 }
