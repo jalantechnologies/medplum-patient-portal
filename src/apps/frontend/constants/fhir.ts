@@ -13,6 +13,7 @@ import type {
   Observation,
   ResourceType,
   TimingRepeat,
+  User,
 } from "@medplum/fhirtypes";
 
 export const RESOURCE_TYPE = {
@@ -396,6 +397,11 @@ export const SEARCH_ENTRY_MODE = {
   INCLUDE: "include",
   MATCH: "match",
 } as const satisfies Record<string, NonNullable<BundleEntrySearch["mode"]>>;
+
+export const USER_MULTI_FACTOR_AUTHENTICATION_METHOD = {
+  EMAIL: "email",
+  TOTP: "totp",
+} as const satisfies Record<string, NonNullable<User["mfaMethod"]>[number]>;
 
 export const CONTAINED_REFERENCE_PREFIX = "#";
 
