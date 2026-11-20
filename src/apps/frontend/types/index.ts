@@ -59,9 +59,11 @@ import {
 import type { SearchPage, SearchPosition } from "./search-page";
 import type { SearchPreview } from "./search-preview";
 import { ServiceResponse } from "./service-response";
+import { IncompleteSignUpError, type SignUpParameters } from "./sign-up";
 
 export {
   AsynchronousOperationError,
+  IncompleteSignUpError,
   ListedRecordSourceNames,
   RecordSourceNames,
   ServiceResponse,
@@ -103,6 +105,7 @@ export {
   type SearchPage,
   type SearchPosition,
   type SearchPreview,
+  type SignUpParameters,
   type VitalSignPage,
   type VitalSignSearch,
 };

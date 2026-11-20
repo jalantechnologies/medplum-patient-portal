@@ -34,6 +34,9 @@ export const AuthenticationProvider: FC<PropsWithChildren> = ({ children }) => {
   const { asynchronousCallback: signOut, isLoading: isSignOutLoading } =
     useAsynchronous(authenticationService.signOut);
 
+  const { asynchronousCallback: signUp, isLoading: isSignUpLoading } =
+    useAsynchronous(authenticationService.signUp);
+
   const isUserAuthenticated = profile?.resourceType === RESOURCE_TYPE.PATIENT;
 
   const value = useMemo(
@@ -41,17 +44,21 @@ export const AuthenticationProvider: FC<PropsWithChildren> = ({ children }) => {
       isSessionRestoring,
       isSignInLoading,
       isSignOutLoading,
+      isSignUpLoading,
       isUserAuthenticated,
       signIn,
       signOut,
+      signUp,
     }),
     [
       isSessionRestoring,
       isSignInLoading,
       isSignOutLoading,
+      isSignUpLoading,
       isUserAuthenticated,
       signIn,
       signOut,
+      signUp,
     ],
   );
 

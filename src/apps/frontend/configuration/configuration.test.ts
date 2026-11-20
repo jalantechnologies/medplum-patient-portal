@@ -12,7 +12,40 @@ describe("readConfiguration", () => {
     ).toEqual({
       medplumServerAddress: "http://localhost:8103/",
       medplumProjectIdentifier: "synthetic-project",
+      isSignUpEnabled: false,
     });
+  });
+
+  it("turns sign-up on only when the setting says so", () => {
+    const readSignUpSetting = (setting: string) =>
+      readConfiguration({
+        VITE_MEDPLUM_SERVER_ADDRESS: "http://localhost:8103/",
+        VITE_MEDPLUM_PROJECT_IDENTIFIER: "synthetic-project",
+        VITE_SIGN_UP_ENABLED: setting,
+      }).isSignUpEnabled;
+
+    expect(readSignUpSetting("true")).toBe(true);
+    expect(readSignUpSetting("false")).toBe(false);
+  });
+
+  it("leaves sign-up off when its setting is blank", () => {
+    expect(
+      readConfiguration({
+        VITE_MEDPLUM_SERVER_ADDRESS: "http://localhost:8103/",
+        VITE_MEDPLUM_PROJECT_IDENTIFIER: "synthetic-project",
+        VITE_SIGN_UP_ENABLED: "",
+      }).isSignUpEnabled,
+    ).toBe(false);
+  });
+
+  it("names a sign-up setting that is neither true nor false", () => {
+    expect(() =>
+      readConfiguration({
+        VITE_MEDPLUM_SERVER_ADDRESS: "http://localhost:8103/",
+        VITE_MEDPLUM_PROJECT_IDENTIFIER: "synthetic-project",
+        VITE_SIGN_UP_ENABLED: "sometimes",
+      }),
+    ).toThrow(/VITE_SIGN_UP_ENABLED/);
   });
 
   it("names every missing or empty value at once", () => {

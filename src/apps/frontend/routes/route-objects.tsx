@@ -1,5 +1,6 @@
 import { Outlet } from "react-router";
 
+import { configuration } from "../configuration";
 import routes from "../constants/routes";
 import {
   ApplicationError,
@@ -11,6 +12,7 @@ import {
   NotFound,
   PageError,
   SignIn,
+  SignUp,
   TestResults,
 } from "../pages";
 import {
@@ -32,7 +34,12 @@ export const routeObjects = [
     children: [
       {
         element: <PublicRoute />,
-        children: [{ path: routes.SIGN_IN, element: <SignIn /> }],
+        children: [
+          { path: routes.SIGN_IN, element: <SignIn /> },
+          ...(configuration.isSignUpEnabled
+            ? [{ path: routes.SIGN_UP, element: <SignUp /> }]
+            : []),
+        ],
       },
       {
         element: <ProtectedRoute />,

@@ -8,6 +8,7 @@ import NotFound from "./not-found/not-found.page";
 import PageError from "./page-error/page-error.page";
 import SessionLoading from "./session-loading/session-loading.page";
 import SignIn from "./sign-in/sign-in.page";
+import SignUp from "./sign-up/sign-up.page";
 import TestResults from "./test-results/test-results.page";
 
 export {
@@ -21,5 +22,6 @@ export {
   PageError,
   SessionLoading,
   SignIn,
+  SignUp,
   TestResults,
 };

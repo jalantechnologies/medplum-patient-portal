@@ -1,6 +1,7 @@
 import { HomerSimpson, MockClient } from "@medplum/mock";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
 import constant from "../../constants";
@@ -13,7 +14,9 @@ const renderForm = (medplum: MockClient) =>
   render(
     <TestProviders medplum={medplum}>
       <AuthenticationProvider>
-        <SignInForm />
+        <MemoryRouter>
+          <SignInForm />
+        </MemoryRouter>
       </AuthenticationProvider>
     </TestProviders>,
   );

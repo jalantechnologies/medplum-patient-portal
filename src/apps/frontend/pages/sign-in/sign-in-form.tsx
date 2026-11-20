@@ -3,9 +3,13 @@ import { Block } from "baseui/block";
 import { Button, KIND as BUTTON_KIND, SIZE } from "baseui/button";
 import { FormControl } from "baseui/form-control";
 import { Input } from "baseui/input";
+import { ParagraphSmall } from "baseui/typography";
 import { useId, type FC } from "react";
 import { Controller } from "react-hook-form";
 
+import { RouterLink } from "../../components";
+import { configuration } from "../../configuration";
+import routes from "../../constants/routes";
 import useSignInForm from "./sign-in-form.hook";
 
 const SignInForm: FC = () => {
@@ -87,6 +91,20 @@ const SignInForm: FC = () => {
       >
         Sign in
       </Button>
+      {configuration.isSignUpEnabled && (
+        <Block display="flex" flexWrap alignItems="center" marginTop="scale600">
+          <ParagraphSmall margin="0">Don't have an account?</ParagraphSmall>
+          <Button
+            href={routes.SIGN_UP}
+            kind={BUTTON_KIND.tertiary}
+            size={SIZE.compact}
+            overrides={{ BaseButton: { props: { $as: RouterLink } } }}
+            data-testid="create-account-link"
+          >
+            Create your account
+          </Button>
+        </Block>
+      )}
     </form>
   );
 };

@@ -13,6 +13,7 @@ export default mergeConfig(
       env: {
         VITE_MEDPLUM_SERVER_ADDRESS: "http://localhost:8103/",
         VITE_MEDPLUM_PROJECT_IDENTIFIER: "test-project",
+        VITE_SIGN_UP_ENABLED: "true",
       },
     },
   }),

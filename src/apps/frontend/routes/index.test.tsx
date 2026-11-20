@@ -25,6 +25,7 @@ import {
   interceptBatches,
   interceptSearches,
   networkFailure,
+  newPatient,
   oakDermatology,
 } from "../test-medplum";
 import { TestProviders } from "../test-providers";
@@ -77,6 +78,28 @@ const signIn = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.type(await screen.findByTestId("email"), "patient@example.com");
   await user.type(screen.getByTestId("password"), "password");
   await user.click(screen.getByTestId("sign-in"));
+};
+
+const mockSignUp = (medplum: MockClient) => {
+  vi.spyOn(medplum, "startNewUser").mockResolvedValue({
+    login: "synthetic-login",
+  });
+  vi.spyOn(medplum, "startNewPatient").mockResolvedValue({
+    login: "synthetic-login",
+    code: "synthetic-code",
+  });
+  vi.spyOn(medplum, "processCode").mockImplementation(async () => {
+    medplum.mock.setProfile(newPatient);
+    return newPatient;
+  });
+};
+
+const signUp = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.type(await screen.findByTestId("first-name"), "Riley");
+  await user.type(screen.getByTestId("last-name"), "Synthetic");
+  await user.type(screen.getByTestId("email"), "riley@example.com");
+  await user.type(screen.getByTestId("password"), "synthetic-password-91");
+  await user.click(screen.getByTestId("continue"));
 };
 
 const getNavigationLink = (container: HTMLElement, path: string) => {
@@ -308,6 +331,90 @@ describe("ApplicationRoutes", () => {
     );
     expect(router.state.location.pathname).toBe("/");
     expect(router.state.historyAction).toBe("REPLACE");
+  });
+
+  it("takes a visitor from the sign-in page to create an account, and Back returns to sign-in", async () => {
+    const user = userEvent.setup();
+    const router = renderRoutes(new MockClient({ profile: null }));
+
+    await user.click(await screen.findByTestId("create-account-link"));
+
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(
+      "Create your account",
+    );
+    expect(screen.getByRole("main")).toContainElement(
+      screen.getByTestId("first-name"),
+    );
+    expect(router.state.location.pathname).toBe(routes.SIGN_UP);
+
+    await act(() => router.navigate(-1));
+
+    expect(await screen.findByTestId("sign-in")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(routes.SIGN_IN);
+  });
+
+  it("sends a signed-in patient who opens the page to create an account to Home", async () => {
+    const router = renderRoutes(
+      new MockClient({ profile: HomerSimpson }),
+      routes.SIGN_UP,
+    );
+
+    expect(await screen.findByTestId("home-greeting")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(routes.HOME);
+  });
+
+  it("takes a new patient from creating an account to an empty Home without adding a history entry", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: null });
+    mockSignUp(medplum);
+
+    const router = renderRoutes(medplum, routes.SIGN_UP);
+    await signUp(user);
+
+    expect(await screen.findByTestId("home-greeting")).toHaveTextContent(
+      "Hello, Riley",
+    );
+    expect(await screen.findByTestId("active-care-plans")).toHaveTextContent(
+      "No ongoing plans",
+    );
+    expect(await screen.findByTestId("available-sources")).toHaveTextContent(
+      "No sources",
+    );
+    expect(await screen.findByTestId("next-visit")).toHaveTextContent(
+      "None booked",
+    );
+    expect(router.state.location.pathname).toBe(routes.HOME);
+    expect(router.state.historyAction).toBe("REPLACE");
+  });
+
+  it("does not show the previous patient's record to a person who creates an account on the same device", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createCarePlan(medplum, CARE_PLAN_STATUS.ACTIVE);
+    vi.spyOn(medplum, "signOut").mockImplementation(async () => {
+      medplum.mock.setProfile(undefined);
+    });
+
+    renderRoutes(medplum);
+    expect(await screen.findByTestId("active-care-plans")).toHaveTextContent(
+      "1 ongoing plan",
+    );
+    await user.click(screen.getByTestId("sign-out"));
+    await user.click(await screen.findByTestId("create-account-link"));
+
+    mockSignUp(medplum);
+    interceptSearches(medplum, (search, resourceType) =>
+      resourceType === RESOURCE_TYPE.CARE_PLAN
+        ? new ReadablePromise(new Promise(() => {}))
+        : search(),
+    );
+    await signUp(user);
+
+    expect(await screen.findByTestId("home-greeting")).toHaveTextContent(
+      "Hello, Riley",
+    );
+    expect(screen.queryByTestId("active-care-plans")).not.toBeInTheDocument();
+    expect(screen.getByTestId("active-care-plans-loading")).toBeInTheDocument();
   });
 
   it("keeps the sign-in page on screen while Medplum loads the profile", async () => {

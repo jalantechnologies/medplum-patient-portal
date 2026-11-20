@@ -4,6 +4,7 @@ const routes = {
   HOME: "/",
   MEDICATIONS: "/medications",
   SIGN_IN: "/sign-in",
+  SIGN_UP: "/sign-up",
   TEST_RESULTS: "/test-results",
 };
 

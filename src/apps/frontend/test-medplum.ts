@@ -69,6 +69,12 @@ export const harborLaboratory = {
 
 export const networkFailure = () => new TypeError("Failed to fetch");
 
+export const newPatient: Patient = {
+  resourceType: RESOURCE_TYPE.PATIENT,
+  id: "synthetic-new-patient",
+  name: [{ given: ["Riley"], family: "Synthetic" }],
+};
+
 export const codeFrom = (system: string, code: string): CodeableConcept => ({
   coding: [{ system, code }],
 });
