@@ -1,8 +1,15 @@
 import { z } from "zod";
 
+const treatBlankAsUnset = (value: unknown) =>
+  value === "" ? undefined : value;
+
 const configurationSchema = z.object({
   VITE_MEDPLUM_SERVER_ADDRESS: z.url(),
   VITE_MEDPLUM_PROJECT_IDENTIFIER: z.string().min(1),
+  VITE_SIGN_UP_ENABLED: z.preprocess(
+    treatBlankAsUnset,
+    z.stringbool().optional(),
+  ),
 });
 
 export const readConfiguration = (environment: unknown) => {
@@ -16,6 +23,7 @@ export const readConfiguration = (environment: unknown) => {
     medplumServerAddress: parsedEnvironment.data.VITE_MEDPLUM_SERVER_ADDRESS,
     medplumProjectIdentifier:
       parsedEnvironment.data.VITE_MEDPLUM_PROJECT_IDENTIFIER,
+    isSignUpEnabled: parsedEnvironment.data.VITE_SIGN_UP_ENABLED ?? false,
   };
 };
 

@@ -132,7 +132,7 @@ These apply to every requirement below.
 ### FR1: Account
 
 - **Description:** A person creates their own account and signs in to it.
-- **User flow:** "Create your account" with an email and a password. Afterwards, sign in with the same email and password.
+- **User flow:** "Create your account" with their name, an email and a password. Afterwards, sign in with the same email and password.
 - **Options and sub-features:**
   - Password reset by email.
   - Multi-factor sign-in.

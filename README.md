@@ -6,7 +6,7 @@ A patient signs in on a phone or a laptop and sees their own health record, mana
 
 ## Status
 
-Early development. A patient can sign in with their Medplum account, see Home with their ongoing care plans, how many sources their records come from, their next visit, their care plans with the clinic of each, and when the portal last received their records, see a summary of their health in Health profile, see their prescriptions in Medications, see their lab reports and their results in Test results, see their conditions, allergies and measurements in Health records, see which clinic sent each condition, allergy, measurement, prescription and test report, see when the portal received each record, move around the portal on a phone or a laptop, and sign out. The screens for the rest of their health record come next.
+Early development. A person can create their own account where the portal and its Medplum project allow it ([Patient sign-up](#patient-sign-up)). A patient can sign in with their Medplum account, see Home with their ongoing care plans, how many sources their records come from, their next visit, their care plans with the clinic of each, and when the portal last received their records, see a summary of their health in Health profile, see their prescriptions in Medications, see their lab reports and their results in Test results, see their conditions, allergies and measurements in Health records, see which clinic sent each condition, allergy, measurement, prescription and test report, see when the portal received each record, move around the portal on a phone or a laptop, and sign out. The screens for the rest of their health record come next.
 
 ## Prerequisites
 
@@ -23,10 +23,11 @@ npm run serve
 
 Fill in `.env.local` before starting:
 
-| Variable                          | What it holds                                                                                                                  |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `VITE_MEDPLUM_SERVER_ADDRESS`     | The Medplum server's address, for example `http://localhost:8103/`                                                             |
-| `VITE_MEDPLUM_PROJECT_IDENTIFIER` | The identifier of the Medplum project the patients belong to. Patient accounts belong to a single project, so sign-in needs it |
+| Variable                          | What it holds                                                                                                                                                                                                   |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_MEDPLUM_SERVER_ADDRESS`     | The Medplum server's address, for example `http://localhost:8103/`                                                                                                                                              |
+| `VITE_MEDPLUM_PROJECT_IDENTIFIER` | The identifier of the Medplum project the patients belong to. Patient accounts belong to a single project, so sign-in needs it                                                                                  |
+| `VITE_SIGN_UP_ENABLED`            | `true` shows "Create your account" on the sign-in page, so a person can create their own account. Leave it `false`, the default, until the Medplum project allows it, as in [Patient sign-up](#patient-sign-up) |
 
 Then open the address the development server prints, and sign in with a patient account.
 
@@ -42,9 +43,21 @@ As a project admin in Medplum's app:
 
 A patient membership with no access policy and no "Access" entries can read and change every record in the project, so make sure none is left that way.
 
-A project that sets `defaultPatientAccessPolicy` lets patients register themselves, and gives them that policy instead. Medplum sets it on projects created with versions 5.1.17 to 5.2.2. The portal has no self-registration yet, so remove the field on the project's JSON page. If the clinic creates patients through SCIM, which needs the field, point it at the portal's policy instead; patients can then still register themselves, with the portal's policy.
+Medplum 5.2.18 and later let patients register themselves only when the project turns on `openPatientRegistration` ([Patient sign-up](#patient-sign-up)), and give them the `Patient` entry of `defaultAccessPolicies`. The older field `defaultPatientAccessPolicy` is used only when that entry is missing. Earlier releases let patients register themselves whenever the project sets `defaultPatientAccessPolicy`, and give them that policy instead; Medplum sets it on projects created with versions 5.1.17 to 5.2.2. On a release before 5.2.18, remove the field on the project's JSON page, or point it at the portal's policy if the clinic creates patients through SCIM, which needs the field there.
 
 When an update to the portal changes the policy file, open the policy's JSON page (`/AccessPolicy/<policy identifier>/json`), replace its `name` and `resource` with the file's, keep its `id`, and save. Medplum needs the `id` to update the policy in place.
+
+## Patient sign-up
+
+A person can create their own account from the sign-in page, with their name, their email and a password. Medplum creates the account and the person's own patient record, and gives them the `Patient` entry of `defaultAccessPolicies`, the portal's policy from [Patient access](#patient-access). They then land on Home, signed in. Sign-up needs Medplum 5.2.18 or later. As a project admin in Medplum's app:
+
+1. **Set up the portal's access policy** as in [Patient access](#patient-access), steps 1 and 2.
+2. **Turn on open registration.** Open `/admin/settings`, add a setting named `openPatientRegistration` with the boolean value `true`, and save ([Medplum's guide](https://www.medplum.com/docs/user-management/open-patient-registration)).
+3. **Turn on sign-up in the portal** with `VITE_SIGN_UP_ENABLED=true`.
+
+Anyone who knows the project's identifier can then create an account, through the portal or through Medplum's API. Medplum accepts at most 5 new accounts a minute from one address ([rate limits](https://www.medplum.com/docs/rate-limits)), and does not ask a new patient to confirm their email ([decision 0007](docs/decisions/0007-authentication.md)).
+
+A Medplum server that requires reCAPTCHA, such as Medplum's hosted service, refuses to create an account without a reCAPTCHA token, which the portal does not send yet, so leave sign-up off there. Sign-up works on a server without it, such as a local one ([server configuration](https://www.medplum.com/docs/self-hosting/server-config)).
 
 ## Example data
 
