@@ -193,6 +193,33 @@ export default class MedplumService {
     };
   }
 
+  protected async readAllPages<PageResourceType extends ResourceType>(
+    resourceType: PageResourceType,
+    search: NewestFirstSearch,
+    previousPage: Nullable<
+      SearchPage<WithId<ExtractResource<PageResourceType>>>
+    > = null,
+  ): Promise<
+    PageWithIncludedResources<WithId<ExtractResource<PageResourceType>>>
+  > {
+    const { includedResources, page } = await this.readNextPage(
+      resourceType,
+      search,
+      previousPage,
+    );
+    if (!page.nextPosition) {
+      return { includedResources, page };
+    }
+    const laterPages = await this.readAllPages(resourceType, search, page);
+    return {
+      includedResources: [
+        ...includedResources,
+        ...laterPages.includedResources,
+      ],
+      page: laterPages.page,
+    };
+  }
+
   protected async searchByIdentifiers<
     SearchedResourceType extends ResourceType,
   >(
@@ -280,22 +307,8 @@ export default class MedplumService {
       );
   }
 
-  protected static toRecordFilters({
-    sourceAddresses,
-    text,
-  }: RecordFilter): Filter[] {
-    const sourceFilters: Filter[] =
-      sourceAddresses.length > 0
-        ? [
-            {
-              code: SEARCH_PARAMETER.SOURCE,
-              operator: Operator.EQUALS,
-              value: sourceAddresses
-                .map(escapeSearchValue)
-                .join(SEARCH_VALUE_SEPARATOR),
-            },
-          ]
-        : [];
+  protected static toRecordFilters(recordFilter: RecordFilter): Filter[] {
+    const { text } = recordFilter;
     const textFilters: Filter[] = text
       ? [
           {
@@ -305,7 +318,23 @@ export default class MedplumService {
           },
         ]
       : [];
-    return [...sourceFilters, ...textFilters];
+    return [...MedplumService.toSourceFilters(recordFilter), ...textFilters];
+  }
+
+  protected static toSourceFilters({
+    sourceAddresses,
+  }: RecordFilter): Filter[] {
+    return sourceAddresses.length > 0
+      ? [
+          {
+            code: SEARCH_PARAMETER.SOURCE,
+            operator: Operator.EQUALS,
+            value: sourceAddresses
+              .map(escapeSearchValue)
+              .join(SEARCH_VALUE_SEPARATOR),
+          },
+        ]
+      : [];
   }
 
   protected static isOfType<

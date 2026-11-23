@@ -38,6 +38,7 @@ import {
 
 import constant from "../../constants";
 import {
+  CONTAINED_REFERENCE_PREFIX,
   MEDICATION_REQUEST_INTENT,
   MEDICATION_REQUEST_STATUS,
   MEDICATION_STATUS,
@@ -62,6 +63,7 @@ import {
   mapleDental,
   networkFailure,
   oakDermatology,
+  readSearchRequest,
   RECEIVED_AT,
   receiveRecordsAt,
 } from "../../test-medplum";
@@ -70,9 +72,11 @@ import {
   ALL_SOURCES,
   answerAsServer,
   chooseRecordSource,
+  getSearchBox,
   isSourceFilter,
   isTextFilter,
   listFilterValues,
+  searchRecords,
 } from "../../test-record-filter";
 import Medications from "./medications.page";
 
@@ -1077,7 +1081,7 @@ describe("Medications", () => {
 });
 
 describe("Medications, narrowed to a source", () => {
-  it("narrows both tabs to the chosen source and lists every prescription again for All sources, with no search, even when the address names one", async () => {
+  it("narrows both tabs to the chosen source and to the search named in the address, and lists every match again for All sources", async () => {
     const user = userEvent.setup();
     const medplum = new MockClient({ profile: HomerSimpson });
     await createRecordSources(medplum, [oakDermatology, mapleDental]);
@@ -1087,10 +1091,13 @@ describe("Medications, narrowed to a source", () => {
       "2026-10-20",
       { meta: { source: oakDermatology.address } },
     );
+    await createMedicationRequest(medplum, "Lidocaine 5% cream", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
     await createMedicationRequest(
       medplum,
       "Chlorhexidine rinse",
-      "2025-04-08",
+      "2025-04-07",
       {
         meta: { source: mapleDental.address },
       },
@@ -1110,11 +1117,11 @@ describe("Medications, narrowed to a source", () => {
     await waitFor(() =>
       expect(listMedicationTitles(allMedications, ALL_MEDICATIONS)).toEqual([
         "Triamcinolone 0.1% cream",
-        "Chlorhexidine rinse",
+        "Lidocaine 5% cream",
         "Hydrocortisone 1% cream",
       ]),
     );
-    expect(screen.queryByTestId("record-search")).not.toBeInTheDocument();
+    expect(getSearchBox()).toHaveValue("cream");
 
     await chooseRecordSource(user, oakDermatology.name);
 
@@ -1145,6 +1152,15 @@ describe("Medications, narrowed to a source", () => {
         "Hydrocortisone 1% cream",
       ]),
     );
+    await openTab(user, ALL_MEDICATIONS);
+    await waitFor(() =>
+      expect(listMedicationTitles(allMedications, ALL_MEDICATIONS)).toEqual([
+        "Triamcinolone 0.1% cream",
+        "Lidocaine 5% cream",
+        "Hydrocortisone 1% cream",
+      ]),
+    );
+    expect(router.state.location.search).toBe("?search=cream");
     expect(
       listFilterValues(
         medplum,
@@ -1209,5 +1225,487 @@ describe("Medications, narrowed to a source", () => {
         ).slice(-2),
       ),
     ).toEqual(new Set([oakDermatology.address]));
+  });
+});
+
+const prescribeCreams = async (medplum: MockClient, count: number) => {
+  for (let index = 0; index < count; index += 1) {
+    await createMedicationRequest(
+      medplum,
+      `Cream ${index + 1}`,
+      new Date(Date.UTC(2021, 0, 1 + index)).toISOString().slice(0, 10),
+    );
+  }
+};
+
+const isLaterPage = ({ offset }: SearchRequest) => (offset ?? 0) > 0;
+
+const isUndatedSearch = ({ filters }: SearchRequest) =>
+  filters?.some(
+    ({ code, operator, value }) =>
+      code === SEARCH_PARAMETER.AUTHORED_ON &&
+      operator === Operator.MISSING &&
+      value === String(true),
+  ) ?? false;
+
+const failPrescriptionSearches = (
+  medplum: MockClient,
+  shouldFail: (searchRequest: SearchRequest) => boolean,
+) =>
+  interceptSearches(medplum, (search, resourceType, query) =>
+    resourceType === RESOURCE_TYPE.MEDICATION_REQUEST &&
+    shouldFail(
+      readSearchRequest(medplum, RESOURCE_TYPE.MEDICATION_REQUEST, query),
+    )
+      ? Promise.reject(networkFailure())
+      : search(),
+  );
+
+describe("Medications, found by the name of the medicine", () => {
+  it("finds a prescription by its medicine's name, written on it or in a separate medicine record, on all and on past medications, never another patient's, and keeps the search in the address", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const otherPatient = await medplum.createResource<Patient>({
+      resourceType: RESOURCE_TYPE.PATIENT,
+      name: [{ given: ["Harper"], family: "Synthetic" }],
+    });
+    const cetirizine = await createMedication(
+      medplum,
+      "Cetirizine 10 mg tablet",
+    );
+    await createMedicationRequest(
+      medplum,
+      "Cetirizine 10 mg tablet",
+      "2026-09-14",
+    );
+    await createMedicationRequest(
+      medplum,
+      "Triamcinolone 0.1% cream",
+      "2026-08-01",
+    );
+    await createMedicationRequest(medplum, "", "2025-04-02", {
+      status: MEDICATION_REQUEST_STATUS.COMPLETED,
+      medicationCodeableConcept: undefined,
+      medicationReference: { reference: getReferenceString(cetirizine) },
+    });
+    await createMedicationRequest(
+      medplum,
+      "Cetirizine 10 mg tablet",
+      "2026-10-01",
+      { subject: createReference(otherPatient) },
+    );
+    const search = answerAsServer(medplum);
+    const { router } = renderMedications(medplum);
+    const allMedications = screen.getByTestId(`${ALL_MEDICATIONS}-panel`);
+    await within(allMedications).findByTestId(`${ALL_MEDICATIONS}-list`);
+
+    await searchRecords(user, "cetiri");
+
+    await waitFor(() =>
+      expect(listMedicationTexts(allMedications, ALL_MEDICATIONS)).toEqual([
+        expect.stringMatching(/^Cetirizine 10 mg tablet.*ActivePrescribed/),
+        expect.stringMatching(/^Cetirizine 10 mg tablet.*CompletedPrescribed/),
+      ]),
+    );
+    expect(screen.getByTestId(`${ALL_MEDICATIONS}-status`).textContent).toBe(
+      "2 records shown",
+    );
+    expect(router.state.location.search).toBe("?search=cetiri");
+    const pastMedications = await openTab(user, PAST_MEDICATIONS);
+    await waitFor(() =>
+      expect(listMedicationTexts(pastMedications, PAST_MEDICATIONS)).toEqual([
+        expect.stringMatching(/^Cetirizine 10 mg tablet.*CompletedPrescribed/),
+      ]),
+    );
+    expect(getSearchBox()).toHaveValue("cetiri");
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.MEDICATION_REQUEST,
+        isTextFilter,
+      ).filter((value) => value !== undefined),
+    ).toEqual([]);
+  });
+
+  it("finds a prescription by any name of its medicine, in any letter case: any of its codings, the name on its reference, a medicine inside it, or any ingredient, but not a medicine entered in error", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const containedMedicationIdentifier = "promethazine";
+    await createMedicationRequest(medplum, "", "2026-10-20", {
+      medicationCodeableConcept: {
+        text: "Allergy relief tablet",
+        coding: [
+          { display: "Allergy relief" },
+          { display: "cetirizine hydrochloride 10 MG Oral Tablet" },
+        ],
+      },
+    });
+    await createMedicationRequest(medplum, "", "2026-10-19", {
+      medicationCodeableConcept: undefined,
+      medicationReference: { display: "Hydroxyzine 25 mg tablet" },
+    });
+    await createMedicationRequest(medplum, "", "2026-10-18", {
+      contained: [
+        {
+          resourceType: RESOURCE_TYPE.MEDICATION,
+          id: containedMedicationIdentifier,
+          code: { text: "Promethazine 25 mg tablet" },
+        },
+      ],
+      medicationCodeableConcept: undefined,
+      medicationReference: {
+        reference: `${CONTAINED_REFERENCE_PREFIX}${containedMedicationIdentifier}`,
+      },
+    });
+    const levocetirizine = await medplum.createResource<Medication>({
+      resourceType: RESOURCE_TYPE.MEDICATION,
+      ingredient: [
+        { itemCodeableConcept: { text: "Microcrystalline cellulose" } },
+        { itemReference: { display: "Levocetirizine 5 mg" } },
+      ],
+    });
+    await prescribeByReference(
+      medplum,
+      getReferenceString(levocetirizine),
+      "2026-10-17",
+    );
+    await createMedicationRequest(
+      medplum,
+      "Triamcinolone 0.1% cream",
+      "2026-10-15",
+    );
+    const mistakenMedication = await createMedication(
+      medplum,
+      "Cyclizine 50 mg tablet",
+      { status: MEDICATION_STATUS.ENTERED_IN_ERROR },
+    );
+    await prescribeByReference(
+      medplum,
+      getReferenceString(mistakenMedication),
+      "2026-10-14",
+    );
+
+    renderMedications(medplum, "/medications?search=ZINE");
+
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    expect(listMedicationTitles(list, ALL_MEDICATIONS)).toEqual([
+      "Allergy relief tablet",
+      "Hydroxyzine 25 mg tablet",
+      "Promethazine 25 mg tablet",
+      "Microcrystalline cellulose, Levocetirizine 5 mg",
+    ]);
+  });
+
+  it("finds a prescription by the version of the medicine it names, not by the newer version Medplum sends with it", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const firstVersion = await createMedication(
+      medplum,
+      "Meclizine 25 mg tablet",
+    );
+    const currentVersion = await medplum.updateResource<Medication>({
+      ...firstVersion,
+      code: { text: "Travel sickness tablet" },
+    });
+    await prescribeByReference(
+      medplum,
+      referToVersion(firstVersion),
+      "2026-10-16",
+    );
+    includeAsMedplumDoes(medplum, currentVersion);
+    renderMedications(medplum, "/medications?search=travel");
+    const panel = screen.getByTestId(`${ALL_MEDICATIONS}-panel`);
+    await within(panel).findByTestId(`${ALL_MEDICATIONS}-no-match`);
+
+    await searchRecords(user, "mecli");
+
+    await waitFor(() =>
+      expect(listMedicationTitles(panel, ALL_MEDICATIONS)).toEqual([
+        "Meclizine 25 mg tablet",
+      ]),
+    );
+  });
+
+  it("finds every match on later pages, newest first with the undated ones last, and shows them at once with no Show more", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await prescribeCreams(medplum, constant.SEARCH_PAGE_SIZE + 1);
+    await createMedicationRequest(
+      medplum,
+      "Cetirizine 5 mg tablet",
+      "2018-03-01",
+    );
+    await createMedicationRequest(
+      medplum,
+      "Cetirizine 10 mg tablet",
+      "2019-05-01",
+    );
+    await createMedicationRequest(medplum, "Cetirizine syrup", undefined);
+    await createMedicationRequest(medplum, "Cream with no date", undefined);
+    const search = vi.spyOn(medplum, "search");
+
+    renderMedications(medplum, "/medications?search=cetiri");
+
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    expect(listMedicationTitles(list, ALL_MEDICATIONS)).toEqual([
+      "Cetirizine 10 mg tablet",
+      "Cetirizine 5 mg tablet",
+      "Cetirizine syrup",
+    ]);
+    expect(
+      screen.queryByTestId(`${ALL_MEDICATIONS}-more`),
+    ).not.toBeInTheDocument();
+    expect(
+      parseSearchRequests(search).map(({ offset }) => offset ?? 0),
+    ).toEqual([0, constant.SEARCH_PAGE_SIZE, 0]);
+  });
+
+  it.each([
+    ["a later page", isLaterPage],
+    ["the undated prescriptions", isUndatedSearch],
+  ])(
+    "shows an error when %s could not be read while searching, and finds the prescriptions once the patient tries again",
+    async (_, isFailingSearch) => {
+      const user = userEvent.setup();
+      const medplum = new MockClient({ profile: HomerSimpson });
+      await prescribeCreams(medplum, constant.SEARCH_PAGE_SIZE);
+      await createMedicationRequest(
+        medplum,
+        "Cetirizine 10 mg tablet",
+        "2019-05-01",
+      );
+      await createMedicationRequest(medplum, "Cetirizine syrup", undefined);
+      let isPrescriptionReachable = false;
+      failPrescriptionSearches(
+        medplum,
+        (searchRequest) =>
+          !isPrescriptionReachable && isFailingSearch(searchRequest),
+      );
+
+      renderMedications(medplum, "/medications?search=cetiri");
+
+      const error = await screen.findByTestId("medications-error");
+      expect(error).toHaveTextContent(constant.DEFAULT_ERROR_MESSAGE);
+      isPrescriptionReachable = true;
+      await user.click(within(error).getByRole("button"));
+
+      const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+      expect(listMedicationTitles(list, ALL_MEDICATIONS)).toEqual([
+        "Cetirizine 10 mg tablet",
+        "Cetirizine syrup",
+      ]);
+    },
+  );
+
+  it("shows an error when the version of a medicine could not be read while searching, and finds the prescription once the patient tries again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const firstVersion = await createMedication(
+      medplum,
+      "Meclizine 25 mg tablet",
+    );
+    await medplum.updateResource<Medication>({
+      ...firstVersion,
+      code: { text: "Travel sickness tablet" },
+    });
+    await prescribeByReference(
+      medplum,
+      referToVersion(firstVersion),
+      "2026-10-16",
+    );
+    const executeBatch = medplum.executeBatch.bind(medplum);
+    let isVersionReachable = false;
+    vi.spyOn(medplum, "executeBatch").mockImplementation((bundle, options) =>
+      isVersionReachable
+        ? executeBatch(bundle, options)
+        : Promise.reject(networkFailure()),
+    );
+
+    renderMedications(medplum, "/medications?search=mecli");
+
+    const error = await screen.findByTestId("medications-error");
+    isVersionReachable = true;
+    await user.click(within(error).getByRole("button"));
+
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    expect(listMedicationTitles(list, ALL_MEDICATIONS)).toEqual([
+      "Meclizine 25 mg tablet",
+    ]);
+  });
+
+  it("says when no medicine has the name, and clears the search on request, listing the newest page of prescriptions again with Show more and focus back in the search box", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await prescribeCreams(medplum, constant.SEARCH_PAGE_SIZE + 1);
+    const { router } = renderMedications(medplum, "/medications?search=zzz");
+    const panel = screen.getByTestId(`${ALL_MEDICATIONS}-panel`);
+
+    const notice = await within(panel).findByTestId(
+      `${ALL_MEDICATIONS}-no-match`,
+    );
+    expect(notice).toHaveTextContent("No matching records are available.");
+    await user.click(
+      within(panel).getByTestId(`${ALL_MEDICATIONS}-clear-filters`),
+    );
+
+    await waitFor(() =>
+      expect(listMedicationTitles(panel, ALL_MEDICATIONS)).toHaveLength(
+        constant.SEARCH_PAGE_SIZE,
+      ),
+    );
+    expect(within(panel).getByTestId(`${ALL_MEDICATIONS}-more`)).toBeVisible();
+    expect(router.state.location.search).toBe("");
+    expect(getSearchBox()).toHaveValue("");
+    expect(getSearchBox()).toHaveFocus();
+  });
+
+  it("finds every prescription by the name it shows, wherever its medicine is named", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const containedMedicationIdentifier = "promethazine";
+    await createMedicationRequest(medplum, "", "2026-10-20", {
+      medicationCodeableConcept: {
+        coding: [
+          { code: "197361" },
+          { display: "Amlodipine 5 MG Oral Tablet" },
+        ],
+      },
+    });
+    await createMedicationRequest(medplum, "", "2026-10-19", {
+      medicationCodeableConcept: undefined,
+      medicationReference: { display: "Adapalene 0.1% gel" },
+    });
+    await createMedicationRequest(medplum, "", "2026-10-18", {
+      contained: [
+        {
+          resourceType: RESOURCE_TYPE.MEDICATION,
+          id: containedMedicationIdentifier,
+          code: { text: "Promethazine 25 mg tablet" },
+        },
+      ],
+      medicationCodeableConcept: undefined,
+      medicationReference: {
+        reference: `${CONTAINED_REFERENCE_PREFIX}${containedMedicationIdentifier}`,
+      },
+    });
+    const compoundedPaste = await medplum.createResource<Medication>({
+      resourceType: RESOURCE_TYPE.MEDICATION,
+      ingredient: [
+        { itemCodeableConcept: { text: "Hydrocortisone" } },
+        { itemReference: { display: "Zinc oxide" } },
+      ],
+    });
+    await prescribeByReference(
+      medplum,
+      getReferenceString(compoundedPaste),
+      "2026-10-17",
+    );
+    renderMedications(medplum);
+    const panel = screen.getByTestId(`${ALL_MEDICATIONS}-panel`);
+    const titles = [
+      "Amlodipine 5 MG Oral Tablet",
+      "Adapalene 0.1% gel",
+      "Promethazine 25 mg tablet",
+      "Hydrocortisone, Zinc oxide",
+    ];
+    await waitFor(() =>
+      expect(listMedicationTitles(panel, ALL_MEDICATIONS)).toEqual(titles),
+    );
+
+    for (const title of titles) {
+      await searchRecords(user, title);
+
+      await waitFor(() =>
+        expect(listMedicationTitles(panel, ALL_MEDICATIONS)).toEqual([title]),
+      );
+    }
+  });
+
+  it("reads the tab's prescriptions once while the patient changes the search, and reads them again when the search is cleared and started again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createMedicationRequest(
+      medplum,
+      "Cetirizine 10 mg tablet",
+      "2026-09-14",
+    );
+    await createMedicationRequest(medplum, "Cetirizine syrup", "2026-08-01");
+    await createMedicationRequest(
+      medplum,
+      "Triamcinolone 0.1% cream",
+      "2026-07-01",
+    );
+    const search = vi.spyOn(medplum, "search");
+    renderMedications(medplum, "/medications?search=cetiri");
+    const panel = screen.getByTestId(`${ALL_MEDICATIONS}-panel`);
+    await waitFor(() =>
+      expect(listMedicationTitles(panel, ALL_MEDICATIONS)).toEqual([
+        "Cetirizine 10 mg tablet",
+        "Cetirizine syrup",
+      ]),
+    );
+    const firstReadRequestCount = parseSearchRequests(search).length;
+
+    await searchRecords(user, "syrup");
+
+    await waitFor(() =>
+      expect(listMedicationTitles(panel, ALL_MEDICATIONS)).toEqual([
+        "Cetirizine syrup",
+      ]),
+    );
+    expect(parseSearchRequests(search)).toHaveLength(firstReadRequestCount);
+
+    await user.clear(getSearchBox());
+    await waitFor(() =>
+      expect(listMedicationTitles(panel, ALL_MEDICATIONS)).toHaveLength(3),
+    );
+    const requestCountBeforeNewSearch = parseSearchRequests(search).length;
+    await searchRecords(user, "cream");
+
+    await waitFor(() =>
+      expect(listMedicationTitles(panel, ALL_MEDICATIONS)).toEqual([
+        "Triamcinolone 0.1% cream",
+      ]),
+    );
+    expect(parseSearchRequests(search)).toHaveLength(
+      requestCountBeforeNewSearch + firstReadRequestCount,
+    );
+  });
+
+  it("answers a new search from the read still on its way for the search before, with no second read", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createMedicationRequest(
+      medplum,
+      "Cetirizine 10 mg tablet",
+      "2026-09-14",
+    );
+    await createMedicationRequest(medplum, "Cetirizine syrup", "2026-08-01");
+    let answerPrescriptionSearches = () => {};
+    const prescriptionSearchesAnswered = new Promise<void>((resolve) => {
+      answerPrescriptionSearches = resolve;
+    });
+    const search = answerAsServer(medplum, async (resourceType) => {
+      if (resourceType === RESOURCE_TYPE.MEDICATION_REQUEST) {
+        await prescriptionSearchesAnswered;
+      }
+    });
+    const { router } = renderMedications(medplum, "/medications?search=cetiri");
+
+    await searchRecords(user, "syrup");
+    await waitFor(() =>
+      expect(router.state.location.search).toBe("?search=syrup"),
+    );
+    answerPrescriptionSearches();
+
+    const panel = screen.getByTestId(`${ALL_MEDICATIONS}-panel`);
+    await waitFor(() =>
+      expect(listMedicationTitles(panel, ALL_MEDICATIONS)).toEqual([
+        "Cetirizine syrup",
+      ]),
+    );
+    expect(parseSearchRequests(search).map(isUndatedSearch)).toEqual([
+      false,
+      true,
+    ]);
   });
 });

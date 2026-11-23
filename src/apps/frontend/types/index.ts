@@ -25,11 +25,12 @@ import type {
   ResultsByIdentifier,
 } from "./diagnostic-report";
 import type { Fact } from "./fact";
-import type {
-  ListMedicationRequestsParameters,
-  MedicationRequestPage,
-  MedicationRequestSearch,
-  MedicationsByReference,
+import {
+  PrescribedMedicine,
+  type ListMedicationRequestsParameters,
+  type MedicationRequestPage,
+  type MedicationRequestSearch,
+  type MedicationsByReference,
 } from "./medication-request";
 import type {
   ListVitalSignsParameters,
@@ -65,6 +66,7 @@ export {
   AsynchronousOperationError,
   IncompleteSignUpError,
   ListedRecordSourceNames,
+  PrescribedMedicine,
   RecordSourceNames,
   ServiceResponse,
   type ActiveAllergyIntolerancePreview,

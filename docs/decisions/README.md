@@ -19,6 +19,7 @@ One file per consequential decision: what was decided, why, and what follows fro
 | [0013](0013-one-account-many-sources.md)                | One account, many sources                                | Accepted |
 | [0015](0015-naming-each-record-source.md)               | Naming each record's source                              | Accepted |
 | [0016](0016-hosting-the-demo.md)                        | Hosting the demo                                         | Accepted |
+| [0017](0017-searching-medications-in-the-browser.md)    | Searching Medications in the browser                     | Accepted |
 
 Number 0014 is held for where a patient's connection tokens are kept, which is decided before the first hospital connection is built.
 

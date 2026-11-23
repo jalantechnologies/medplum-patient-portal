@@ -48,7 +48,7 @@ const useMedications = () => {
     });
   const { recordFilterChoices, recordListFilter } = useRecordFilter({
     hasRecordSourcesFailed: recordSourceRequest.error !== null,
-    isSearchable: false,
+    isSearchable: true,
     recordSources,
   });
   const summarize = (

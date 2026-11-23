@@ -120,7 +120,7 @@ The [design prototype](https://patientportal.jjalan.chatgpt.site/) shows the int
 These apply to every requirement below.
 
 - **Source on every record.** Each record shows its source's name and when the portal received it ("Received"). A test report also shows when its source last updated it ("Source updated"); FHIR has no field for this on other kinds of record ([decision 0015](decisions/0015-naming-each-record-source.md)).
-- **Narrow and find.** Every list of records offers "All sources", which narrows the list to one source. Health records and Test results also offer "Search records", which finds a record by its name.
+- **Narrow and find.** Every list of records offers "All sources", which narrows the list to one source. Health records, Medications and Test results also offer "Search records", which finds a record by its name.
 - **Plain language.** Statuses say what they mean to a patient, such as "Active prescription in source" or "Not confirmed with you", not a code.
 - **A record may be incomplete.** Wherever records are summed up, the page says that the record may not be complete or current.
 - **Not medical advice.** The portal explains records and does not diagnose, prescribe or promise insurance coverage. Pages where a patient writes to someone say: "For a medical emergency, call 911."
@@ -205,10 +205,11 @@ These apply to every requirement below.
 ### FR6: Medications
 
 - **Description:** What each clinician prescribed, and what the patient actually takes, kept apart. The clinician confirms any change.
-- **User flow:** Tabs for All medications, Current use to confirm and Past medications, with "All sources". Each prescription shows the medicine, the prescriber and clinic, its status at the source, the instructions, when it was prescribed, whether current use has been confirmed with the patient, and when it was received. Actions: "Report a change", "Original prescription" and "Help me understand".
+- **User flow:** Tabs for All medications, Current use to confirm and Past medications, with "All sources" and "Search records". Each prescription shows the medicine, the prescriber and clinic, its status at the source, the instructions, when it was prescribed, whether current use has been confirmed with the patient, and when it was received. Actions: "Report a change", "Original prescription" and "Help me understand".
 - **Acceptance criteria:**
   - AC1: Eleanor sees triamcinolone 0.1% cream from Dr. Mira Chen at Oak Dermatology, "Active prescription in source", with "Current use: Not confirmed with you".
   - AC2: "Report a change" sends the change to the clinic's care team where the clinic accepts messages (FR11), and changes nothing in the source's record.
+  - AC3: Searching for "cetiri" finds Eleanor's cetirizine from Pine Family Clinic and from Oak Dermatology, whose prescription names the medicine in a separate medicine record ([decision 0017](decisions/0017-searching-medications-in-the-browser.md)).
 
 ### FR7: Test results
 
