@@ -344,6 +344,68 @@
       }
     },
     {
+      "fullUrl": "urn:uuid:45eb42d4-e5ea-40f4-b6bf-e3666cdb152e",
+      "resource": {
+        "resourceType": "Medication",
+        "meta": { "source": "https://fhir.oak-dermatology.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.oak-dermatology.example/Medication",
+            "value": "cetirizine-tablet"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://www.nlm.nih.gov/research/umls/rxnorm",
+              "code": "1014678",
+              "display": "cetirizine hydrochloride 10 MG Oral Tablet"
+            }
+          ],
+          "text": "Cetirizine 10 mg tablet"
+        }
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Medication?identifier=https://fhir.oak-dermatology.example/Medication|cetirizine-tablet"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:a87e06eb-eaef-4a41-8fec-fbc2e5abcc77",
+      "resource": {
+        "resourceType": "MedicationRequest",
+        "meta": { "source": "https://fhir.oak-dermatology.example" },
+        "identifier": [
+          {
+            "system": "https://fhir.oak-dermatology.example/MedicationRequest",
+            "value": "cetirizine-tablet"
+          }
+        ],
+        "status": "completed",
+        "intent": "order",
+        "medicationReference": {
+          "reference": "urn:uuid:45eb42d4-e5ea-40f4-b6bf-e3666cdb152e"
+        },
+        "subject": {
+          "reference": "urn:uuid:2d5839cd-8a6b-4df9-adb3-ef949c2c2262",
+          "display": "Eleanor Walsh"
+        },
+        "authoredOn": "2025-06-03",
+        "requester": {
+          "reference": "urn:uuid:1d89bf3c-dd6a-4845-a0e4-308b3df8a82e",
+          "display": "Dr. Mira Chen"
+        },
+        "reasonCode": [{ "text": "Hives" }],
+        "dosageInstruction": [
+          { "text": "Take one tablet by mouth once daily for 14 days." }
+        ]
+      },
+      "request": {
+        "method": "PUT",
+        "url": "MedicationRequest?identifier=https://fhir.oak-dermatology.example/MedicationRequest|cetirizine-tablet"
+      }
+    },
+    {
       "fullUrl": "urn:uuid:296ea966-e676-43d5-b7cb-e1064d964e44",
       "resource": {
         "resourceType": "DiagnosticReport",

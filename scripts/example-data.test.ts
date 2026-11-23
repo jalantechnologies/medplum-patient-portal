@@ -48,7 +48,7 @@ import {
 const LOAD_DAY = Temporal.PlainDate.from("2026-11-17");
 const SUMMER_LOAD_DAY = Temporal.PlainDate.from("2027-07-01");
 const DAYS_TO_LOAD_DAY = 19;
-const DATES_IN_EXAMPLE = 24;
+const DATES_IN_EXAMPLE = 25;
 const DAY_LENGTH = "YYYY-MM-DD".length;
 const CLOCK_TIME_LENGTH = "YYYY-MM-DDThh:mm:ss".length;
 const NOT_RECORDED_EXTENSION = {

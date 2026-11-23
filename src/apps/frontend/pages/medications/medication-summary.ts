@@ -7,22 +7,14 @@ import {
 import type {
   Dosage,
   DosageDoseAndRate,
-  Medication,
-  MedicationIngredient,
   MedicationRequest,
-  Resource,
   Timing,
 } from "@medplum/fhirtypes";
 
 import {
-  CONTAINED_REFERENCE_PREFIX,
-  MEDICATION_STATUS,
-  RESOURCE_TYPE,
-} from "../../constants/fhir";
-import type {
-  MedicationRequestPage,
-  MedicationsByReference,
-  RecordSourceNames,
+  PrescribedMedicine,
+  type MedicationRequestPage,
+  type RecordSourceNames,
 } from "../../types";
 import {
   formatRecordDate,
@@ -44,7 +36,6 @@ export interface MedicationSummary {
 
 const SEQUENCE_WHEN_MISSING = Number.MAX_SAFE_INTEGER;
 const INSTRUCTION_PART_SEPARATOR = " · ";
-const INGREDIENT_SEPARATOR = ", ";
 
 const compareDosageSequence = (first: Dosage, second: Dosage) =>
   (first.sequence ?? SEQUENCE_WHEN_MISSING) -
@@ -89,59 +80,6 @@ const describeDosage = (dosage: Dosage): string[] => {
   return instruction ? [instruction] : [];
 };
 
-const isMedication = (resource: Resource): resource is Medication =>
-  resource.resourceType === RESOURCE_TYPE.MEDICATION;
-
-const findContainedMedication = ({
-  contained,
-  medicationReference,
-}: MedicationRequest) =>
-  contained
-    ?.filter(isMedication)
-    .find(
-      ({ id }) =>
-        `${CONTAINED_REFERENCE_PREFIX}${id}` === medicationReference?.reference,
-    );
-
-const findReferencedMedication = (
-  { medicationReference }: MedicationRequest,
-  medications: MedicationsByReference,
-) => {
-  const reference = medicationReference?.reference;
-  return reference ? medications.get(reference) : undefined;
-};
-
-const nameIngredient = ({
-  itemCodeableConcept,
-  itemReference,
-}: MedicationIngredient): string =>
-  nameCodeableConcept(itemCodeableConcept) || itemReference?.display || "";
-
-const nameMedicationRecord = (medication: Medication | undefined): string => {
-  if (!medication || medication.status === MEDICATION_STATUS.ENTERED_IN_ERROR) {
-    return "";
-  }
-  return (
-    nameCodeableConcept(medication.code) ||
-    (medication.ingredient ?? [])
-      .map(nameIngredient)
-      .filter(Boolean)
-      .join(INGREDIENT_SEPARATOR)
-  );
-};
-
-const nameMedication = (
-  medicationRequest: MedicationRequest,
-  medications: MedicationsByReference,
-): string =>
-  nameCodeableConcept(medicationRequest.medicationCodeableConcept) ||
-  medicationRequest.medicationReference?.display ||
-  nameMedicationRecord(findContainedMedication(medicationRequest)) ||
-  nameMedicationRecord(
-    findReferencedMedication(medicationRequest, medications),
-  ) ||
-  "Medication";
-
 export const summarizeMedicationRequest = (
   medicationRequest: WithId<MedicationRequest>,
   { medications }: MedicationRequestPage,
@@ -157,5 +95,7 @@ export const summarizeMedicationRequest = (
   received: formatRecordDate(medicationRequest.meta?.lastUpdated),
   source: recordSourceNames.findName(medicationRequest.meta?.source),
   status: humanizeCode(medicationRequest.status),
-  title: nameMedication(medicationRequest, medications),
+  title:
+    new PrescribedMedicine(medicationRequest, medications).names.at(0) ??
+    "Medication",
 });

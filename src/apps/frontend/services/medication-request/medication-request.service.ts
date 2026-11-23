@@ -12,6 +12,7 @@ import type {
   Resource,
 } from "@medplum/fhirtypes";
 
+import constant from "../../constants";
 import {
   MEDICATION_REQUEST_ELEMENT,
   MEDICATION_REQUEST_INTENT,
@@ -23,10 +24,13 @@ import {
   SEARCH_VALUE_SEPARATOR,
 } from "../../constants/fhir";
 import {
+  PrescribedMedicine,
   ServiceResponse,
   type ListMedicationRequestsParameters,
   type MedicationRequestPage,
   type MedicationsByReference,
+  type Nullable,
+  type RecordFilter,
 } from "../../types";
 import MedplumService from "../medplum/medplum.service";
 
@@ -34,6 +38,11 @@ interface MedicationReference {
   identifier: string;
   reference: string;
   version: string | undefined;
+}
+
+interface HeldPrescriptionRead {
+  query: string;
+  read: Promise<MedicationRequestPage>;
 }
 
 // A proposal or a plan was never prescribed, and a filler order or an instance order repeats an order that is already listed.
@@ -62,6 +71,8 @@ export default class MedicationRequestService extends MedplumService {
     resourceType: RESOURCE_TYPE.MEDICATION_REQUEST,
     searchParam: SEARCH_PARAMETER.MEDICATION,
   };
+
+  private heldPrescriptionRead: Nullable<HeldPrescriptionRead> = null;
 
   // FHIR R4 has no search parameter for doNotPerform.
   countActivePrescriptions = async (
@@ -98,6 +109,18 @@ export default class MedicationRequestService extends MedplumService {
     this.listPrescriptionsWithStatuses(parameters, PAST_STATUSES);
 
   private async listPrescriptionsWithStatuses(
+    parameters: ListMedicationRequestsParameters,
+    statuses: MedicationRequest["status"][],
+  ): Promise<ServiceResponse<MedicationRequestPage>> {
+    if (parameters.recordFilter.text) {
+      return this.findPrescriptionsByMedicineName(parameters, statuses);
+    }
+    // A search started again after the full list must find the prescriptions added since.
+    this.heldPrescriptionRead = null;
+    return this.readNextPrescriptionPage(parameters, statuses);
+  }
+
+  private async readNextPrescriptionPage(
     {
       patientReference,
       previousPage,
@@ -107,17 +130,13 @@ export default class MedicationRequestService extends MedplumService {
   ): Promise<ServiceResponse<MedicationRequestPage>> {
     const { includedResources, page } = await this.readNextPage(
       RESOURCE_TYPE.MEDICATION_REQUEST,
-      {
-        dateParameter: SEARCH_PARAMETER.AUTHORED_ON,
-        filters: [
-          ...MedicationRequestService.buildPrescriptionFilters(
-            patientReference,
-            statuses,
-          ),
-          ...MedplumService.toRecordFilters(recordFilter),
-        ],
-        include: [MedicationRequestService.prescribedMedication],
-      },
+      MedicationRequestService.toPrescriptionSearch(
+        MedicationRequestService.toPrescriptionFilters(
+          patientReference,
+          statuses,
+          recordFilter,
+        ),
+      ),
       previousPage,
     );
     const medications = await this.addMedications(
@@ -126,6 +145,91 @@ export default class MedicationRequestService extends MedplumService {
       includedResources,
     );
     return new ServiceResponse({ ...page, medications });
+  }
+
+  // Medplum's code search reads only a medicine written on the prescription, and a patient may not search medicines (decision 0017).
+  private async findPrescriptionsByMedicineName(
+    { patientReference, recordFilter }: ListMedicationRequestsParameters,
+    statuses: MedicationRequest["status"][],
+  ): Promise<ServiceResponse<MedicationRequestPage>> {
+    const prescriptions = await this.readEveryPrescription(
+      MedicationRequestService.toPrescriptionFilters(
+        patientReference,
+        statuses,
+        recordFilter,
+      ),
+    );
+    const searchText = recordFilter.text.toLocaleLowerCase(constant.LOCALE);
+    return new ServiceResponse({
+      ...prescriptions,
+      resources: prescriptions.resources.filter((prescription) =>
+        new PrescribedMedicine(
+          prescription,
+          prescriptions.medications,
+        ).names.some((name) =>
+          name.toLocaleLowerCase(constant.LOCALE).includes(searchText),
+        ),
+      ),
+    });
+  }
+
+  private async readEveryPrescription(
+    filters: Filter[],
+  ): Promise<MedicationRequestPage> {
+    const query = formatSearchQuery({
+      resourceType: RESOURCE_TYPE.MEDICATION_REQUEST,
+      filters,
+    });
+    const heldRead =
+      this.heldPrescriptionRead?.query === query
+        ? this.heldPrescriptionRead
+        : { query, read: this.readPrescriptionsWithMedicines(filters) };
+    this.heldPrescriptionRead = heldRead;
+    try {
+      return await heldRead.read;
+    } catch (error) {
+      if (this.heldPrescriptionRead === heldRead) {
+        this.heldPrescriptionRead = null;
+      }
+      throw error;
+    }
+  }
+
+  private async readPrescriptionsWithMedicines(
+    filters: Filter[],
+  ): Promise<MedicationRequestPage> {
+    const { includedResources, page } = await this.readAllPages(
+      RESOURCE_TYPE.MEDICATION_REQUEST,
+      MedicationRequestService.toPrescriptionSearch(filters),
+    );
+    const medications = await this.addMedications(
+      new Map(),
+      page.resources,
+      includedResources,
+    );
+    return { ...page, medications };
+  }
+
+  private static toPrescriptionFilters(
+    patientReference: string,
+    statuses: MedicationRequest["status"][],
+    recordFilter: RecordFilter,
+  ): Filter[] {
+    return [
+      ...MedicationRequestService.buildPrescriptionFilters(
+        patientReference,
+        statuses,
+      ),
+      ...MedplumService.toSourceFilters(recordFilter),
+    ];
+  }
+
+  private static toPrescriptionSearch(filters: Filter[]) {
+    return {
+      dateParameter: SEARCH_PARAMETER.AUTHORED_ON,
+      filters,
+      include: [MedicationRequestService.prescribedMedication],
+    };
   }
 
   // Medplum's _include returns the current version of a medicine, so a prescription that names an earlier version has that version read on its own.
