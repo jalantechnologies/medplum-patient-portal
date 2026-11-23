@@ -1,7 +1,19 @@
+import { getCodeBySystem } from "@medplum/core";
+import type { AllergyIntolerance } from "@medplum/fhirtypes";
+
+import {
+  ALLERGY_INTOLERANCE_VERIFICATION_STATUS,
+  CODE_SYSTEM,
+} from "../../constants/fhir";
 import type { ActiveAllergyIntolerancePreview, Nullable } from "../../types";
-import { describeCount, nameAllergyIntolerance } from "../../utilities";
+import {
+  describeCount,
+  joinDetails,
+  nameAllergyIntolerance,
+} from "../../utilities";
 
 const NAME_SEPARATOR = ", ";
+const UNCONFIRMED_VERIFICATION = "Verification unconfirmed";
 
 export const describeActivePrescriptions = (
   activePrescriptionCount: Nullable<number>,
@@ -12,6 +24,21 @@ export const describeActivePrescriptions = (
     singular: "active prescription",
   });
 
+const isUnconfirmed = ({ verificationStatus }: AllergyIntolerance): boolean =>
+  verificationStatus !== undefined &&
+  getCodeBySystem(
+    verificationStatus,
+    CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
+  ) === ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED;
+
+const nameAllergyWithVerification = (
+  allergyIntolerance: AllergyIntolerance,
+): string =>
+  joinDetails(
+    nameAllergyIntolerance(allergyIntolerance),
+    isUnconfirmed(allergyIntolerance) ? UNCONFIRMED_VERIFICATION : "",
+  );
+
 export const describeActiveAllergies = (
   activeAllergyPreview: Nullable<ActiveAllergyIntolerancePreview>,
 ): string => {
@@ -21,7 +48,7 @@ export const describeActiveAllergies = (
       : "Not yet recorded";
   }
   const names = activeAllergyPreview.resources
-    .map(nameAllergyIntolerance)
+    .map(nameAllergyWithVerification)
     .join(NAME_SEPARATOR);
   const remainingCount =
     activeAllergyPreview.total - activeAllergyPreview.resources.length;

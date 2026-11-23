@@ -8,6 +8,8 @@ import {
   type SearchRequest,
 } from "@medplum/core";
 import type {
+  AllergyIntolerance,
+  CodeableConcept,
   MedicationRequest,
   Patient,
   ResourceType,
@@ -51,6 +53,23 @@ import { TestProviders } from "../../test-providers";
 import HealthProfile from "./health-profile.page";
 
 const homer = createReference(HomerSimpson);
+
+const clinicVerification = {
+  system: "http://example.org/clinic-verification",
+  code: "awaiting-challenge",
+};
+
+const createConfirmedAllergyIntolerance = (
+  medplum: MockClient,
+  code: CodeableConcept | undefined,
+  recordedDate: string | undefined,
+): Promise<AllergyIntolerance> =>
+  createAllergyIntolerance(medplum, code, recordedDate, {
+    verificationStatus: codeFrom(
+      CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
+      ALLERGY_INTOLERANCE_VERIFICATION_STATUS.CONFIRMED,
+    ),
+  });
 
 const renderHealthProfile = (medplum: MockClient) => {
   const router = createMemoryRouter(
@@ -382,7 +401,7 @@ describe("Health profile", () => {
 
   it("names only active allergies, leaving out inactive, resolved, ruled-out and mistaken ones", async () => {
     const medplum = new MockClient({ profile: HomerSimpson });
-    await createAllergyIntolerance(
+    await createConfirmedAllergyIntolerance(
       medplum,
       { text: "Penicillin" },
       "2026-10-20",
@@ -446,6 +465,147 @@ describe("Health profile", () => {
     ).toHaveTextContent(/^Bee venom$/);
   });
 
+  it("marks an unconfirmed allergy, as the prototype does", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2026-10-20",
+    );
+
+    renderHealthProfile(medplum);
+
+    expect(
+      await screen.findByTestId("health-profile-active-allergies"),
+    ).toHaveTextContent(/^Penicillin · Verification unconfirmed$/);
+  });
+
+  it("marks only the unconfirmed allergy when another is confirmed", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2026-10-20",
+    );
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Latex" },
+      "2026-10-01",
+    );
+
+    renderHealthProfile(medplum);
+
+    expect(
+      await screen.findByTestId("health-profile-active-allergies"),
+    ).toHaveTextContent(/^Penicillin · Verification unconfirmed, Latex$/);
+  });
+
+  it("marks an allergy whose clinic also codes its verification its own way", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2026-10-20",
+      {
+        verificationStatus: {
+          coding: [
+            clinicVerification,
+            {
+              system: CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
+              code: ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED,
+            },
+          ],
+        },
+      },
+    );
+
+    renderHealthProfile(medplum);
+
+    expect(
+      await screen.findByTestId("health-profile-active-allergies"),
+    ).toHaveTextContent(/^Penicillin · Verification unconfirmed$/);
+  });
+
+  it("leaves an allergy unmarked when only the clinic's own coding says it is unconfirmed", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2026-10-20",
+      {
+        verificationStatus: {
+          coding: [
+            {
+              system: clinicVerification.system,
+              code: ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED,
+            },
+          ],
+        },
+      },
+    );
+
+    renderHealthProfile(medplum);
+
+    expect(
+      await screen.findByTestId("health-profile-active-allergies"),
+    ).toHaveTextContent(/^Penicillin$/);
+  });
+
+  it("marks each unconfirmed allergy when there are several", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2026-10-20",
+    );
+    await createAllergyIntolerance(medplum, { text: "Latex" }, "2026-10-01");
+
+    renderHealthProfile(medplum);
+
+    expect(
+      await screen.findByTestId("health-profile-active-allergies"),
+    ).toHaveTextContent(
+      /^Penicillin · Verification unconfirmed, Latex · Verification unconfirmed$/,
+    );
+  });
+
+  it("marks an unconfirmed allergy among the three named and still counts the rest", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Oldest" },
+      "2026-01-01",
+    );
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2026-10-01",
+    );
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Older" },
+      "2026-02-01",
+    );
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Peanuts" },
+      "2026-09-01",
+    );
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Latex" },
+      "2026-08-01",
+    );
+
+    renderHealthProfile(medplum);
+
+    expect(
+      await screen.findByTestId("health-profile-active-allergies"),
+    ).toHaveTextContent(
+      /^Penicillin · Verification unconfirmed, Peanuts, Latex and 2 more$/,
+    );
+  });
+
   it("says no allergy is active when every recorded allergy is inactive, resolved or ruled out", async () => {
     const medplum = new MockClient({ profile: HomerSimpson });
     await createAllergyIntolerance(medplum, { text: "Latex" }, "2026-10-20", {
@@ -497,15 +657,31 @@ describe("Health profile", () => {
 
   it("names the three newest active allergies and counts the rest", async () => {
     const medplum = new MockClient({ profile: HomerSimpson });
-    await createAllergyIntolerance(medplum, { text: "Oldest" }, "2026-01-01");
-    await createAllergyIntolerance(
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Oldest" },
+      "2026-01-01",
+    );
+    await createConfirmedAllergyIntolerance(
       medplum,
       { text: "Penicillin" },
       "2026-10-01",
     );
-    await createAllergyIntolerance(medplum, { text: "Older" }, "2026-02-01");
-    await createAllergyIntolerance(medplum, { text: "Peanuts" }, "2026-09-01");
-    await createAllergyIntolerance(medplum, { text: "Latex" }, "2026-08-01");
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Older" },
+      "2026-02-01",
+    );
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Peanuts" },
+      "2026-09-01",
+    );
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Latex" },
+      "2026-08-01",
+    );
 
     renderHealthProfile(medplum);
 
@@ -516,14 +692,26 @@ describe("Health profile", () => {
 
   it("names undated active allergies after every dated one, as the Allergies tab lists them", async () => {
     const medplum = new MockClient({ profile: HomerSimpson });
-    await createAllergyIntolerance(medplum, { text: "Undated" }, undefined);
-    await createAllergyIntolerance(
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Undated" },
+      undefined,
+    );
+    await createConfirmedAllergyIntolerance(
       medplum,
       { text: "Penicillin" },
       "2026-10-01",
     );
-    await createAllergyIntolerance(medplum, { text: "Peanuts" }, "2026-09-01");
-    await createAllergyIntolerance(medplum, { text: "Latex" }, "2026-01-01");
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Peanuts" },
+      "2026-09-01",
+    );
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Latex" },
+      "2026-01-01",
+    );
 
     renderHealthProfile(medplum);
 
@@ -534,8 +722,12 @@ describe("Health profile", () => {
 
   it("names an undated active allergy when fewer than three are dated", async () => {
     const medplum = new MockClient({ profile: HomerSimpson });
-    await createAllergyIntolerance(medplum, { text: "Undated" }, undefined);
-    await createAllergyIntolerance(
+    await createConfirmedAllergyIntolerance(
+      medplum,
+      { text: "Undated" },
+      undefined,
+    );
+    await createConfirmedAllergyIntolerance(
       medplum,
       { text: "Penicillin" },
       "2026-10-01",
@@ -550,7 +742,7 @@ describe("Health profile", () => {
 
   it("names an allergy coded several ways by its first named coding, and one with no name as an allergy", async () => {
     const medplum = new MockClient({ profile: HomerSimpson });
-    await createAllergyIntolerance(
+    await createConfirmedAllergyIntolerance(
       medplum,
       {
         coding: [
@@ -561,7 +753,7 @@ describe("Health profile", () => {
       },
       "2026-10-02",
     );
-    await createAllergyIntolerance(medplum, undefined, "2026-10-01");
+    await createConfirmedAllergyIntolerance(medplum, undefined, "2026-10-01");
 
     renderHealthProfile(medplum);
 
