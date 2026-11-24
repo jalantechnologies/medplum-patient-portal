@@ -7,6 +7,7 @@ import type {
   BundleEntrySearch,
   CarePlan,
   DiagnosticReport,
+  HumanName,
   List,
   Medication,
   MedicationRequest,
@@ -333,6 +334,13 @@ export const ALLERGY_INTOLERANCE_VERIFICATION_STATUS = {
   REFUTED: "refuted",
   UNCONFIRMED: "unconfirmed",
 } as const;
+
+export const HUMAN_NAME_USE = {
+  MAIDEN: "maiden",
+  OFFICIAL: "official",
+  OLD: "old",
+  USUAL: "usual",
+} as const satisfies Record<string, HumanName["use"]>;
 
 export const SEARCH_PARAMETER = {
   AUTHORED_ON: "authoredon",
