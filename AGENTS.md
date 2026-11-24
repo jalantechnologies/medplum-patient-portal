@@ -71,6 +71,7 @@ The frontend follows the layers of Better's [frontend architecture](https://gith
 21. **Async code** uses `async`/`await`, never `.then()` / `.catch()` chains.
 22. **Data fetching** goes through services, never inside render without a hook. Requests for a list are batched, never one per item.
 23. **Times in the patient's own time zone.** The app shows every time in the time zone of the patient who reads it, never in one fixed zone such as the clinic's. Only the example data uses one zone, US Central, the one the prototype shows.
+24. **Only what every supported browser has.** The app's code uses only the JavaScript that every browser Vite builds for supports: Chrome and Edge 111, Firefox 114 and Safari 16.4, and later. It copies an array and changes the copy instead of calling `toReversed`, `toSorted`, `toSpliced` or `with`, which Firefox 114 lacks. Tests run on Node.js and may use them.
 
 ## Security and privacy
 
