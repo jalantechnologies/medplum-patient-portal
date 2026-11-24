@@ -5,6 +5,7 @@ import {
 } from "@medplum/core";
 import type {
   AllergyIntolerance,
+  Annotation,
   CodeableConcept,
   Condition,
   Observation,
@@ -24,10 +25,17 @@ import {
   nameCodeableConcept,
 } from "../../utilities";
 
+export interface HealthRecordNote {
+  author: string;
+  date: string;
+  text: string;
+}
+
 export interface HealthRecordSummary {
   author: string;
   date: string;
   identifier: string;
+  notes: HealthRecordNote[];
   received: string;
   source: string;
   status: string;
@@ -45,6 +53,17 @@ interface ClinicalRecordStatus {
 }
 
 const RULED_OUT_STATUS = "Ruled out";
+
+const summarizeNote = ({
+  authorReference,
+  authorString,
+  text,
+  time,
+}: Annotation): HealthRecordNote => ({
+  author: authorReference?.display ?? authorString ?? "",
+  date: formatRecordDate(time),
+  text,
+});
 
 const humanizeStatus = (
   status: CodeableConcept | undefined,
@@ -70,6 +89,7 @@ export const summarizeCondition = (
   author: condition.recorder?.display ?? "",
   date: formatRecordDate(condition.recordedDate),
   identifier: condition.id,
+  notes: [],
   received: formatRecordDateTime(condition.meta?.lastUpdated),
   source: recordSourceNames.findName(condition.meta?.source),
   status: describeClinicalRecordStatus({
@@ -94,6 +114,7 @@ export const summarizeAllergyIntolerance = (
   author: allergyIntolerance.recorder?.display ?? "",
   date: formatRecordDate(allergyIntolerance.recordedDate),
   identifier: allergyIntolerance.id,
+  notes: allergyIntolerance.note?.map(summarizeNote) ?? [],
   received: formatRecordDateTime(allergyIntolerance.meta?.lastUpdated),
   source: recordSourceNames.findName(allergyIntolerance.meta?.source),
   status: describeClinicalRecordStatus({
@@ -122,6 +143,7 @@ export const summarizeVitalSign = (
       vitalSign.effectivePeriod?.start,
   ),
   identifier: vitalSign.id,
+  notes: [],
   received: formatRecordDateTime(vitalSign.meta?.lastUpdated),
   source: recordSourceNames.findName(vitalSign.meta?.source),
   status: humanizeCode(vitalSign.status),

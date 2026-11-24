@@ -1,5 +1,5 @@
 import { createReference } from "@medplum/core";
-import type { CodeableConcept } from "@medplum/fhirtypes";
+import type { Annotation, CodeableConcept } from "@medplum/fhirtypes";
 import { HomerSimpson } from "@medplum/mock";
 import { describe, expect, it } from "vitest";
 
@@ -49,6 +49,18 @@ const summarizeAllergyStatus = (
     },
     noSourceNames,
   );
+
+const summarizeAllergyNotes = (note: Annotation[] | undefined) =>
+  summarizeAllergyIntolerance(
+    {
+      resourceType: RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+      id: "penicillin",
+      patient: homer,
+      code: { text: "Penicillin" },
+      note,
+    },
+    noSourceNames,
+  ).notes;
 
 const summarizeConditionStatus = (
   clinicalStatus: CodeableConcept | undefined,
@@ -218,6 +230,75 @@ describe("summarizeAllergyIntolerance", () => {
           verificationStatus,
         ).status,
       ).toBe("Active");
+    },
+  );
+
+  it("keeps each note the clinic wrote on an allergy, in order, with its author and date where the note records them", () => {
+    showDatesInChicago();
+
+    expect(
+      summarizeAllergyNotes([
+        { text: "Rash recorded after penicillin." },
+        {
+          authorString: "Nurse Ana Synthetic",
+          time: "2025-03-12T15:00:00Z",
+          text: "Reaction and verification need clinical review.",
+        },
+      ]),
+    ).toEqual([
+      { author: "", date: "", text: "Rash recorded after penicillin." },
+      {
+        author: "Nurse Ana Synthetic",
+        date: "March 12, 2025",
+        text: "Reaction and verification need clinical review.",
+      },
+    ]);
+  });
+
+  it.each([
+    [
+      "only when it was written",
+      { time: "2025-03-12T15:00:00Z", text: "Rash recorded." },
+      { author: "", date: "March 12, 2025", text: "Rash recorded." },
+    ],
+    [
+      "its author only as a reference with no name",
+      {
+        authorReference: { reference: "Practitioner/synthetic" },
+        text: "Rash recorded.",
+      },
+      { author: "", date: "", text: "Rash recorded." },
+    ],
+  ])("keeps no author for a note that records %s", (_, note, summary) => {
+    showDatesInChicago();
+
+    expect(summarizeAllergyNotes([note])).toEqual([summary]);
+  });
+
+  it("names who wrote a note from its reference when the clinic recorded one", () => {
+    expect(
+      summarizeAllergyNotes([
+        {
+          authorReference: { display: "Dr. Mira Synthetic" },
+          text: "Rash recorded after penicillin.",
+        },
+      ]),
+    ).toEqual([
+      {
+        author: "Dr. Mira Synthetic",
+        date: "",
+        text: "Rash recorded after penicillin.",
+      },
+    ]);
+  });
+
+  it.each([
+    ["no note at all", undefined],
+    ["an empty list of notes", []],
+  ])(
+    "keeps no notes for an allergy the clinic wrote none on, given %s",
+    (_, note) => {
+      expect(summarizeAllergyNotes(note)).toEqual([]);
     },
   );
 });

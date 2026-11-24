@@ -9,6 +9,7 @@ import {
   type SearchRequest,
 } from "@medplum/core";
 import type {
+  Annotation,
   Bundle,
   Condition,
   List,
@@ -271,6 +272,37 @@ const openTab = async (
   await user.click(screen.getByTestId(`${tabKey}-tab`));
   return screen.getByTestId(`${tabKey}-panel`);
 };
+
+const openConfirmedAllergyRecord = async (note: Annotation[] | undefined) => {
+  const user = userEvent.setup();
+  const medplum = new MockClient({ profile: HomerSimpson });
+  await createAllergyIntolerance(
+    medplum,
+    { text: "Penicillin" },
+    "2024-03-12",
+    {
+      verificationStatus: codeFrom(
+        CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
+        ALLERGY_INTOLERANCE_VERIFICATION_STATUS.CONFIRMED,
+      ),
+      note,
+    },
+  );
+  renderHealthRecords(medplum);
+  await screen.findByTestId("conditions-empty");
+  const panel = await openTab(user, "allergies");
+  await user.click(
+    await within(panel).findByRole("button", {
+      name: "View record: Penicillin",
+    }),
+  );
+  return screen.findByTestId("health-record-dialog");
+};
+
+const listNoteTexts = (dialog: HTMLElement) =>
+  within(dialog)
+    .queryAllByTestId("health-record-note")
+    .map((note) => note.textContent);
 
 const listRecordTitles = (panel: HTMLElement, tabKey: string) =>
   within(panel)
@@ -872,6 +904,106 @@ describe("Health records", () => {
     ).toHaveTextContent(
       "PatientHomer SimpsonDateMarch 13, 2024VerificationRefutedReceivedOctober 28, 2026 · 4:10 PM Central TimeAuthorDr. Mira Synthetic",
     );
+  });
+
+  it("shows the note the clinic wrote on an allergy in its record, under its status", async () => {
+    const note =
+      "Rash recorded after penicillin. Recorded allergy status remains relevant despite its age. Reaction and verification need clinical review.";
+
+    const dialog = await openConfirmedAllergyRecord([{ text: note }]);
+
+    expect(listNoteTexts(dialog)).toEqual([note]);
+    expect(dialog).toHaveTextContent(`Active${note}Patient`);
+  });
+
+  it("shows each note the clinic wrote on an allergy, in the order it wrote them", async () => {
+    const dialog = await openConfirmedAllergyRecord([
+      { text: "Rash recorded after penicillin." },
+      { text: "Reaction and verification need clinical review." },
+    ]);
+
+    expect(listNoteTexts(dialog)).toEqual([
+      "Rash recorded after penicillin.",
+      "Reaction and verification need clinical review.",
+    ]);
+  });
+
+  it("shows nothing in place of a note when the clinic wrote none on an allergy", async () => {
+    const dialog = await openConfirmedAllergyRecord(undefined);
+
+    expect(listNoteTexts(dialog)).toEqual([]);
+    expect(dialog).toHaveTextContent("ActivePatient");
+  });
+
+  it("keeps the line breaks in a note the clinic wrote over several lines", async () => {
+    const note = "Reactions:\n- Rash\n- Swelling of the lips";
+
+    const dialog = await openConfirmedAllergyRecord([{ text: note }]);
+
+    const [paragraph] = within(dialog).getAllByTestId("health-record-note");
+    expect(paragraph.textContent).toBe(note);
+    expect(paragraph).toHaveStyle({ whiteSpace: "pre-line" });
+  });
+
+  it("shows under a note, in smaller text, who wrote it and when", async () => {
+    showDatesInChicago();
+    const note = "Reaction and verification need clinical review.";
+
+    const dialog = await openConfirmedAllergyRecord([
+      {
+        authorString: "Nurse Ana Synthetic",
+        time: "2025-03-12T15:00:00Z",
+        text: note,
+      },
+    ]);
+
+    const writer = within(dialog).getByTestId("health-record-note-writer");
+    expect(writer).toHaveTextContent(
+      /^By Nurse Ana Synthetic, March 12, 2025$/,
+    );
+    expect(writer).toHaveAttribute("data-baseweb", "typo-paragraphsmall");
+    expect(dialog).toHaveTextContent(
+      `${note}By Nurse Ana Synthetic, March 12, 2025Patient`,
+    );
+  });
+
+  it.each([
+    [
+      "only who wrote it",
+      { authorString: "Nurse Ana Synthetic" },
+      "By Nurse Ana Synthetic",
+    ],
+    [
+      "only when it was written",
+      { time: "2025-03-12T15:00:00Z" },
+      "March 12, 2025",
+    ],
+  ])(
+    "shows under a note that records %s just that",
+    async (_, writtenBy, writer) => {
+      showDatesInChicago();
+
+      const dialog = await openConfirmedAllergyRecord([
+        {
+          ...writtenBy,
+          text: "Reaction and verification need clinical review.",
+        },
+      ]);
+
+      expect(
+        within(dialog).getByTestId("health-record-note-writer"),
+      ).toHaveTextContent(new RegExp(`^${writer}$`));
+    },
+  );
+
+  it("shows nothing under a note that records neither who wrote it nor when", async () => {
+    const dialog = await openConfirmedAllergyRecord([
+      { text: "Rash recorded after penicillin." },
+    ]);
+
+    expect(
+      within(dialog).queryByTestId("health-record-note-writer"),
+    ).not.toBeInTheDocument();
   });
 
   it("marks a condition the clinician ruled out as ruled out, in the list and in its record, though it is still coded active", async () => {
