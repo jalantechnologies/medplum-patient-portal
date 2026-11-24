@@ -15,6 +15,7 @@ import type { FC } from "react";
 
 import { RecordDetail } from "../../components";
 import type { Nullable } from "../../types";
+import HealthRecordNoteParagraph from "./health-record-note-paragraph";
 import type { HealthRecordSummary } from "./health-record-summary";
 
 interface HealthRecordDialogProperties {
@@ -62,6 +63,9 @@ const HealthRecordDialog: FC<HealthRecordDialogProperties> = ({
               {record.value}
             </ParagraphMedium>
           ) : null}
+          {record.notes.map((note, index) => (
+            <HealthRecordNoteParagraph key={index} note={note} />
+          ))}
           <Block
             as="dl"
             display="grid"
