@@ -87,8 +87,8 @@ export const summarizeMedicationRequest = (
 ): MedicationSummary => ({
   date: formatRecordDate(medicationRequest.authoredOn),
   identifier: medicationRequest.id,
-  instructions: (medicationRequest.dosageInstruction ?? [])
-    .toSorted(compareDosageSequence)
+  instructions: [...(medicationRequest.dosageInstruction ?? [])]
+    .sort(compareDosageSequence)
     .flatMap(describeDosage),
   isDoNotPerform: medicationRequest.doNotPerform ?? false,
   prescriber: medicationRequest.requester?.display ?? "",

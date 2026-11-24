@@ -54,6 +54,7 @@ import {
   MedicationRequestProvider,
   RecordSourceProvider,
 } from "../../providers";
+import { removeArrayMethodsFirefox114Lacks } from "../../test-browser-support";
 import {
   addListedOrganizations,
   createMedicationRequest,
@@ -275,6 +276,29 @@ describe("Medications", () => {
     expect(
       within(list).getAllByTestId(`${ALL_MEDICATIONS}-record`)[0].tagName,
     ).toBe("LI");
+  });
+
+  it("lists how to take each medicine, in order, on a browser without the array methods Firefox 114 lacks", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createMedicationRequest(
+      medplum,
+      "Prednisone 10 mg tablet",
+      "2026-10-20",
+      {
+        dosageInstruction: [
+          { sequence: 2, text: "Then one tablet daily for 7 days." },
+          { sequence: 1, text: "Two tablets daily for 7 days." },
+        ],
+      },
+    );
+    removeArrayMethodsFirefox114Lacks();
+
+    renderMedications(medplum);
+
+    const list = await screen.findByTestId(`${ALL_MEDICATIONS}-list`);
+    expect(listMedicationTexts(list, ALL_MEDICATIONS)[0]).toContain(
+      "Two tablets daily for 7 days.Then one tablet daily for 7 days.",
+    );
   });
 
   it("names the clinic each prescription came from after who prescribed it", async () => {

@@ -16,6 +16,7 @@ import {
   RESOURCE_TYPE,
   TIMING_PERIOD_UNIT,
 } from "../../constants/fhir";
+import { removeArrayMethodsFirefox114Lacks } from "../../test-browser-support";
 import { oakDermatology, RECEIVED_AT } from "../../test-medplum";
 import { showDatesInChicago } from "../../test-time-zone";
 import { RecordSourceNames, type MedicationsByReference } from "../../types";
@@ -24,6 +25,12 @@ import { summarizeMedicationRequest } from "./medication-summary";
 const oakSourceNames = new RecordSourceNames([
   [oakDermatology.address, oakDermatology.name],
 ]);
+
+const listDosagesOutOfSequence = (): Dosage[] => [
+  { text: "Use as needed after that." },
+  { sequence: 2, text: "Then once daily for 7 days." },
+  { sequence: 1, text: "Twice daily for 7 days." },
+];
 
 const summarize = (
   overrides: Partial<MedicationRequest>,
@@ -404,17 +411,35 @@ describe("summarizeMedicationRequest", () => {
 
   it("lists the dosages in the order their sequence gives, and those with no sequence last", () => {
     expect(
-      summarize({
-        dosageInstruction: [
-          { text: "Use as needed after that." },
-          { sequence: 2, text: "Then once daily for 7 days." },
-          { sequence: 1, text: "Twice daily for 7 days." },
-        ],
-      }).instructions,
+      summarize({ dosageInstruction: listDosagesOutOfSequence() }).instructions,
     ).toEqual([
       "Twice daily for 7 days.",
       "Then once daily for 7 days.",
       "Use as needed after that.",
+    ]);
+  });
+
+  it("lists the dosages in the order their sequence gives on a browser without the array methods Firefox 114 lacks", () => {
+    removeArrayMethodsFirefox114Lacks();
+
+    expect(
+      summarize({ dosageInstruction: listDosagesOutOfSequence() }).instructions,
+    ).toEqual([
+      "Twice daily for 7 days.",
+      "Then once daily for 7 days.",
+      "Use as needed after that.",
+    ]);
+  });
+
+  it("leaves the prescription's own dosages in the order the clinic sent them", () => {
+    const dosageInstruction = listDosagesOutOfSequence();
+
+    summarize({ dosageInstruction });
+
+    expect(dosageInstruction.map(({ text }) => text)).toEqual([
+      "Use as needed after that.",
+      "Then once daily for 7 days.",
+      "Twice daily for 7 days.",
     ]);
   });
 
