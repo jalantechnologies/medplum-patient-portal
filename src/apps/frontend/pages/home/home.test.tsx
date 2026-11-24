@@ -10,6 +10,7 @@ import type {
   Bundle,
   CarePlan,
   Condition,
+  HumanName,
   List,
   MedicationRequest,
 } from "@medplum/fhirtypes";
@@ -23,6 +24,7 @@ import {
   APPOINTMENT_STATUS,
   CARE_PLAN_INTENT,
   CARE_PLAN_STATUS,
+  HUMAN_NAME_USE,
   LIST_MODE,
   LIST_STATUS,
   MEDICATION_REQUEST_INTENT,
@@ -145,6 +147,64 @@ describe("Home", () => {
       "Hello, Homer",
     );
     expect(await screen.findByTestId("active-care-plans")).toBeInTheDocument();
+  });
+
+  it.each<[string, HumanName[] | undefined, string, string]>([
+    [
+      "the official name when a maiden name is listed first",
+      [
+        { use: HUMAN_NAME_USE.MAIDEN, given: ["Eleanor"], family: "Hart" },
+        { use: HUMAN_NAME_USE.OFFICIAL, given: ["Eleanor"], family: "Walsh" },
+      ],
+      "Hello, Eleanor",
+      "Your record · Eleanor Walsh",
+    ],
+    [
+      "the usual name when there is no official one",
+      [
+        { use: HUMAN_NAME_USE.OLD, given: ["Daniel"], family: "Synthetic" },
+        { use: HUMAN_NAME_USE.USUAL, given: ["Dana"], family: "Synthetic" },
+      ],
+      "Hello, Dana",
+      "Your record · Dana Synthetic",
+    ],
+    [
+      "the official name over a usual one listed before it",
+      [
+        { use: HUMAN_NAME_USE.USUAL, given: ["Ellie"], family: "Walsh" },
+        { use: HUMAN_NAME_USE.OFFICIAL, given: ["Eleanor"], family: "Walsh" },
+      ],
+      "Hello, Eleanor",
+      "Your record · Eleanor Walsh",
+    ],
+    [
+      "the first name not marked old or maiden when none is official or usual",
+      [
+        { use: HUMAN_NAME_USE.OLD, given: ["Daniel"], family: "Synthetic" },
+        { given: ["Dana"], family: "Synthetic" },
+      ],
+      "Hello, Dana",
+      "Your record · Dana Synthetic",
+    ],
+    [
+      "no name when every name is old or maiden",
+      [
+        { use: HUMAN_NAME_USE.MAIDEN, given: ["Eleanor"], family: "Hart" },
+        { use: HUMAN_NAME_USE.OLD, given: ["Ellie"], family: "Hart" },
+      ],
+      "Hello",
+      "Your record",
+    ],
+    ["no name when the record has none", undefined, "Hello", "Your record"],
+  ])("greets the patient by %s", (_, name, greeting, recordOwner) => {
+    renderHome(new MockClient({ profile: { ...HomerSimpson, name } }));
+
+    expect(screen.getByTestId("home-greeting")).toHaveTextContent(
+      new RegExp(`^${greeting}$`),
+    );
+    expect(screen.getByTestId("home-record-owner")).toHaveTextContent(
+      new RegExp(`^${recordOwner}$`),
+    );
   });
 
   it("shows loading in each fact until the record answers", async () => {

@@ -15,10 +15,15 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import constant from "../constants";
 import routes from "../constants/routes";
-import { CARE_PLAN_STATUS, RESOURCE_TYPE } from "../constants/fhir";
+import {
+  CARE_PLAN_STATUS,
+  HUMAN_NAME_USE,
+  RESOURCE_TYPE,
+} from "../constants/fhir";
 import { AuthenticationProvider } from "../providers";
 import {
   addListedOrganizations,
+  createAllergyIntolerance,
   createCarePlan,
   createMedicationRequest,
   createRecordSources,
@@ -313,6 +318,73 @@ describe("ApplicationRoutes", () => {
 
     expect(await screen.findByTestId("home-greeting")).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/");
+  });
+
+  it("names the patient by their current name in every place the portal names them, never by a maiden name listed first", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({
+      profile: {
+        ...HomerSimpson,
+        name: [
+          { use: HUMAN_NAME_USE.MAIDEN, given: ["Eleanor"], family: "Hart" },
+          {
+            use: HUMAN_NAME_USE.OFFICIAL,
+            given: ["Eleanor"],
+            family: "Walsh",
+          },
+        ],
+      },
+    });
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2024-03-12",
+    );
+    const router = renderRoutes(medplum);
+
+    expect(await screen.findByTestId("home-greeting")).toHaveTextContent(
+      /^Hello, Eleanor$/,
+    );
+    expect(screen.getByTestId("home-record-owner")).toHaveTextContent(
+      /^Your record · Eleanor Walsh$/,
+    );
+    expect(screen.getByTestId("account-name")).toHaveTextContent(
+      /^Eleanor Walsh$/,
+    );
+    expect(document.body).not.toHaveTextContent("Hart");
+
+    const pages = [
+      [routes.HEALTH_PROFILE, "health-profile-record-owner"],
+      [routes.MEDICATIONS, "medications-record-owner"],
+      [routes.TEST_RESULTS, "test-results-record-owner"],
+      [routes.HEALTH_RECORDS, "health-records-record-owner"],
+    ] as const;
+    for (const [path, recordOwnerTestIdentifier] of pages) {
+      await act(() => router.navigate(path));
+
+      expect(
+        await screen.findByTestId(recordOwnerTestIdentifier),
+      ).toHaveTextContent(/^Your record · Eleanor Walsh$/);
+      expect(screen.getByTestId("account-name")).toHaveTextContent(
+        /^Eleanor Walsh$/,
+      );
+      expect(document.body).not.toHaveTextContent("Hart");
+    }
+
+    await act(() => router.navigate(routes.HEALTH_PROFILE));
+    expect(await screen.findByTestId("about-you")).toHaveTextContent(
+      "PatientEleanor Walsh",
+    );
+
+    await act(() => router.navigate(`${routes.HEALTH_RECORDS}?tab=allergies`));
+    await user.click(
+      await screen.findByRole("button", { name: "View record: Penicillin" }),
+    );
+    const recordDetails = within(
+      await screen.findByTestId("health-record-dialog"),
+    ).getByTestId("health-record-details");
+    expect(recordDetails).toHaveTextContent("PatientEleanor Walsh");
+    expect(recordDetails).not.toHaveTextContent("Hart");
   });
 
   it("takes a patient from the sign-in page to Home without adding a history entry", async () => {
