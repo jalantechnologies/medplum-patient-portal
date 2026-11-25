@@ -42,6 +42,7 @@ import {
 } from "../../utilities";
 
 const FLAG_SEPARATOR = ", ";
+const CONCLUSION_SEPARATOR = ", ";
 const RATIO_SEPARATOR = ":";
 const RANGE_SEPARATOR = " - ";
 const QUALIFIER_SEPARATOR = ", ";
@@ -331,13 +332,23 @@ const describeEffectiveDate = (
   return date && label ? `${label} ${date}` : date;
 };
 
+const describeConclusion = ({
+  conclusion,
+  conclusionCode,
+}: DiagnosticReport): string =>
+  conclusion ??
+  (conclusionCode ?? [])
+    .map(nameCodeableConcept)
+    .filter(Boolean)
+    .join(CONCLUSION_SEPARATOR);
+
 export const summarizeDiagnosticReport =
   (kind: DiagnosticReportKind, recordSourceNames: RecordSourceNames) =>
   (
     report: WithId<DiagnosticReport>,
     { results }: DiagnosticReportPage,
   ): TestReportSummary => ({
-    conclusion: report.conclusion ?? "",
+    conclusion: describeConclusion(report),
     date: describeEffectiveDate(report, kind),
     hasDocument: Boolean(report.presentedForm?.length),
     identifier: report.id,
