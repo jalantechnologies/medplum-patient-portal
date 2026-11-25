@@ -13,6 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { createMemoryRouter, type InitialEntry } from "react-router";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
+import { ApplicationErrorBoundary } from "../components";
 import constant from "../constants";
 import routes from "../constants/routes";
 import {
@@ -34,6 +35,7 @@ import {
   oakDermatology,
 } from "../test-medplum";
 import { TestProviders } from "../test-providers";
+import { silenceExpectedRenderError } from "../test-render-error";
 import { ApplicationRoutes } from "./index";
 import { routeObjects } from "./route-objects";
 
@@ -41,9 +43,11 @@ const renderRoutes = (medplum: MockClient, path: InitialEntry = "/") => {
   const router = createMemoryRouter(routeObjects, { initialEntries: [path] });
   render(
     <TestProviders medplum={medplum}>
-      <AuthenticationProvider>
-        <ApplicationRoutes router={router} />
-      </AuthenticationProvider>
+      <ApplicationErrorBoundary>
+        <AuthenticationProvider>
+          <ApplicationRoutes router={router} />
+        </AuthenticationProvider>
+      </ApplicationErrorBoundary>
     </TestProviders>,
   );
   return router;
@@ -168,27 +172,56 @@ const createPatientWithUnreadableName = () => {
   return { patient, reading };
 };
 
-const silenceExpectedRenderError = (expectedFailure: string) => {
-  const writeError = console.error.bind(console);
-  const isExpectedError = (value: unknown) =>
-    value instanceof Error && value.message.includes(expectedFailure);
-  const isReactBoundaryReport = (value: unknown) =>
-    String(value).startsWith("The above error occurred in the");
-  const keepFromReport = (event: ErrorEvent) => {
-    if (isExpectedError(event.error)) {
-      event.preventDefault();
-    }
-  };
-  vi.spyOn(console, "error").mockImplementation((...messages: unknown[]) => {
-    if (
-      !messages.some(isExpectedError) &&
-      !isReactBoundaryReport(messages[0])
-    ) {
-      writeError(...messages);
+const STORAGE_FAILURE = "Synthetic storage failure";
+
+const UNREADABLE_PROFILE_FAILURE = "Synthetic profile failure";
+
+const createClientWhoseStorageCannotStart = () =>
+  new MockClient({
+    profile: HomerSimpson,
+    storage: Object.assign(new ClientStorage(new MemoryStorage()), {
+      getInitPromise: () => Promise.reject(new Error(STORAGE_FAILURE)),
+    }),
+  });
+
+const createClientWhoseProfileCannotBeRead = () => {
+  const medplum = new MockClient({ profile: HomerSimpson });
+  vi.spyOn(medplum, "getProfile").mockReturnValue(
+    Object.defineProperty({ ...HomerSimpson }, "resourceType", {
+      get: () => {
+        throw new Error(UNREADABLE_PROFILE_FAILURE);
+      },
+    }),
+  );
+  return medplum;
+};
+
+const FAILURES_ABOVE_THE_PAGES = [
+  [
+    "the session cannot be restored",
+    STORAGE_FAILURE,
+    createClientWhoseStorageCannotStart,
+  ],
+  [
+    "the portal fails above its pages",
+    UNREADABLE_PROFILE_FAILURE,
+    createClientWhoseProfileCannotBeRead,
+  ],
+] as const;
+
+const watchPageReload = () => {
+  const location = Object.getOwnPropertyDescriptor(window, "location");
+  const reload = vi.fn();
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: { ...window.location, reload },
+  });
+  onTestFinished(() => {
+    if (location) {
+      Object.defineProperty(window, "location", location);
     }
   });
-  window.addEventListener("error", keepFromReport);
-  onTestFinished(() => window.removeEventListener("error", keepFromReport));
+  return reload;
 };
 
 const listPrescriptionTitles = async () =>
@@ -1147,6 +1180,12 @@ describe("ApplicationRoutes", () => {
       within(applicationError).getByRole("heading", { level: 1 }),
     ).toHaveTextContent("Something went wrong");
     expect(within(applicationError).getByRole("alert")).toBeInTheDocument();
+    expect(
+      within(applicationError).getByTestId("application-error-sign-out"),
+    ).toBeInTheDocument();
+    expect(
+      within(applicationError).getByTestId("page-error-retry"),
+    ).toHaveFocus();
     expect(screen.queryByTestId("sidebar")).not.toBeInTheDocument();
   });
 
@@ -1185,4 +1224,61 @@ describe("ApplicationRoutes", () => {
     expect(router.state.location.pathname).toBe(routes.SIGN_IN);
     expect(screen.queryByTestId("application-error")).not.toBeInTheDocument();
   });
+
+  it.each(FAILURES_ABOVE_THE_PAGES)(
+    "shows the error on a screen of its own when %s",
+    async (_, failure, createClient) => {
+      silenceExpectedRenderError(failure);
+
+      renderRoutes(createClient());
+
+      const applicationError = await screen.findByTestId("application-error");
+      expect(screen.getByRole("main")).toBe(applicationError);
+      expect(
+        within(applicationError).getByRole("heading", { level: 1 }),
+      ).toHaveTextContent("Something went wrong");
+      expect(within(applicationError).getByRole("alert")).toHaveTextContent(
+        "We're sorry, but an unexpected error has occurred.",
+      );
+      expect(
+        within(applicationError).getByTestId("page-error-retry"),
+      ).toHaveFocus();
+      expect(screen.queryByTestId("session-loading")).not.toBeInTheDocument();
+    },
+  );
+
+  it.each(FAILURES_ABOVE_THE_PAGES)(
+    "loads the portal again when the patient tries again after %s",
+    async (_, failure, createClient) => {
+      silenceExpectedRenderError(failure);
+      const user = userEvent.setup();
+      const reload = watchPageReload();
+      renderRoutes(createClient());
+      const applicationError = await screen.findByTestId("application-error");
+
+      await user.click(
+        within(applicationError).getByTestId("page-error-retry"),
+      );
+
+      expect(reload).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(FAILURES_ABOVE_THE_PAGES)(
+    "lets the patient try again straight away with Enter when %s",
+    async (_, failure, createClient) => {
+      silenceExpectedRenderError(failure);
+      const user = userEvent.setup();
+      const reload = watchPageReload();
+      renderRoutes(createClient());
+      const applicationError = await screen.findByTestId("application-error");
+      expect(
+        within(applicationError).getByTestId("page-error-retry"),
+      ).toHaveFocus();
+
+      await user.keyboard("{Enter}");
+
+      expect(reload).toHaveBeenCalledOnce();
+    },
+  );
 });
