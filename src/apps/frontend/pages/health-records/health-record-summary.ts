@@ -12,8 +12,10 @@ import type {
 } from "@medplum/fhirtypes";
 
 import {
+  ALLERGY_INTOLERANCE_CLINICAL_STATUS,
   ALLERGY_INTOLERANCE_VERIFICATION_STATUS,
   CODE_SYSTEM,
+  CONDITION_CLINICAL_STATUS,
   CONDITION_VERIFICATION_STATUS,
 } from "../../constants/fhir";
 import type { RecordSourceNames } from "../../types";
@@ -47,12 +49,36 @@ export interface HealthRecordSummary {
 interface ClinicalRecordStatus {
   clinicalStatus: CodeableConcept | undefined;
   clinicalSystem: string;
+  endedClinicalCodes: string[];
   refutedCode: string;
+  unconfirmedVerificationCodes: string[];
   verificationStatus: CodeableConcept | undefined;
   verificationSystem: string;
 }
 
 const RULED_OUT_STATUS = "Ruled out";
+const UNCONFIRMED_STATUS = "Unconfirmed";
+
+const ENDED_CONDITION_CODES: string[] = [
+  CONDITION_CLINICAL_STATUS.INACTIVE,
+  CONDITION_CLINICAL_STATUS.REMISSION,
+  CONDITION_CLINICAL_STATUS.RESOLVED,
+];
+
+const UNCONFIRMED_CONDITION_CODES: string[] = [
+  CONDITION_VERIFICATION_STATUS.DIFFERENTIAL,
+  CONDITION_VERIFICATION_STATUS.PROVISIONAL,
+  CONDITION_VERIFICATION_STATUS.UNCONFIRMED,
+];
+
+const ENDED_ALLERGY_INTOLERANCE_CODES: string[] = [
+  ALLERGY_INTOLERANCE_CLINICAL_STATUS.INACTIVE,
+  ALLERGY_INTOLERANCE_CLINICAL_STATUS.RESOLVED,
+];
+
+const UNCONFIRMED_ALLERGY_INTOLERANCE_CODES: string[] = [
+  ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED,
+];
 
 const summarizeNote = ({
   authorReference,
@@ -73,14 +99,29 @@ const humanizeStatus = (
 const describeClinicalRecordStatus = ({
   clinicalStatus,
   clinicalSystem,
+  endedClinicalCodes,
   refutedCode,
+  unconfirmedVerificationCodes,
   verificationStatus,
   verificationSystem,
-}: ClinicalRecordStatus): string =>
-  verificationStatus &&
-  getCodeBySystem(verificationStatus, verificationSystem) === refutedCode
-    ? RULED_OUT_STATUS
-    : humanizeStatus(clinicalStatus, clinicalSystem);
+}: ClinicalRecordStatus): string => {
+  const verificationCode =
+    verificationStatus &&
+    getCodeBySystem(verificationStatus, verificationSystem);
+  const clinicalCode =
+    clinicalStatus && getCodeBySystem(clinicalStatus, clinicalSystem);
+  if (verificationCode === refutedCode) {
+    return RULED_OUT_STATUS;
+  }
+  const isUnconfirmed =
+    verificationCode !== undefined &&
+    unconfirmedVerificationCodes.includes(verificationCode);
+  const hasEnded =
+    clinicalCode !== undefined && endedClinicalCodes.includes(clinicalCode);
+  return isUnconfirmed && !hasEnded
+    ? UNCONFIRMED_STATUS
+    : humanizeCode(clinicalCode);
+};
 
 export const summarizeCondition = (
   condition: WithId<Condition>,
@@ -95,7 +136,9 @@ export const summarizeCondition = (
   status: describeClinicalRecordStatus({
     clinicalStatus: condition.clinicalStatus,
     clinicalSystem: CODE_SYSTEM.CONDITION_CLINICAL,
+    endedClinicalCodes: ENDED_CONDITION_CODES,
     refutedCode: CONDITION_VERIFICATION_STATUS.REFUTED,
+    unconfirmedVerificationCodes: UNCONFIRMED_CONDITION_CODES,
     verificationStatus: condition.verificationStatus,
     verificationSystem: CODE_SYSTEM.CONDITION_VERIFICATION,
   }),
@@ -120,7 +163,9 @@ export const summarizeAllergyIntolerance = (
   status: describeClinicalRecordStatus({
     clinicalStatus: allergyIntolerance.clinicalStatus,
     clinicalSystem: CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL,
+    endedClinicalCodes: ENDED_ALLERGY_INTOLERANCE_CODES,
     refutedCode: ALLERGY_INTOLERANCE_VERIFICATION_STATUS.REFUTED,
+    unconfirmedVerificationCodes: UNCONFIRMED_ALLERGY_INTOLERANCE_CODES,
     verificationStatus: allergyIntolerance.verificationStatus,
     verificationSystem: CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
   }),
