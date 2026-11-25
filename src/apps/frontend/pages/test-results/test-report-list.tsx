@@ -28,6 +28,8 @@ const REFERENCE_RANGE_NOTICE =
 const DOCUMENT_NOTICE =
   "The full report is a document, which is not shown here.";
 
+const CONCLUSION_LABEL = "Conclusion:";
+
 interface TestReportListProperties {
   tab: RecordListTab<TestReportSummary>;
 }
@@ -170,6 +172,7 @@ const TestReportNotes: FC<TestReportCardProperties> = ({
         marginBottom="0"
         data-testid={`${testIdentifier}-conclusion`}
       >
+        <LabelMedium as="span">{CONCLUSION_LABEL}</LabelMedium>{" "}
         {report.conclusion}
       </ParagraphMedium>
     ) : null}

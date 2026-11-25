@@ -765,13 +765,41 @@ describe("Test results", () => {
     );
     expect(
       within(report).getByTestId(`${IMAGING}-record-conclusion`),
-    ).toHaveTextContent("No acute cardiopulmonary abnormality.");
+    ).toHaveTextContent(/^Conclusion: No acute cardiopulmonary abnormality\.$/);
     expect(
       within(report).queryByTestId(`${IMAGING}-record-results`),
     ).not.toBeInTheDocument();
     expect(
       within(report).queryByTestId(`${IMAGING}-record-notice`),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows in words the conclusions of a report that sends them only as codes", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createDiagnosticReport(
+      medplum,
+      "XR Chest 2 Views",
+      "2026-10-17",
+      [],
+      {
+        category: [radiology],
+        conclusionCode: [
+          { coding: [{ code: "17621005", display: "Normal" }] },
+          { text: "No change since the last study" },
+        ],
+      },
+    );
+
+    renderTestResults(medplum);
+    const panel = await openTab(user, IMAGING);
+
+    const report = (
+      await within(panel).findAllByTestId(`${IMAGING}-record`)
+    )[0];
+    expect(
+      within(report).getByTestId(`${IMAGING}-record-conclusion`),
+    ).toHaveTextContent(/^Conclusion: Normal, No change since the last study$/);
   });
 
   it("says when a report comes as a document, which the portal does not show", async () => {

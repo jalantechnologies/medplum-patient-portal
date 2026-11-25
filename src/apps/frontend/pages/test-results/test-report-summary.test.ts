@@ -151,6 +151,74 @@ describe("summarizeDiagnosticReport", () => {
     );
   });
 
+  it.each<[string, Partial<DiagnosticReport>, string]>([
+    [
+      "the coded conclusion in words when the report has no text conclusion",
+      {
+        conclusionCode: [{ coding: [{ code: "17621005", display: "Normal" }] }],
+      },
+      "Normal",
+    ],
+    [
+      "a coded conclusion's own text before the name of its coding",
+      {
+        conclusionCode: [
+          {
+            text: "No evidence of malignancy",
+            coding: [{ code: "373572006", display: "Clinical finding absent" }],
+          },
+        ],
+      },
+      "No evidence of malignancy",
+    ],
+    [
+      "the first coding that has a name, for a coded conclusion that carries several codings",
+      {
+        conclusionCode: [
+          {
+            coding: [
+              { code: "N" },
+              { code: "17621005", display: "Normal" },
+              { code: "WNL", display: "Within normal limits" },
+            ],
+          },
+        ],
+      },
+      "Normal",
+    ],
+    [
+      "each of several coded conclusions, in the report's order",
+      {
+        conclusionCode: [
+          { coding: [{ code: "17621005", display: "Normal" }] },
+          { text: "No change since the last study" },
+        ],
+      },
+      "Normal, No change since the last study",
+    ],
+    [
+      "only the coded conclusions that have a name",
+      {
+        conclusionCode: [
+          { coding: [{ code: "17621005" }] },
+          { coding: [{ code: "263654008", display: "Abnormal" }] },
+        ],
+      },
+      "Abnormal",
+    ],
+    [
+      "the text conclusion alone when the report has both",
+      {
+        conclusion: "Mild degenerative change of the lumbar spine.",
+        conclusionCode: [{ coding: [{ code: "17621005", display: "Normal" }] }],
+      },
+      "Mild degenerative change of the lumbar spine.",
+    ],
+    ["no conclusion when the report has none", {}, ""],
+  ])("shows %s", (_, overrides, conclusion) => {
+    expect(summarize(overrides).conclusion).toBe(conclusion);
+  });
+
   it("lists the report's results in its own order, and only those that came with it", () => {
     const glucose = buildResult("glucose");
     const sodium = buildResult("sodium");
