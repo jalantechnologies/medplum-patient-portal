@@ -823,6 +823,12 @@ describe("Health records", () => {
       medplum,
       { text: "Penicillin" },
       "2024-03-12",
+      {
+        verificationStatus: codeFrom(
+          CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
+          ALLERGY_INTOLERANCE_VERIFICATION_STATUS.CONFIRMED,
+        ),
+      },
     );
     await createAllergyIntolerance(medplum, { text: "Latex" }, "2022-05-02", {
       clinicalStatus: codeFrom(
@@ -892,7 +898,7 @@ describe("Health records", () => {
     const rows = await within(panel).findAllByTestId("allergies-record");
     expect(rows.map((row) => row.textContent)).toEqual([
       "AmoxicillinMarch 13, 2024Dr. Mira SyntheticRuled outView record",
-      "PenicillinMarch 12, 2024Dr. Mira SyntheticActiveView record",
+      "PenicillinMarch 12, 2024Dr. Mira SyntheticUnconfirmedView record",
     ]);
 
     await user.click(within(rows[0]).getByTestId("allergies-record-view"));
@@ -905,6 +911,92 @@ describe("Health records", () => {
       "PatientHomer SimpsonDateMarch 13, 2024VerificationRefutedReceivedOctober 28, 2026 · 4:10 PM Central TimeAuthorDr. Mira Synthetic",
     );
   });
+
+  it("tags an active allergy the clinic has not confirmed as unconfirmed, in the list and in its record", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createAllergyIntolerance(
+      medplum,
+      { text: "Penicillin" },
+      "2024-03-12",
+    );
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "allergies");
+
+    const [row] = await within(panel).findAllByTestId("allergies-record");
+    expect(row).toHaveTextContent(
+      /^PenicillinMarch 12, 2024Dr\. Mira SyntheticUnconfirmedView record$/,
+    );
+    await user.click(within(row).getByTestId("allergies-record-view"));
+    const dialog = await screen.findByTestId("health-record-dialog");
+    expect(dialog).toHaveTextContent("PenicillinUnconfirmed");
+    expect(dialog).not.toHaveTextContent("PenicillinActive");
+    expect(
+      within(dialog).getByTestId("health-record-details"),
+    ).toHaveTextContent(
+      "PatientHomer SimpsonDateMarch 12, 2024VerificationUnconfirmedReceivedOctober 28, 2026 · 4:10 PM Central TimeAuthorDr. Mira Synthetic",
+    );
+  });
+
+  it("keeps the clinical status in the tag of an unconfirmed allergy that has ended, with Unconfirmed on its Verification line", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createAllergyIntolerance(medplum, { text: "Latex" }, "2022-05-02", {
+      clinicalStatus: codeFrom(
+        CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL,
+        ALLERGY_INTOLERANCE_CLINICAL_STATUS.RESOLVED,
+      ),
+    });
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "allergies");
+
+    const [row] = await within(panel).findAllByTestId("allergies-record");
+    expect(row).toHaveTextContent(
+      /^LatexMay 2, 2022Dr\. Mira SyntheticResolvedView record$/,
+    );
+    await user.click(within(row).getByTestId("allergies-record-view"));
+    const dialog = await screen.findByTestId("health-record-dialog");
+    expect(dialog).toHaveTextContent("LatexResolved");
+    expect(
+      within(dialog).getByTestId("health-record-details"),
+    ).toHaveTextContent(
+      "PatientHomer SimpsonDateMay 2, 2022VerificationUnconfirmedReceivedOctober 28, 2026 · 4:10 PM Central TimeAuthorDr. Mira Synthetic",
+    );
+  });
+
+  it.each([
+    CONDITION_VERIFICATION_STATUS.UNCONFIRMED,
+    CONDITION_VERIFICATION_STATUS.PROVISIONAL,
+    CONDITION_VERIFICATION_STATUS.DIFFERENTIAL,
+  ])(
+    "tags an active condition whose verification is %s as unconfirmed in the list",
+    async (verificationCode) => {
+      const medplum = new MockClient({ profile: HomerSimpson });
+      await createCondition(medplum, "Asthma", "2026-10-19", {
+        verificationStatus: codeFrom(
+          CODE_SYSTEM.CONDITION_VERIFICATION,
+          verificationCode,
+        ),
+      });
+
+      renderHealthRecords(medplum);
+
+      const [row] = within(
+        await screen.findByTestId("conditions-list"),
+      ).getAllByTestId("conditions-record");
+      expect(row).toHaveTextContent(
+        /^AsthmaOctober 19, 2026Dr\. Mira SyntheticUnconfirmedView record$/,
+      );
+    },
+  );
 
   it("shows the note the clinic wrote on an allergy in its record, under its status", async () => {
     const note =

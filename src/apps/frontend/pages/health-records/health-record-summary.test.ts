@@ -213,14 +213,87 @@ describe("summarizeAllergyIntolerance", () => {
 
   it.each([
     [
-      "unconfirmed",
+      "an active one",
+      allergyClinical(ALLERGY_INTOLERANCE_CLINICAL_STATUS.ACTIVE),
       allergyVerification(ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED),
     ],
+    [
+      "one with no clinical status",
+      undefined,
+      allergyVerification(ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED),
+    ],
+    [
+      "one whose verification is also coded in another system first",
+      allergyClinical(ALLERGY_INTOLERANCE_CLINICAL_STATUS.ACTIVE),
+      codedAlsoElsewhere(
+        CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
+        ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED,
+      ),
+    ],
+  ])(
+    "words an unconfirmed allergy as unconfirmed, %s",
+    (_, clinicalStatus, verificationStatus) => {
+      const summary = summarizeAllergyStatus(
+        clinicalStatus,
+        verificationStatus,
+      );
+
+      expect(summary.status).toBe("Unconfirmed");
+      expect(summary.verification).toBe("Unconfirmed");
+    },
+  );
+
+  it.each([
+    [
+      "inactive",
+      allergyClinical(ALLERGY_INTOLERANCE_CLINICAL_STATUS.INACTIVE),
+      "Inactive",
+    ],
+    [
+      "resolved",
+      allergyClinical(ALLERGY_INTOLERANCE_CLINICAL_STATUS.RESOLVED),
+      "Resolved",
+    ],
+    [
+      "resolved, also coded in another system first,",
+      codedAlsoElsewhere(
+        CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL,
+        ALLERGY_INTOLERANCE_CLINICAL_STATUS.RESOLVED,
+      ),
+      "Resolved",
+    ],
+  ])(
+    "words an unconfirmed allergy whose clinical status is %s by that status, with its verification unconfirmed",
+    (_, clinicalStatus, status) => {
+      const summary = summarizeAllergyStatus(
+        clinicalStatus,
+        allergyVerification(
+          ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED,
+        ),
+      );
+
+      expect(summary.status).toBe(status);
+      expect(summary.verification).toBe("Unconfirmed");
+    },
+  );
+
+  it.each([
     [
       "confirmed",
       allergyVerification(ALLERGY_INTOLERANCE_VERIFICATION_STATUS.CONFIRMED),
     ],
     ["not given", undefined],
+    [
+      "unconfirmed, but coded only in the clinic's own system",
+      {
+        coding: [
+          {
+            system: clinicVerification.system,
+            code: ALLERGY_INTOLERANCE_VERIFICATION_STATUS.UNCONFIRMED,
+          },
+        ],
+      },
+    ],
   ])(
     "words an allergy by its clinical status when its verification is %s",
     (_, verificationStatus) => {
@@ -343,14 +416,139 @@ describe("summarizeCondition", () => {
 
   it.each([
     [
-      "provisional",
-      conditionVerification(CONDITION_VERIFICATION_STATUS.PROVISIONAL),
+      "an active one",
+      conditionClinical(CONDITION_CLINICAL_STATUS.ACTIVE),
+      conditionVerification(CONDITION_VERIFICATION_STATUS.UNCONFIRMED),
+      "Unconfirmed",
     ],
+    [
+      "a recurrence",
+      conditionClinical(CONDITION_CLINICAL_STATUS.RECURRENCE),
+      conditionVerification(CONDITION_VERIFICATION_STATUS.UNCONFIRMED),
+      "Unconfirmed",
+    ],
+    [
+      "a relapse",
+      conditionClinical(CONDITION_CLINICAL_STATUS.RELAPSE),
+      conditionVerification(CONDITION_VERIFICATION_STATUS.UNCONFIRMED),
+      "Unconfirmed",
+    ],
+    [
+      "one with no clinical status",
+      undefined,
+      conditionVerification(CONDITION_VERIFICATION_STATUS.UNCONFIRMED),
+      "Unconfirmed",
+    ],
+    [
+      "one whose verification is also coded in another system first",
+      conditionClinical(CONDITION_CLINICAL_STATUS.ACTIVE),
+      codedAlsoElsewhere(
+        CODE_SYSTEM.CONDITION_VERIFICATION,
+        CONDITION_VERIFICATION_STATUS.UNCONFIRMED,
+      ),
+      "Unconfirmed",
+    ],
+    [
+      "a provisional one",
+      conditionClinical(CONDITION_CLINICAL_STATUS.ACTIVE),
+      conditionVerification(CONDITION_VERIFICATION_STATUS.PROVISIONAL),
+      "Provisional",
+    ],
+    [
+      "a differential one",
+      conditionClinical(CONDITION_CLINICAL_STATUS.ACTIVE),
+      conditionVerification(CONDITION_VERIFICATION_STATUS.DIFFERENTIAL),
+      "Differential",
+    ],
+  ])(
+    "words a condition that is unconfirmed, provisional or differential as unconfirmed, %s",
+    (_, clinicalStatus, verificationStatus, verification) => {
+      const summary = summarizeConditionStatus(
+        clinicalStatus,
+        verificationStatus,
+      );
+
+      expect(summary.status).toBe("Unconfirmed");
+      expect(summary.verification).toBe(verification);
+    },
+  );
+
+  it.each([
+    [
+      "inactive",
+      CONDITION_VERIFICATION_STATUS.UNCONFIRMED,
+      conditionClinical(CONDITION_CLINICAL_STATUS.INACTIVE),
+      "Inactive",
+      "Unconfirmed",
+    ],
+    [
+      "resolved",
+      CONDITION_VERIFICATION_STATUS.UNCONFIRMED,
+      conditionClinical(CONDITION_CLINICAL_STATUS.RESOLVED),
+      "Resolved",
+      "Unconfirmed",
+    ],
+    [
+      "remission",
+      CONDITION_VERIFICATION_STATUS.UNCONFIRMED,
+      conditionClinical(CONDITION_CLINICAL_STATUS.REMISSION),
+      "Remission",
+      "Unconfirmed",
+    ],
+    [
+      "remission, also coded in another system first,",
+      CONDITION_VERIFICATION_STATUS.UNCONFIRMED,
+      codedAlsoElsewhere(
+        CODE_SYSTEM.CONDITION_CLINICAL,
+        CONDITION_CLINICAL_STATUS.REMISSION,
+      ),
+      "Remission",
+      "Unconfirmed",
+    ],
+    [
+      "resolved",
+      CONDITION_VERIFICATION_STATUS.PROVISIONAL,
+      conditionClinical(CONDITION_CLINICAL_STATUS.RESOLVED),
+      "Resolved",
+      "Provisional",
+    ],
+    [
+      "remission",
+      CONDITION_VERIFICATION_STATUS.DIFFERENTIAL,
+      conditionClinical(CONDITION_CLINICAL_STATUS.REMISSION),
+      "Remission",
+      "Differential",
+    ],
+  ])(
+    "words a condition whose clinical status is %s and whose verification is %s by that clinical status, with its verification kept",
+    (_, verificationCode, clinicalStatus, status, verification) => {
+      const summary = summarizeConditionStatus(
+        clinicalStatus,
+        conditionVerification(verificationCode),
+      );
+
+      expect(summary.status).toBe(status);
+      expect(summary.verification).toBe(verification);
+    },
+  );
+
+  it.each([
     [
       "confirmed",
       conditionVerification(CONDITION_VERIFICATION_STATUS.CONFIRMED),
     ],
     ["not given", undefined],
+    [
+      "unconfirmed, but coded only in the clinic's own system",
+      {
+        coding: [
+          {
+            system: clinicVerification.system,
+            code: CONDITION_VERIFICATION_STATUS.UNCONFIRMED,
+          },
+        ],
+      },
+    ],
   ])(
     "words a condition by its clinical status when its verification is %s",
     (_, verificationStatus) => {
