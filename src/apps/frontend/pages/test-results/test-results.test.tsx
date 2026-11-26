@@ -145,6 +145,15 @@ const listResultCells = (report: HTMLElement, tabKey: string) =>
         .map((cell) => cell.textContent),
     );
 
+const listResultNames = (report: HTMLElement, tabKey: string) =>
+  within(report)
+    .getAllByTestId(`${tabKey}-record-result`)
+    .map(
+      (row) =>
+        within(row).getAllByTestId(`${tabKey}-record-result-cell`)[0]
+          .firstElementChild,
+    );
+
 const parseSearchRequests = (
   medplum: MockClient,
   search: MockInstance<MockClient["search"]>,
@@ -668,15 +677,34 @@ describe("Test results", () => {
         .getAllByTestId(`${LABORATORY_RESULTS}-record-result-status`)
         .map((status) => status.textContent),
     ).toEqual(["Preliminary"]);
-    const [panelName, memberName] = within(list)
-      .getAllByTestId(`${LABORATORY_RESULTS}-record-result`)
-      .slice(0, 2)
-      .map(
-        (row) =>
-          within(row).getAllByTestId(
-            `${LABORATORY_RESULTS}-record-result-cell`,
-          )[0].firstElementChild,
-      );
+    const [panelName, memberName] = listResultNames(list, LABORATORY_RESULTS);
+    expect(panelName).not.toHaveStyle({ paddingLeft: "16px" });
+    expect(memberName).toHaveStyle({ paddingLeft: "16px" });
+  });
+
+  it("shows a test once, under its panel, when the report lists both the panel and the test", async () => {
+    const medplum = await createMedplumWithoutSampleReport();
+    const hemoglobin = await createReportResult(medplum, "Hemoglobin", {
+      valueQuantity: { value: 14.2, unit: "g/dL" },
+    });
+    const bloodCount = await createReportResult(medplum, "Blood count", {
+      hasMember: [createReference(hemoglobin)],
+    });
+    await createDiagnosticReport(
+      medplum,
+      "Complete blood count",
+      "2026-10-18",
+      [bloodCount, hemoglobin],
+    );
+
+    renderTestResults(medplum);
+
+    const list = await screen.findByTestId(`${LABORATORY_RESULTS}-list`);
+    expect(listResultCells(list, LABORATORY_RESULTS)).toEqual([
+      ["Blood count", "", "", ""],
+      ["Hemoglobin", "14.2 g/dL", "", ""],
+    ]);
+    const [panelName, memberName] = listResultNames(list, LABORATORY_RESULTS);
     expect(panelName).not.toHaveStyle({ paddingLeft: "16px" });
     expect(memberName).toHaveStyle({ paddingLeft: "16px" });
   });

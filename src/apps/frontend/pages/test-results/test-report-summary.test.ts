@@ -371,6 +371,207 @@ describe("summarizeDiagnosticReport", () => {
     ]);
   });
 
+  it.each<[string, (panel: Observation, test: Observation) => Observation[]]>([
+    ["after the panel", (panel, test) => [panel, test]],
+    ["before the panel", (panel, test) => [test, panel]],
+  ])(
+    "lists a test the report also lists %s only once, under its panel",
+    (_, listInReportOrder) => {
+      const hemoglobin = buildResult("hemoglobin");
+      const whiteCells = buildResult("white-cells");
+      const bloodCount = buildResult("blood-count", {
+        hasMember: [createReference(hemoglobin), createReference(whiteCells)],
+      });
+
+      expect(
+        listTestsByDepth(
+          summarize(
+            {
+              result: listInReportOrder(bloodCount, hemoglobin).map((result) =>
+                createReference(result),
+              ),
+            },
+            [bloodCount, hemoglobin, whiteCells],
+          ),
+        ),
+      ).toEqual([
+        [0, "blood-count"],
+        [1, "hemoglobin"],
+        [1, "white-cells"],
+      ]);
+    },
+  );
+
+  it("lists a test once under its panel when the report lists both the test and a smaller panel it belongs to", () => {
+    const neutrophils = buildResult("neutrophils");
+    const differential = buildResult("differential", {
+      hasMember: [createReference(neutrophils)],
+    });
+    const bloodCount = buildResult("blood-count", {
+      hasMember: [createReference(differential)],
+    });
+
+    expect(
+      listTestsByDepth(
+        summarize(
+          {
+            result: [
+              createReference(neutrophils),
+              createReference(differential),
+              createReference(bloodCount),
+            ],
+          },
+          [bloodCount, differential, neutrophils],
+        ),
+      ),
+    ).toEqual([
+      [0, "blood-count"],
+      [1, "differential"],
+      [2, "neutrophils"],
+    ]);
+  });
+
+  it("lists a test once, two levels down, when the report lists its outer panel but not the panel between them", () => {
+    const neutrophils = buildResult("neutrophils");
+    const differential = buildResult("differential", {
+      hasMember: [createReference(neutrophils)],
+    });
+    const bloodCount = buildResult("blood-count", {
+      hasMember: [createReference(differential)],
+    });
+
+    expect(
+      listTestsByDepth(
+        summarize(
+          {
+            result: [createReference(neutrophils), createReference(bloodCount)],
+          },
+          [bloodCount, differential, neutrophils],
+        ),
+      ),
+    ).toEqual([
+      [0, "blood-count"],
+      [1, "differential"],
+      [2, "neutrophils"],
+    ]);
+  });
+
+  it("lists a test once under its panel when the panel names a version of it and the report names it plainly", () => {
+    const hemoglobin = buildResult("hemoglobin");
+    const bloodCount = buildResult("blood-count", {
+      hasMember: [
+        {
+          reference: `${getReferenceString(hemoglobin)}/${REFERENCE_HISTORY_SEGMENT}/1`,
+        },
+      ],
+    });
+
+    expect(
+      listTestsByDepth(
+        summarize(
+          {
+            result: [createReference(hemoglobin), createReference(bloodCount)],
+          },
+          [bloodCount, hemoglobin],
+        ),
+      ),
+    ).toEqual([
+      [0, "blood-count"],
+      [1, "hemoglobin"],
+    ]);
+  });
+
+  it("keeps a test the report lists on its own when its panel points to a questionnaire response that shares its identifier", () => {
+    const hemoglobin = buildResult("hemoglobin");
+    const bloodCount = buildResult("blood-count", {
+      hasMember: [
+        { reference: `${RESOURCE_TYPE.QUESTIONNAIRE_RESPONSE}/hemoglobin` },
+      ],
+    });
+
+    expect(
+      listTestsByDepth(
+        summarize(
+          {
+            result: [createReference(bloodCount), createReference(hemoglobin)],
+          },
+          [bloodCount, hemoglobin],
+        ),
+      ),
+    ).toEqual([
+      [0, "blood-count"],
+      [1, "Test"],
+      [0, "hemoglobin"],
+    ]);
+  });
+
+  it("lists a test kept inside the report once, under a panel also kept there", () => {
+    const sodium = buildResult("sodium");
+    const metabolicPanel = buildResult("metabolic-panel", {
+      hasMember: [containedReference(sodium)],
+    });
+
+    expect(
+      listTestsByDepth(
+        summarize({
+          contained: [metabolicPanel, sodium],
+          result: [
+            containedReference(sodium),
+            containedReference(metabolicPanel),
+          ],
+        }),
+      ),
+    ).toEqual([
+      [0, "metabolic-panel"],
+      [1, "sodium"],
+    ]);
+  });
+
+  it("keeps a test the report lists on its own when its panel was entered in error", () => {
+    const hemoglobin = buildResult("hemoglobin");
+    const mistakenPanel = buildResult("blood-count", {
+      status: OBSERVATION_STATUS.ENTERED_IN_ERROR,
+      hasMember: [createReference(hemoglobin)],
+    });
+
+    expect(
+      listTestsByDepth(
+        summarize(
+          {
+            result: [
+              createReference(mistakenPanel),
+              createReference(hemoglobin),
+            ],
+          },
+          [mistakenPanel, hemoglobin],
+        ),
+      ),
+    ).toEqual([[0, "hemoglobin"]]);
+  });
+
+  it("keeps both results the report lists when each names the other as one of its tests", () => {
+    const first = buildResult("first", {
+      hasMember: [{ reference: `${RESOURCE_TYPE.OBSERVATION}/second` }],
+    });
+    const second = buildResult("second", {
+      hasMember: [{ reference: `${RESOURCE_TYPE.OBSERVATION}/first` }],
+    });
+
+    expect(
+      listTestsByDepth(
+        summarize(
+          { result: [createReference(first), createReference(second)] },
+          [first, second],
+        ),
+      ),
+    ).toEqual([
+      [0, "first"],
+      [1, "second"],
+      [0, "second"],
+      [1, "first"],
+    ]);
+  });
+
   it("lists a panel that holds itself only once", () => {
     const panel = buildResult("panel", {
       hasMember: [
