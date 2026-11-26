@@ -321,6 +321,64 @@ const summarizeResults = (
     ];
   });
 
+const findReadableResult = (
+  reference: Reference,
+  source: ResultSource,
+): FoundResult | undefined =>
+  isReadableReference(reference) ? findResult(reference, source) : undefined;
+
+const collectMembers = (
+  { observation, source }: FoundResult,
+  members: Set<Observation> = new Set(),
+): Set<Observation> => {
+  for (const reference of observation.hasMember ?? []) {
+    const member = findReadableResult(reference, source);
+    if (member && !members.has(member.observation)) {
+      members.add(member.observation);
+      collectMembers(member, members);
+    }
+  }
+  return members;
+};
+
+const isUnderOtherPanel = (
+  observation: Observation,
+  membersByPanel: ReadonlyMap<Observation, Set<Observation>>,
+): boolean =>
+  [...membersByPanel].some(
+    ([panel, members]) =>
+      members.has(observation) && !membersByPanel.get(observation)?.has(panel),
+  );
+
+const listReportResults = (
+  references: Reference[] | undefined,
+  source: ResultSource,
+): Reference[] => {
+  const listedResults = (references ?? []).map((reference) => ({
+    found: findReadableResult(reference, source),
+    reference,
+  }));
+  const membersByPanel = new Map(
+    listedResults.flatMap(({ found }) =>
+      found ? [[found.observation, collectMembers(found)] as const] : [],
+    ),
+  );
+  return listedResults
+    .filter(
+      ({ found }) =>
+        !found || !isUnderOtherPanel(found.observation, membersByPanel),
+    )
+    .map(({ reference }) => reference);
+};
+
+const summarizeReportResults = (
+  report: DiagnosticReport,
+  results: ResultsByIdentifier,
+): TestResultSummary[] => {
+  const source = { holder: report, results };
+  return summarizeResults(listReportResults(report.result, source), source, []);
+};
+
 const describeEffectiveDate = (
   { effectiveDateTime, effectivePeriod }: DiagnosticReport,
   kind: DiagnosticReportKind,
@@ -354,7 +412,7 @@ export const summarizeDiagnosticReport =
     identifier: report.id,
     performer: report.performer?.find(({ display }) => display)?.display ?? "",
     received: formatRecordDate(report.meta?.lastUpdated),
-    results: summarizeResults(report.result, { holder: report, results }, []),
+    results: summarizeReportResults(report, results),
     source: recordSourceNames.findName(report.meta?.source),
     sourceUpdated: formatRecordDate(report.issued),
     status: humanizeCode(report.status),

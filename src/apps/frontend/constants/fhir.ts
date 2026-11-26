@@ -32,6 +32,7 @@ export const RESOURCE_TYPE = {
   PATIENT: "Patient",
   PROJECT: "Project",
   PROJECT_MEMBERSHIP: "ProjectMembership",
+  QUESTIONNAIRE_RESPONSE: "QuestionnaireResponse",
   USER: "User",
 } as const satisfies Record<string, ResourceType>;
 
