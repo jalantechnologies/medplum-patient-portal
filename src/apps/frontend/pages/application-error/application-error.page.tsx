@@ -1,7 +1,7 @@
-import { Block } from "baseui/block";
 import { Button, KIND, SIZE } from "baseui/button";
 import { useNavigate } from "react-router";
 
+import { ErrorScreen } from "../../components";
 import routes from "../../constants/routes";
 import { useAuthenticationContext } from "../../contexts";
 import PageError from "../page-error/page-error.page";
@@ -17,17 +17,8 @@ export default function ApplicationError() {
   };
 
   return (
-    <Block
-      as="main"
-      display="flex"
-      justifyContent="center"
-      alignItems="center"
-      minHeight="100vh"
-      paddingLeft="scale600"
-      paddingRight="scale600"
-      data-testid="application-error"
-    >
-      <PageError>
+    <ErrorScreen>
+      <PageError isRetryFocused>
         {isUserAuthenticated ? (
           <Button
             kind={KIND.tertiary}
@@ -40,6 +31,6 @@ export default function ApplicationError() {
           </Button>
         ) : null}
       </PageError>
-    </Block>
+    </ErrorScreen>
   );
 }

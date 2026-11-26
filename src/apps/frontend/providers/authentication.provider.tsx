@@ -7,10 +7,12 @@ import {
   type PropsWithChildren,
 } from "react";
 
+import constant from "../constants";
 import { RESOURCE_TYPE } from "../constants/fhir";
 import { AuthenticationContext } from "../contexts";
 import { useAsynchronous } from "../hooks";
 import { AuthenticationService } from "../services";
+import { AsynchronousOperationError, type Nullable } from "../types";
 
 export const AuthenticationProvider: FC<PropsWithChildren> = ({ children }) => {
   const { medplum, profile, loading } = useMedplumContext();
@@ -19,11 +21,22 @@ export const AuthenticationProvider: FC<PropsWithChildren> = ({ children }) => {
     [medplum],
   );
   const [isSessionRestoring, setIsSessionRestoring] = useState(loading);
+  const [sessionRestoreError, setSessionRestoreError] =
+    useState<Nullable<AsynchronousOperationError>>(null);
 
   useEffect(() => {
     const finishSessionRestore = async () => {
-      await authenticationService.restoreSession();
-      setIsSessionRestoring(false);
+      try {
+        await authenticationService.restoreSession();
+        setIsSessionRestoring(false);
+      } catch (error) {
+        setSessionRestoreError(
+          AsynchronousOperationError.fromUnknown(
+            error,
+            constant.DEFAULT_ERROR_MESSAGE,
+          ),
+        );
+      }
     };
     void finishSessionRestore();
   }, [authenticationService]);
@@ -62,6 +75,9 @@ export const AuthenticationProvider: FC<PropsWithChildren> = ({ children }) => {
     ],
   );
 
+  if (sessionRestoreError) {
+    throw sessionRestoreError;
+  }
   return (
     <AuthenticationContext.Provider value={value}>
       {children}
