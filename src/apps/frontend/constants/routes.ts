@@ -17,6 +17,7 @@ export const ROUTE_SEARCH_PARAMETER = {
 export const HEALTH_RECORDS_TAB = {
   CONDITIONS: { key: "conditions", title: "Conditions" },
   ALLERGIES: { key: "allergies", title: "Allergies" },
+  PROCEDURES: { key: "procedures", title: "Procedures" },
   MEASUREMENTS: { key: "measurements", title: "Measurements" },
 } as const;
 

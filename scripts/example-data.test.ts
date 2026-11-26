@@ -20,6 +20,7 @@ import type {
   OperationOutcome,
   Organization,
   Patient,
+  Procedure,
   Resource,
   SearchParameter,
 } from "@medplum/fhirtypes";
@@ -32,6 +33,7 @@ import {
   MEDICATION_REQUEST_INTENT,
   MEDICATION_REQUEST_STATUS,
   OBSERVATION_STATUS,
+  PROCEDURE_STATUS,
   RESOURCE_TYPE,
   SEARCH_PARAMETER,
 } from "../src/apps/frontend/constants/fhir.ts";
@@ -165,6 +167,31 @@ describe("example data", () => {
       "https://fhir.maple-dental.example",
       "https://fhir.pine-family-clinic.example",
     ]);
+  });
+
+  it("records the skin biopsy as the prototype shows it: from Oak Dermatology, on March 12, 2024, completed, and performed by Dr. Mira Chen for Oak Dermatology", () => {
+    const findByReference = (reference: string | undefined) =>
+      exampleBundle.entry?.find(({ fullUrl }) => fullUrl === reference)
+        ?.resource;
+    const skinBiopsy = resources.find((resource) =>
+      isResource<Procedure>(resource, RESOURCE_TYPE.PROCEDURE),
+    ) as Procedure;
+
+    expect(skinBiopsy.code?.text).toBe("Skin biopsy");
+    expect(skinBiopsy.meta?.source).toBe(
+      "https://fhir.oak-dermatology.example",
+    );
+    expect(skinBiopsy.performedDateTime).toBe("2024-03-12");
+    expect(skinBiopsy.status).toBe(PROCEDURE_STATUS.COMPLETED);
+    expect(skinBiopsy.performer).toHaveLength(1);
+    const [{ actor, onBehalfOf }] = skinBiopsy.performer ?? [];
+    expect(actor.display).toBe("Dr. Mira Chen");
+    expect(findByReference(actor.reference)).toMatchObject({
+      name: [{ prefix: ["Dr."], given: ["Mira"], family: "Chen" }],
+    });
+    expect(findByReference(onBehalfOf?.reference)).toMatchObject({
+      name: "Oak Dermatology",
+    });
   });
 
   it("gives every record the address of the source it came from and its identifier there", () => {

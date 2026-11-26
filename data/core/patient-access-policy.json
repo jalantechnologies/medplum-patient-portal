@@ -49,6 +49,11 @@
     {
       "resourceType": "Organization",
       "interaction": ["read"]
+    },
+    {
+      "resourceType": "Procedure",
+      "criteria": "Procedure?patient=%patient",
+      "interaction": ["search"]
     }
   ]
 }

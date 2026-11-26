@@ -23,6 +23,7 @@ import {
   DiagnosticReportProvider,
   MedicationRequestProvider,
   ObservationProvider,
+  ProcedureProvider,
   RecordSourceProvider,
 } from "../providers";
 import { ProtectedRoute } from "./guards/protected-route";
@@ -92,9 +93,11 @@ export const routeObjects = [
                     element: (
                       <ConditionProvider>
                         <AllergyIntoleranceProvider>
-                          <ObservationProvider>
-                            <HealthRecords />
-                          </ObservationProvider>
+                          <ProcedureProvider>
+                            <ObservationProvider>
+                              <HealthRecords />
+                            </ObservationProvider>
+                          </ProcedureProvider>
                         </AllergyIntoleranceProvider>
                       </ConditionProvider>
                     ),

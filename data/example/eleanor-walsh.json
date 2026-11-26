@@ -737,6 +737,10 @@
         "performer": [
           {
             "actor": {
+              "reference": "urn:uuid:1d89bf3c-dd6a-4845-a0e4-308b3df8a82e",
+              "display": "Dr. Mira Chen"
+            },
+            "onBehalfOf": {
               "reference": "urn:uuid:bc2dd428-5677-41fb-9cf5-fb3ac6b39ff4",
               "display": "Oak Dermatology"
             }

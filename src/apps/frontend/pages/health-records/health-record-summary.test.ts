@@ -1,5 +1,9 @@
 import { createReference } from "@medplum/core";
-import type { Annotation, CodeableConcept } from "@medplum/fhirtypes";
+import type {
+  Annotation,
+  CodeableConcept,
+  Procedure,
+} from "@medplum/fhirtypes";
 import { HomerSimpson } from "@medplum/mock";
 import { describe, expect, it } from "vitest";
 
@@ -10,6 +14,7 @@ import {
   CONDITION_CLINICAL_STATUS,
   CONDITION_VERIFICATION_STATUS,
   OBSERVATION_STATUS,
+  PROCEDURE_STATUS,
   RESOURCE_TYPE,
 } from "../../constants/fhir";
 import { codeFrom, oakDermatology, RECEIVED_AT } from "../../test-medplum";
@@ -18,6 +23,7 @@ import { RecordSourceNames } from "../../types";
 import {
   summarizeAllergyIntolerance,
   summarizeCondition,
+  summarizeProcedure,
   summarizeVitalSign,
 } from "./health-record-summary";
 
@@ -74,6 +80,19 @@ const summarizeConditionStatus = (
       code: { text: "Asthma" },
       clinicalStatus,
       verificationStatus,
+    },
+    noSourceNames,
+  );
+
+const summarizeSkinBiopsy = (overrides: Partial<Procedure>) =>
+  summarizeProcedure(
+    {
+      resourceType: RESOURCE_TYPE.PROCEDURE,
+      id: "skin-biopsy",
+      status: PROCEDURE_STATUS.COMPLETED,
+      subject: homer,
+      code: { text: "Skin biopsy" },
+      ...overrides,
     },
     noSourceNames,
   );
@@ -142,6 +161,21 @@ describe("naming a health record", () => {
         ),
       "Measurement",
     ],
+    [
+      "a procedure",
+      (code: CodeableConcept) =>
+        summarizeProcedure(
+          {
+            resourceType: RESOURCE_TYPE.PROCEDURE,
+            id: "biopsy",
+            status: PROCEDURE_STATUS.COMPLETED,
+            subject: homer,
+            code,
+          },
+          noSourceNames,
+        ),
+      "Procedure",
+    ],
   ])(
     "names %s by its text, else its first coding that has a name, else a plain word",
     (_, summarize, plainWord) => {
@@ -170,6 +204,128 @@ describe("summarizeVitalSign", () => {
         noSourceNames,
       ).status,
     ).toBe(words);
+  });
+});
+
+describe("summarizeProcedure", () => {
+  const statusWords = {
+    [PROCEDURE_STATUS.COMPLETED]: "Completed",
+    [PROCEDURE_STATUS.ENTERED_IN_ERROR]: "Entered in error",
+    [PROCEDURE_STATUS.IN_PROGRESS]: "In progress",
+    [PROCEDURE_STATUS.NOT_DONE]: "Not done",
+    [PROCEDURE_STATUS.ON_HOLD]: "On hold",
+    [PROCEDURE_STATUS.PREPARATION]: "Preparation",
+    [PROCEDURE_STATUS.STOPPED]: "Stopped",
+    [PROCEDURE_STATUS.UNKNOWN]: "Unknown",
+  } satisfies Record<Procedure["status"], string>;
+
+  it.each(Object.entries(statusWords))(
+    "words the status %s as %s, so a procedure not done never reads as done",
+    (status, words) => {
+      expect(
+        summarizeSkinBiopsy({ status: status as Procedure["status"] }).status,
+      ).toBe(words);
+    },
+  );
+
+  it("names every clinician who performed a procedure, in the clinic's order, leaving out one recorded with no name", () => {
+    expect(
+      summarizeSkinBiopsy({
+        performer: [
+          { actor: { display: "Dr. Mira Synthetic" } },
+          { actor: { reference: `${RESOURCE_TYPE.PRACTITIONER}/unnamed` } },
+          { actor: { display: "Nurse Ana Synthetic" } },
+        ],
+      }).author,
+    ).toBe("Dr. Mira Synthetic, Nurse Ana Synthetic");
+  });
+
+  it("names a clinician listed more than once, in several roles or through their role, only once", () => {
+    expect(
+      summarizeSkinBiopsy({
+        performer: [
+          {
+            function: { text: "Surgeon" },
+            actor: {
+              reference: `${RESOURCE_TYPE.PRACTITIONER}/mira-synthetic`,
+              display: "Dr. Mira Synthetic",
+            },
+          },
+          { actor: { display: "Nurse Ana Synthetic" } },
+          {
+            function: { text: "Attending" },
+            actor: {
+              reference: `${RESOURCE_TYPE.PRACTITIONER}/mira-synthetic`,
+              display: "Dr. Mira Synthetic",
+            },
+          },
+          {
+            actor: {
+              reference: `${RESOURCE_TYPE.PRACTITIONER_ROLE}/mira-synthetic-dermatologist`,
+              display: "Dr. Mira Synthetic",
+            },
+          },
+        ],
+      }).author,
+    ).toBe("Dr. Mira Synthetic, Nurse Ana Synthetic");
+  });
+
+  it("names the clinician who performed a procedure, not the clinic they performed it for", () => {
+    expect(
+      summarizeSkinBiopsy({
+        performer: [
+          {
+            actor: { display: "Dr. Mira Synthetic" },
+            onBehalfOf: { display: oakDermatology.name },
+          },
+        ],
+      }).author,
+    ).toBe("Dr. Mira Synthetic");
+  });
+
+  it("names no one when the clinic recorded no performer", () => {
+    expect(summarizeSkinBiopsy({ performer: undefined }).author).toBe("");
+  });
+
+  it.each([
+    ["a day", { performedDateTime: "2024-03-12" }, "March 12, 2024"],
+    ["a month", { performedDateTime: "2024-03" }, "March 2024"],
+    [
+      "a time, on the patient's own calendar day",
+      { performedDateTime: "2024-03-13T03:30:00Z" },
+      "March 12, 2024",
+    ],
+    [
+      "a period, by its start",
+      { performedPeriod: { start: "2024-03-12", end: "2024-03-14" } },
+      "March 12, 2024",
+    ],
+    ["words alone, as no date", { performedString: "Spring 2019" }, ""],
+    ["a year written as text", { performedString: "2019" }, "2019"],
+    ["a month written as text", { performedString: "2019-05" }, "May 2019"],
+    [
+      "a time written as text, on the patient's own calendar day",
+      { performedString: "2024-03-13T03:30:00Z" },
+      "March 12, 2024",
+    ],
+    ["an age, as no date", { performedAge: { value: 40, unit: "a" } }, ""],
+    [
+      "a range of ages, as no date",
+      { performedRange: { low: { value: 40 }, high: { value: 45 } } },
+      "",
+    ],
+    ["nothing, as no date", {}, ""],
+  ])("dates a procedure performed at %s", (_, performed, date) => {
+    showDatesInChicago();
+
+    expect(summarizeSkinBiopsy(performed).date).toBe(date);
+  });
+
+  it("has no verification or value, which a procedure does not record", () => {
+    expect(summarizeSkinBiopsy({})).toMatchObject({
+      value: "",
+      verification: "",
+    });
   });
 });
 
@@ -612,6 +768,23 @@ describe("where a health record came from", () => {
             id: "blood-pressure",
             status: OBSERVATION_STATUS.FINAL,
             code: { text: "Blood pressure" },
+            meta: withMeta,
+          },
+          recordSourceNames,
+        ),
+    ],
+    [
+      "a procedure",
+      (
+        withMeta: typeof meta | undefined,
+        recordSourceNames: RecordSourceNames,
+      ) =>
+        summarizeProcedure(
+          {
+            resourceType: RESOURCE_TYPE.PROCEDURE,
+            id: "skin-biopsy",
+            status: PROCEDURE_STATUS.COMPLETED,
+            subject: homer,
             meta: withMeta,
           },
           recordSourceNames,

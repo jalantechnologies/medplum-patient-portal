@@ -24,6 +24,7 @@ import type {
   Observation,
   Organization,
   Patient,
+  Procedure,
   Reference,
   Resource,
 } from "@medplum/fhirtypes";
@@ -54,6 +55,7 @@ import {
   OBSERVATION_INTERPRETATION_VERSION_TWO,
   OBSERVATION_STATUS,
   PATIENT_RECORD_SEARCHES,
+  PROCEDURE_STATUS,
   RESOURCE_TYPE,
   SEARCH_PARAMETER,
 } from "./fhir";
@@ -247,6 +249,12 @@ describe("patient access policy", () => {
       resourceType: RESOURCE_TYPE.OBSERVATION,
       status: OBSERVATION_STATUS.FINAL,
       code: { text: "Blood pressure" },
+      subject: patient,
+    }),
+    [RESOURCE_TYPE.PROCEDURE]: (patient): Procedure => ({
+      resourceType: RESOURCE_TYPE.PROCEDURE,
+      status: PROCEDURE_STATUS.COMPLETED,
+      code: { text: "Skin biopsy" },
       subject: patient,
     }),
   };
