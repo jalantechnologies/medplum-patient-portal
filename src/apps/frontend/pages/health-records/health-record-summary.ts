@@ -1,6 +1,7 @@
 import {
   formatObservationValue,
   getCodeBySystem,
+  isDateTimeString,
   type WithId,
 } from "@medplum/core";
 import type {
@@ -9,6 +10,7 @@ import type {
   CodeableConcept,
   Condition,
   Observation,
+  Procedure,
 } from "@medplum/fhirtypes";
 
 import {
@@ -56,6 +58,7 @@ interface ClinicalRecordStatus {
   verificationSystem: string;
 }
 
+const PERFORMER_SEPARATOR = ", ";
 const RULED_OUT_STATUS = "Ruled out";
 const UNCONFIRMED_STATUS = "Unconfirmed";
 
@@ -90,6 +93,22 @@ const summarizeNote = ({
   date: formatRecordDate(time),
   text,
 });
+
+const namePerformers = ({ performer = [] }: Procedure): string =>
+  [
+    ...new Set(
+      performer.flatMap(({ actor }) => (actor.display ? [actor.display] : [])),
+    ),
+  ].join(PERFORMER_SEPARATOR);
+
+const findPerformedDate = ({
+  performedDateTime,
+  performedPeriod,
+  performedString,
+}: Procedure): string | undefined =>
+  performedDateTime ??
+  performedPeriod?.start ??
+  (isDateTimeString(performedString) ? performedString : undefined);
 
 const humanizeStatus = (
   status: CodeableConcept | undefined,
@@ -175,6 +194,22 @@ export const summarizeAllergyIntolerance = (
     allergyIntolerance.verificationStatus,
     CODE_SYSTEM.ALLERGY_INTOLERANCE_VERIFICATION,
   ),
+});
+
+export const summarizeProcedure = (
+  procedure: WithId<Procedure>,
+  recordSourceNames: RecordSourceNames,
+): HealthRecordSummary => ({
+  author: namePerformers(procedure),
+  date: formatRecordDate(findPerformedDate(procedure)),
+  identifier: procedure.id,
+  notes: [],
+  received: formatRecordDateTime(procedure.meta?.lastUpdated),
+  source: recordSourceNames.findName(procedure.meta?.source),
+  status: humanizeCode(procedure.status),
+  title: nameCodeableConcept(procedure.code) || "Procedure",
+  value: "",
+  verification: "",
 });
 
 export const summarizeVitalSign = (

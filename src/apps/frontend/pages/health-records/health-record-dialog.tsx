@@ -54,6 +54,9 @@ const HealthRecordDialog: FC<HealthRecordDialogProperties> = ({
               closeable={false}
               kind={TAG_KIND.neutral}
               size={TAG_SIZE.small}
+              overrides={{
+                Root: { props: { "data-testid": "health-record-status" } },
+              }}
             >
               {record.status}
             </Tag>

@@ -24,6 +24,7 @@ import {
   ObservationContext,
   useObservationContext,
 } from "./observation.context";
+import { ProcedureContext, useProcedureContext } from "./procedure.context";
 import {
   RecordSourceContext,
   useRecordSourceContext,
@@ -38,6 +39,7 @@ export {
   DiagnosticReportContext,
   MedicationRequestContext,
   ObservationContext,
+  ProcedureContext,
   RecordSourceContext,
   useAllergyIntoleranceContext,
   useAppointmentContext,
@@ -47,5 +49,6 @@ export {
   useDiagnosticReportContext,
   useMedicationRequestContext,
   useObservationContext,
+  useProcedureContext,
   useRecordSourceContext,
 };

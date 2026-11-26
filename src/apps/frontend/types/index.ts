@@ -38,6 +38,11 @@ import type {
   VitalSignSearch,
 } from "./observation";
 import type {
+  ListProceduresParameters,
+  ProcedurePage,
+  ProcedureSearch,
+} from "./procedure";
+import type {
   ListRecordsParameters,
   RecordFilter,
   RecordFilterChoices,
@@ -86,6 +91,7 @@ export {
   type ListConditionsParameters,
   type ListDiagnosticReportsParameters,
   type ListMedicationRequestsParameters,
+  type ListProceduresParameters,
   type ListRecordsParameters,
   type ListRecordSourcesParameters,
   type ListVitalSignsParameters,
@@ -93,6 +99,8 @@ export {
   type MedicationRequestSearch,
   type MedicationsByReference,
   type Nullable,
+  type ProcedurePage,
+  type ProcedureSearch,
   type RecordFilter,
   type RecordFilterChoices,
   type RecordListFilter,

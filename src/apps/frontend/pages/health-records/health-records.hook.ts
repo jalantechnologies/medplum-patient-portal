@@ -3,6 +3,7 @@ import type {
   AllergyIntolerance,
   Condition,
   Observation,
+  Procedure,
 } from "@medplum/fhirtypes";
 import { useMedplumProfile } from "@medplum/react-hooks";
 import type { Key } from "react";
@@ -13,6 +14,7 @@ import {
   useAllergyIntoleranceContext,
   useConditionContext,
   useObservationContext,
+  useProcedureContext,
   useRecordSourceContext,
 } from "../../contexts";
 import {
@@ -28,6 +30,7 @@ import {
 import {
   summarizeAllergyIntolerance,
   summarizeCondition,
+  summarizeProcedure,
   summarizeVitalSign,
 } from "./health-record-summary";
 
@@ -41,6 +44,11 @@ const HEALTH_RECORD_TAB_TEXT = {
     ...HEALTH_RECORDS_TAB.ALLERGIES,
     emptyDescription: "No allergy information has been shared.",
     emptyTitle: "No allergies available",
+  },
+  PROCEDURES: {
+    ...HEALTH_RECORDS_TAB.PROCEDURES,
+    emptyDescription: "No procedure information has been shared.",
+    emptyTitle: "No procedures available",
   },
   MEASUREMENTS: {
     ...HEALTH_RECORDS_TAB.MEASUREMENTS,
@@ -88,6 +96,22 @@ const useAllergyIntoleranceTab = ({
     text: HEALTH_RECORD_TAB_TEXT.ALLERGIES,
   });
 
+const useProcedureTab = ({
+  activeTabKey,
+  patientReference,
+  recordListFilter,
+  recordSourceNames,
+}: HealthRecordTabSource) =>
+  useRecordListTab({
+    ...useProcedureContext().procedures,
+    ...recordListFilter,
+    activeTabKey,
+    patientReference,
+    summarize: (procedure: WithId<Procedure>) =>
+      summarizeProcedure(procedure, recordSourceNames),
+    text: HEALTH_RECORD_TAB_TEXT.PROCEDURES,
+  });
+
 const useVitalSignTab = ({
   activeTabKey,
   patientReference,
@@ -130,6 +154,7 @@ const useHealthRecords = () => {
   const tabs = [
     useConditionTab(tabSource),
     useAllergyIntoleranceTab(tabSource),
+    useProcedureTab(tabSource),
     useVitalSignTab(tabSource),
   ];
 

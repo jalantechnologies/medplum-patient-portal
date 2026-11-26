@@ -6,6 +6,7 @@ import { ConditionProvider } from "./condition.provider";
 import { DiagnosticReportProvider } from "./diagnostic-report.provider";
 import { MedicationRequestProvider } from "./medication-request.provider";
 import { ObservationProvider } from "./observation.provider";
+import { ProcedureProvider } from "./procedure.provider";
 import { RecordSourceProvider } from "./record-source.provider";
 
 export {
@@ -17,5 +18,6 @@ export {
   DiagnosticReportProvider,
   MedicationRequestProvider,
   ObservationProvider,
+  ProcedureProvider,
   RecordSourceProvider,
 };

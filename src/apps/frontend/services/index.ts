@@ -7,6 +7,7 @@ import DiagnosticReportService from "./diagnostic-report/diagnostic-report.servi
 import MedicationRequestService from "./medication-request/medication-request.service";
 import MedplumService from "./medplum/medplum.service";
 import ObservationService from "./observation/observation.service";
+import ProcedureService from "./procedure/procedure.service";
 import RecordSourceService from "./record-source/record-source.service";
 
 export {
@@ -19,5 +20,6 @@ export {
   MedicationRequestService,
   MedplumService,
   ObservationService,
+  ProcedureService,
   RecordSourceService,
 };

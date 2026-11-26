@@ -16,6 +16,7 @@ import type {
   Observation,
   Organization,
   Patient,
+  Procedure,
 } from "@medplum/fhirtypes";
 import { HomerSimpson, MockClient } from "@medplum/mock";
 import {
@@ -48,6 +49,7 @@ import {
   LIST_STATUS,
   OBSERVATION_CATEGORY,
   OBSERVATION_STATUS,
+  PROCEDURE_STATUS,
   RESOURCE_TYPE,
   SEARCH_ENTRY_MODE,
   SEARCH_PARAMETER,
@@ -58,6 +60,7 @@ import {
   AllergyIntoleranceProvider,
   ConditionProvider,
   ObservationProvider,
+  ProcedureProvider,
   RecordSourceProvider,
 } from "../../providers";
 import {
@@ -104,9 +107,11 @@ const renderHealthRecords = (
         element: (
           <ConditionProvider>
             <AllergyIntoleranceProvider>
-              <ObservationProvider>
-                <HealthRecords />
-              </ObservationProvider>
+              <ProcedureProvider>
+                <ObservationProvider>
+                  <HealthRecords />
+                </ObservationProvider>
+              </ProcedureProvider>
             </AllergyIntoleranceProvider>
           </ConditionProvider>
         ),
@@ -245,6 +250,22 @@ const createObservation = (
     ...overrides,
   });
 
+const createProcedure = (
+  medplum: MockClient,
+  name: string,
+  performedDateTime: string | undefined,
+  overrides: Partial<Procedure> = {},
+): Promise<Procedure> =>
+  medplum.createResource<Procedure>({
+    resourceType: RESOURCE_TYPE.PROCEDURE,
+    status: PROCEDURE_STATUS.COMPLETED,
+    subject: homer,
+    code: { text: name },
+    performedDateTime,
+    performer: [{ actor: doctor }],
+    ...overrides,
+  });
+
 const showDatesInChicago = () => {
   vi.stubEnv("TZ", "America/Chicago");
   onTestFinished(() => {
@@ -327,6 +348,7 @@ describe("Health records", () => {
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Conditions",
       "Allergies",
+      "Procedures",
       "Measurements",
     ]);
     expect(screen.getByTestId("conditions-tab")).toHaveAttribute(
@@ -1246,6 +1268,13 @@ describe("Health records", () => {
         status: OBSERVATION_STATUS.ENTERED_IN_ERROR,
       },
     );
+    await createProcedure(medplum, "Skin biopsy", "2024-03-12");
+    await createProcedure(
+      medplum,
+      "Mole removal, entered by mistake",
+      "2024-03-13",
+      { status: PROCEDURE_STATUS.ENTERED_IN_ERROR },
+    );
 
     renderHealthRecords(medplum);
 
@@ -1262,6 +1291,13 @@ describe("Health records", () => {
         "allergies",
       ),
     ).toEqual(["Penicillin"]);
+    const procedures = await openTab(user, "procedures");
+    expect(
+      listRecordTitles(
+        await within(procedures).findByTestId("procedures-list"),
+        "procedures",
+      ),
+    ).toEqual(["Skin biopsy"]);
     const measurements = await openTab(user, "measurements");
     expect(
       listRecordTitles(
@@ -1284,6 +1320,13 @@ describe("Health records", () => {
       ),
     ).toHaveTextContent(
       "No allergies availableNo allergy information has been shared.",
+    );
+    expect(
+      await within(await openTab(user, "procedures")).findByTestId(
+        "procedures-empty",
+      ),
+    ).toHaveTextContent(
+      "No procedures availableNo procedure information has been shared.",
     );
     expect(
       await within(await openTab(user, "measurements")).findByTestId(
@@ -1534,6 +1577,17 @@ describe("Health records", () => {
       "aria-selected",
       "true",
     );
+
+    fireEvent.keyDown(screen.getByTestId("allergies-tab"), {
+      key: "ArrowRight",
+      keyCode: 39,
+    });
+
+    expect(screen.getByTestId("procedures-tab")).toHaveFocus();
+    expect(screen.getByTestId("procedures-tab")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
   it("reads a kind of record only once its tab is opened", async () => {
@@ -1572,6 +1626,9 @@ describe("Health records", () => {
     await within(await openTab(user, "allergies")).findByTestId(
       "allergies-empty",
     );
+    await within(await openTab(user, "procedures")).findByTestId(
+      "procedures-empty",
+    );
     await within(await openTab(user, "measurements")).findByTestId(
       "measurements-empty",
     );
@@ -1582,6 +1639,7 @@ describe("Health records", () => {
       new Set([
         RESOURCE_TYPE.CONDITION,
         RESOURCE_TYPE.ALLERGY_INTOLERANCE,
+        RESOURCE_TYPE.PROCEDURE,
         RESOURCE_TYPE.OBSERVATION,
         RESOURCE_TYPE.LIST,
       ]),
@@ -1740,7 +1798,7 @@ describe("Health records", () => {
 
   it.each([
     ["names no tab", "/health-records"],
-    ["names a tab that does not exist", "/health-records?tab=procedures"],
+    ["names a tab that does not exist", "/health-records?tab=not-a-tab"],
   ])("opens Conditions when the address %s", async (_, path) => {
     renderHealthRecords(new MockClient({ profile: HomerSimpson }), path);
 
@@ -2677,5 +2735,435 @@ describe("Health records, narrowed to a source or a search", () => {
     await waitFor(() =>
       expect(listRecordTitles(conditions, "conditions")).toEqual(["Eczema"]),
     );
+  });
+});
+
+describe("Health records, procedures", () => {
+  const performedForOak = {
+    actor: doctor,
+    onBehalfOf: { display: oakDermatology.name },
+  };
+
+  it("lists the patient's procedures newest first, with the clinic, the day, who performed each and its status", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology]);
+    includeListedOrganizations(medplum);
+    await createProcedure(medplum, "Skin biopsy", "2024-03-12", {
+      meta: { source: oakDermatology.address },
+      performer: [performedForOak],
+    });
+    await createProcedure(medplum, "Mole removal", "2025-02-03", {
+      meta: { source: oakDermatology.address },
+      performer: [performedForOak],
+    });
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "procedures");
+
+    await waitFor(() =>
+      expect(listRecordTexts(panel, "procedures")).toEqual([
+        "Mole removalOak Synthetic Dermatology · February 3, 2025Dr. Mira SyntheticCompletedView record",
+        "Skin biopsyOak Synthetic Dermatology · March 12, 2024Dr. Mira SyntheticCompletedView record",
+      ]),
+    );
+  });
+
+  it("names the clinic once when the clinic itself is recorded as performing the procedure", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology]);
+    includeListedOrganizations(medplum);
+    await createProcedure(medplum, "Skin biopsy", "2024-03-12", {
+      meta: { source: oakDermatology.address },
+      performer: [{ actor: { display: oakDermatology.name } }],
+    });
+
+    renderHealthRecords(medplum, "/health-records?tab=procedures");
+    const panel = screen.getByTestId("procedures-panel");
+
+    await waitFor(() =>
+      expect(listRecordTexts(panel, "procedures")).toEqual([
+        "Skin biopsyOak Synthetic Dermatology · March 12, 2024CompletedView record",
+      ]),
+    );
+  });
+
+  it("asks Medplum for the patient's own procedures, newest first, leaving out those entered in error", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const search = vi.spyOn(medplum, "search");
+
+    renderHealthRecords(medplum, "/health-records?tab=procedures");
+    await within(screen.getByTestId("procedures-panel")).findByTestId(
+      "procedures-empty",
+    );
+
+    const [resourceType, query] =
+      search.mock.calls.find(
+        ([searchedResourceType]) =>
+          searchedResourceType === RESOURCE_TYPE.PROCEDURE,
+      ) ?? [];
+    const { filters, sortRules } = parseSearchRequest(
+      `${resourceType}${String(query)}`,
+    );
+    expect(filters).toEqual(
+      expect.arrayContaining([
+        {
+          code: SEARCH_PARAMETER.PATIENT,
+          operator: Operator.EQUALS,
+          value: getReferenceString(HomerSimpson),
+        },
+        {
+          code: SEARCH_PARAMETER.STATUS,
+          operator: Operator.NOT,
+          value: PROCEDURE_STATUS.ENTERED_IN_ERROR,
+        },
+      ]),
+    );
+    expect(sortRules).toEqual([
+      { code: SEARCH_PARAMETER.DATE, descending: true },
+    ]);
+  });
+
+  it("names every clinician who performed a procedure, each once", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createProcedure(medplum, "Skin graft", "2024-03-12", {
+      performer: [
+        { function: { text: "Surgeon" }, actor: doctor },
+        { actor: { display: "Nurse Ana Synthetic" } },
+        { function: { text: "Attending" }, actor: doctor },
+      ],
+    });
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "procedures");
+
+    expect(
+      await within(panel).findByTestId("procedures-record"),
+    ).toHaveTextContent(
+      "Skin graftMarch 12, 2024Dr. Mira Synthetic, Nurse Ana SyntheticCompletedView record",
+    );
+  });
+
+  it("tags a procedure recorded as not done as not done, in the list and in its record, never as completed", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createProcedure(medplum, "Skin biopsy", undefined, {
+      status: PROCEDURE_STATUS.NOT_DONE,
+    });
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "procedures");
+    const row = await within(panel).findByTestId("procedures-record");
+    expect(row).toHaveTextContent(
+      "Skin biopsyDr. Mira SyntheticNot doneView record",
+    );
+    await user.click(
+      within(row).getByRole("button", { name: "View record: Skin biopsy" }),
+    );
+
+    const dialog = await screen.findByTestId("health-record-dialog");
+    expect(within(dialog).getByTestId("health-record-status").textContent).toBe(
+      "Not done",
+    );
+    expect(dialog).not.toHaveTextContent("Completed");
+  });
+
+  it("dates a procedure performed over a period by the day it started", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createProcedure(medplum, "Patch testing", undefined, {
+      performedPeriod: { start: "2024-03-12", end: "2024-03-14" },
+    });
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "procedures");
+
+    expect(
+      await within(panel).findByTestId("procedures-record"),
+    ).toHaveTextContent(
+      "Patch testingMarch 12, 2024Dr. Mira SyntheticCompletedView record",
+    );
+  });
+
+  it("dates a procedure whose date is written as text when the text is a date", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createProcedure(medplum, "Childhood tonsillectomy", undefined, {
+      performedString: "2019-05",
+    });
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "procedures");
+
+    expect(
+      await within(panel).findByTestId("procedures-record"),
+    ).toHaveTextContent(
+      "Childhood tonsillectomyMay 2019Dr. Mira SyntheticCompletedView record",
+    );
+  });
+
+  it("lists procedures with no date after the dated ones", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createProcedure(medplum, "Skin biopsy", "2024-03-12");
+    await createProcedure(medplum, "Childhood tonsillectomy", undefined);
+    await createProcedure(medplum, "Mole removal", "2025-02-03");
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "procedures");
+
+    expect(
+      listRecordTitles(
+        await within(panel).findByTestId("procedures-list"),
+        "procedures",
+      ),
+    ).toEqual(["Mole removal", "Skin biopsy", "Childhood tonsillectomy"]);
+  });
+
+  it("shows only the signed-in patient's procedures", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const otherPatient = await medplum.createResource<Patient>({
+      resourceType: RESOURCE_TYPE.PATIENT,
+      name: [{ given: ["Harper"], family: "Synthetic" }],
+    });
+    await createProcedure(medplum, "Another patient's biopsy", "2024-03-13", {
+      subject: createReference(otherPatient),
+    });
+    await createProcedure(medplum, "Skin biopsy", "2024-03-12");
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "procedures");
+
+    expect(
+      listRecordTitles(
+        await within(panel).findByTestId("procedures-list"),
+        "procedures",
+      ),
+    ).toEqual(["Skin biopsy"]);
+  });
+
+  it("opens a procedure in a dialog with its status, the clinic, the day and who performed it", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [oakDermatology]);
+    includeListedOrganizations(medplum);
+    await createProcedure(medplum, "Skin biopsy", "2024-03-12", {
+      meta: { source: oakDermatology.address },
+      performer: [performedForOak],
+    });
+
+    renderHealthRecords(medplum, "/health-records?tab=procedures");
+    const panel = screen.getByTestId("procedures-panel");
+    await waitFor(() =>
+      expect(within(panel).getByTestId("procedures-record")).toHaveTextContent(
+        oakDermatology.name,
+      ),
+    );
+    await user.click(
+      within(panel).getByRole("button", { name: "View record: Skin biopsy" }),
+    );
+
+    const dialog = await screen.findByTestId("health-record-dialog");
+    expect(dialog).toHaveAccessibleName("Skin biopsy");
+    expect(within(dialog).getByTestId("health-record-status").textContent).toBe(
+      "Completed",
+    );
+    expect(
+      within(dialog).getByTestId("health-record-details"),
+    ).toHaveTextContent(
+      "PatientHomer SimpsonSourceOak Synthetic DermatologyDateMarch 12, 2024ReceivedOctober 28, 2026 · 4:10 PM Central TimeAuthorDr. Mira Synthetic",
+    );
+  });
+
+  it("lists only the chosen source's procedures", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const oak = await createClinic(medplum, oakDermatology);
+    const maple = await createClinic(medplum, mapleDental);
+    await listClinics(medplum, [oak, maple]);
+    await createProcedure(medplum, "Skin biopsy", "2024-03-12", {
+      meta: { source: oakDermatology.address },
+    });
+    await createProcedure(medplum, "Tooth extraction", "2025-04-08", {
+      meta: { source: mapleDental.address },
+    });
+    answerAsServer(medplum);
+    renderHealthRecords(medplum, "/health-records?tab=procedures");
+    const panel = screen.getByTestId("procedures-panel");
+    await within(panel).findByTestId("procedures-list");
+
+    await chooseRecordSource(user, oakDermatology.name);
+
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "procedures")).toEqual(["Skin biopsy"]),
+    );
+
+    await chooseRecordSource(user, mapleDental.name);
+
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "procedures")).toEqual([
+        "Tooth extraction",
+      ]),
+    );
+  });
+
+  it("finds a procedure by any part of its name or of a coding's display", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createProcedure(medplum, "Skin biopsy", "2024-03-12");
+    await createProcedure(medplum, "Mole removal", "2025-02-03");
+    await createProcedure(medplum, "Coded only", "2023-05-01", {
+      code: {
+        coding: [{ code: "240977001", display: "Biopsy of skin" }],
+      },
+    });
+    const search = answerAsServer(medplum);
+    renderHealthRecords(medplum, "/health-records?tab=procedures");
+    const panel = screen.getByTestId("procedures-panel");
+    await within(panel).findByTestId("procedures-list");
+
+    await searchRecords(user, "biopsy");
+
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "procedures")).toEqual([
+        "Skin biopsy",
+        "Biopsy of skin",
+      ]),
+    );
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.PROCEDURE,
+        isTextFilter,
+      ).filter((value) => value !== undefined),
+    ).toEqual(["biopsy", "biopsy"]);
+  });
+
+  it("shows the newest page of procedures first, and the older ones when the patient asks for more", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const procedureCount = constant.SEARCH_PAGE_SIZE + 1;
+    for (let index = 0; index < procedureCount; index += 1) {
+      await createProcedure(
+        medplum,
+        `Procedure ${index + 1}`,
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+      );
+    }
+
+    renderHealthRecords(medplum, "/health-records?tab=procedures");
+    const list = await screen.findByTestId("procedures-list");
+    expect(within(list).getAllByTestId("procedures-record")).toHaveLength(
+      constant.SEARCH_PAGE_SIZE,
+    );
+    await user.click(screen.getByTestId("procedures-more"));
+
+    await waitFor(() =>
+      expect(within(list).getAllByTestId("procedures-record")).toHaveLength(
+        procedureCount,
+      ),
+    );
+    expect(listRecordTitles(list, "procedures").at(-1)).toBe("Procedure 1");
+  });
+
+  it("keeps the procedures already listed when the next page cannot be read, and reads that page when the patient tries again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const procedureCount = constant.SEARCH_PAGE_SIZE + 1;
+    for (let index = 0; index < procedureCount; index += 1) {
+      await createProcedure(
+        medplum,
+        `Procedure ${index + 1}`,
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+      );
+    }
+    let isProcedureReachable = true;
+    failSearches(
+      medplum,
+      (resourceType) =>
+        resourceType === RESOURCE_TYPE.PROCEDURE && !isProcedureReachable,
+    );
+
+    renderHealthRecords(medplum, "/health-records?tab=procedures");
+    const list = await screen.findByTestId("procedures-list");
+    isProcedureReachable = false;
+    await user.click(screen.getByTestId("procedures-more"));
+
+    const error = await screen.findByTestId("health-records-error");
+    expect(within(list).getAllByTestId("procedures-record")).toHaveLength(
+      constant.SEARCH_PAGE_SIZE,
+    );
+    expect(
+      screen.queryByTestId("procedures-unavailable"),
+    ).not.toBeInTheDocument();
+    isProcedureReachable = true;
+    await user.click(within(error).getByRole("button"));
+
+    await waitFor(() =>
+      expect(within(list).getAllByTestId("procedures-record")).toHaveLength(
+        procedureCount,
+      ),
+    );
+    expect(
+      screen.queryByTestId("health-records-error"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows an error and marks Procedures when they could not be read, keeping the others, and lists them once the patient tries again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createCondition(medplum, "Eczema", "2026-10-20");
+    await createProcedure(medplum, "Skin biopsy", "2024-03-12");
+    let isProcedureReachable = false;
+    failSearches(
+      medplum,
+      (resourceType) =>
+        resourceType === RESOURCE_TYPE.PROCEDURE && !isProcedureReachable,
+    );
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-list");
+    const panel = await openTab(user, "procedures");
+
+    const error = await screen.findByTestId("health-records-error");
+    expect(error).toHaveTextContent(constant.DEFAULT_ERROR_MESSAGE);
+    expect(
+      within(panel).getByTestId("procedures-unavailable"),
+    ).toHaveTextContent("Could not load");
+    const conditions = await openTab(user, "conditions");
+    expect(
+      listRecordTitles(
+        within(conditions).getByTestId("conditions-list"),
+        "conditions",
+      ),
+    ).toEqual(["Eczema"]);
+
+    isProcedureReachable = true;
+    await openTab(user, "procedures");
+    await user.click(
+      within(screen.getByTestId("health-records-error")).getByRole("button"),
+    );
+
+    expect(
+      listRecordTitles(
+        await within(panel).findByTestId("procedures-list"),
+        "procedures",
+      ),
+    ).toEqual(["Skin biopsy"]);
+    expect(
+      screen.queryByTestId("health-records-error"),
+    ).not.toBeInTheDocument();
   });
 });

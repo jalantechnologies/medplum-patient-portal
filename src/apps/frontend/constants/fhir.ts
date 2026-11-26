@@ -12,6 +12,7 @@ import type {
   Medication,
   MedicationRequest,
   Observation,
+  Procedure,
   ResourceType,
   TimingRepeat,
   User,
@@ -30,6 +31,9 @@ export const RESOURCE_TYPE = {
   OBSERVATION: "Observation",
   ORGANIZATION: "Organization",
   PATIENT: "Patient",
+  PRACTITIONER: "Practitioner",
+  PRACTITIONER_ROLE: "PractitionerRole",
+  PROCEDURE: "Procedure",
   PROJECT: "Project",
   PROJECT_MEMBERSHIP: "ProjectMembership",
   QUESTIONNAIRE_RESPONSE: "QuestionnaireResponse",
@@ -126,6 +130,17 @@ export const OBSERVATION_STATUS = {
   REGISTERED: "registered",
   UNKNOWN: "unknown",
 } as const satisfies Record<string, Observation["status"]>;
+
+export const PROCEDURE_STATUS = {
+  COMPLETED: "completed",
+  ENTERED_IN_ERROR: "entered-in-error",
+  IN_PROGRESS: "in-progress",
+  NOT_DONE: "not-done",
+  ON_HOLD: "on-hold",
+  PREPARATION: "preparation",
+  STOPPED: "stopped",
+  UNKNOWN: "unknown",
+} as const satisfies Record<string, Procedure["status"]>;
 
 export const CODE_SYSTEM = {
   ALLERGY_INTOLERANCE_CLINICAL:
@@ -447,6 +462,10 @@ export const PATIENT_RECORD_SEARCHES = [
   },
   {
     resourceType: RESOURCE_TYPE.OBSERVATION,
+    patientParameter: SEARCH_PARAMETER.PATIENT,
+  },
+  {
+    resourceType: RESOURCE_TYPE.PROCEDURE,
     patientParameter: SEARCH_PARAMETER.PATIENT,
   },
 ] as const satisfies readonly {
