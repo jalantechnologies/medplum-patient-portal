@@ -170,7 +170,6 @@ const summarizeObservation = (
   observation: WithId<Observation>,
   depth: number,
 ): TestResultSummary[] => {
-  // formatMeasurementValue words a result's parts after its own value, and each part gets a row of its own.
   const { component: parts = [], ...ownMeasurement } = observation;
   return [
     summarizeMeasurement(ownMeasurement, {
