@@ -1,24 +1,13 @@
-import {
-  formatObservationValue,
-  formatQuantity,
-  formatRange,
-  formatWallTime,
-  tryParseReference,
-  type WithId,
-} from "@medplum/core";
+import { formatRange, tryParseReference, type WithId } from "@medplum/core";
 import type {
   CodeableConcept,
   DiagnosticReport,
   Observation,
-  ObservationComponent,
   ObservationReferenceRange,
-  Period,
-  Ratio,
   Reference,
   Resource,
 } from "@medplum/fhirtypes";
 
-import constant from "../../constants";
 import {
   CODE_SYSTEM,
   CONTAINED_REFERENCE_PREFIX,
@@ -31,11 +20,13 @@ import {
 import type {
   DiagnosticReportKind,
   DiagnosticReportPage,
+  Measurement,
   RecordSourceNames,
   ResultHolder,
   ResultsByIdentifier,
 } from "../../types";
 import {
+  formatMeasurementValue,
   formatRecordDate,
   humanizeCode,
   nameCodeableConcept,
@@ -43,8 +34,6 @@ import {
 
 const FLAG_SEPARATOR = ", ";
 const CONCLUSION_SEPARATOR = ", ";
-const RATIO_SEPARATOR = ":";
-const RANGE_SEPARATOR = " - ";
 const QUALIFIER_SEPARATOR = ", ";
 const QUALIFIER_LABEL_SEPARATOR = ": ";
 
@@ -90,8 +79,6 @@ export interface TestReportSummary {
   title: string;
 }
 
-type Measurement = Observation | ObservationComponent;
-
 interface MeasurementRow {
   depth: number;
   hasParts: boolean;
@@ -122,57 +109,12 @@ const nameInterpretation = (interpretation: CodeableConcept): string =>
   interpretation.coding?.find(({ code }) => code)?.code ||
   "";
 
-const formatRatio = ({ denominator, numerator }: Ratio): string =>
-  [formatQuantity(numerator), formatQuantity(denominator)].join(
-    RATIO_SEPARATOR,
-  );
-
-// Medplum's formatPeriod reads a calendar date in UTC and adds a time of day, which moves it to the day before west of UTC.
-const formatPeriodValue = ({ end, start }: Period): string => {
-  const startDate = formatRecordDate(start);
-  const endDate = formatRecordDate(end);
-  if (startDate && endDate) {
-    return [startDate, endDate].join(RANGE_SEPARATOR);
-  }
-  if (startDate) {
-    return `From ${startDate}`;
-  }
-  return endDate && `Until ${endDate}`;
-};
-
-// Medplum's formatObservationValue words a value only when it is a quantity, a coded value or text.
-const formatOtherValue = (measurement: Measurement): string => {
-  if (measurement.valueInteger !== undefined) {
-    return String(measurement.valueInteger);
-  }
-  if (measurement.valueBoolean !== undefined) {
-    return measurement.valueBoolean ? "Yes" : "No";
-  }
-  if (measurement.valueRatio) {
-    return formatRatio(measurement.valueRatio);
-  }
-  if (measurement.valueRange) {
-    return formatRange(measurement.valueRange);
-  }
-  if (measurement.valuePeriod) {
-    return formatPeriodValue(measurement.valuePeriod);
-  }
-  if (measurement.valueSampledData) {
-    return "Device recording, not shown here";
-  }
-  return (
-    formatRecordDate(measurement.valueDateTime) ||
-    formatWallTime(measurement.valueTime, constant.LOCALE)
-  );
-};
-
-const formatMeasurementValue = (
+const describeMeasurementValue = (
   measurement: Measurement,
   hasParts: boolean,
 ): string => {
   const value =
-    formatObservationValue(measurement) ||
-    formatOtherValue(measurement) ||
+    formatMeasurementValue(measurement) ||
     nameCodeableConcept(measurement.dataAbsentReason);
   if (value || hasParts) {
     return value;
@@ -218,7 +160,7 @@ const summarizeMeasurement = (
     .filter(Boolean),
   status,
   test: nameCodeableConcept(measurement.code) || "Test",
-  value: formatMeasurementValue(measurement, hasParts),
+  value: describeMeasurementValue(measurement, hasParts),
 });
 
 const describeResultStatus = ({ status }: Observation): string =>
@@ -228,7 +170,7 @@ const summarizeObservation = (
   observation: WithId<Observation>,
   depth: number,
 ): TestResultSummary[] => {
-  // Medplum's formatObservationValue words a result's parts after its own value, and each part gets a row of its own.
+  // formatMeasurementValue words a result's parts after its own value, and each part gets a row of its own.
   const { component: parts = [], ...ownMeasurement } = observation;
   return [
     summarizeMeasurement(ownMeasurement, {

@@ -39,6 +39,7 @@ import {
 } from "./medication-request";
 import type {
   ListVitalSignsParameters,
+  Measurement,
   VitalSignPage,
   VitalSignSearch,
 } from "./observation";
@@ -103,6 +104,7 @@ export {
   type ListRecordsParameters,
   type ListRecordSourcesParameters,
   type ListVitalSignsParameters,
+  type Measurement,
   type MedicationRequestPage,
   type MedicationRequestSearch,
   type MedicationsByReference,

@@ -1,9 +1,4 @@
-import {
-  formatObservationValue,
-  getCodeBySystem,
-  isDateTimeString,
-  type WithId,
-} from "@medplum/core";
+import { getCodeBySystem, isDateTimeString, type WithId } from "@medplum/core";
 import type {
   AllergyIntolerance,
   Annotation,
@@ -12,6 +7,7 @@ import type {
   Immunization,
   ImmunizationPerformer,
   Observation,
+  ObservationComponent,
   Procedure,
   ProcedurePerformer,
 } from "@medplum/fhirtypes";
@@ -26,6 +22,7 @@ import {
 } from "../../constants/fhir";
 import type { RecordSourceNames } from "../../types";
 import {
+  formatMeasurementValue,
   formatRecordDate,
   formatRecordDateTime,
   humanizeCode,
@@ -62,6 +59,8 @@ interface ClinicalRecordStatus {
   verificationSystem: string;
 }
 
+const MEASUREMENT_NAME_SEPARATOR = ": ";
+const MEASUREMENT_PART_SEPARATOR = " / ";
 const NOT_GIVEN_STATUS = "Not given";
 const PERFORMER_SEPARATOR = ", ";
 const RULED_OUT_STATUS = "Ruled out";
@@ -136,6 +135,20 @@ const describeImmunizationStatus = ({
     ? SUBPOTENT_STATUS
     : humanizeCode(status);
 };
+
+const describePart = (part: ObservationComponent): string => {
+  const value = formatMeasurementValue(part);
+  const name = nameCodeableConcept(part.code);
+  return value && name ? [name, value].join(MEASUREMENT_NAME_SEPARATOR) : value;
+};
+
+const formatVitalSignValue = ({
+  component: parts = [],
+  ...ownMeasurement
+}: Observation): string =>
+  [formatMeasurementValue(ownMeasurement), ...parts.map(describePart)]
+    .filter(Boolean)
+    .join(MEASUREMENT_PART_SEPARATOR);
 
 const humanizeStatus = (
   status: CodeableConcept | undefined,
@@ -271,6 +284,6 @@ export const summarizeVitalSign = (
   source: recordSourceNames.findName(vitalSign.meta?.source),
   status: humanizeCode(vitalSign.status),
   title: nameCodeableConcept(vitalSign.code) || "Measurement",
-  value: formatObservationValue(vitalSign),
+  value: formatVitalSignValue(vitalSign),
   verification: "",
 });

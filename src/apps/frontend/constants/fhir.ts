@@ -14,6 +14,7 @@ import type {
   MedicationRequest,
   Observation,
   Procedure,
+  Quantity,
   ResourceType,
   SearchParameter,
   TimingRepeat,
@@ -400,6 +401,10 @@ export const TIMING_PERIOD_UNIT = {
 } as const satisfies Record<string, TimingRepeat["periodUnit"]>;
 
 export const SEARCH_VALUE_SEPARATOR = ",";
+
+export const QUANTITY_COMPARATOR = {
+  LESS_THAN: "<",
+} as const satisfies Record<string, Quantity["comparator"]>;
 
 export const BUNDLE_LINK_RELATION = {
   NEXT: "next",

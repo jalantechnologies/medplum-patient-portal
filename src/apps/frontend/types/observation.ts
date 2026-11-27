@@ -1,5 +1,5 @@
 import type { WithId } from "@medplum/core";
-import type { Observation } from "@medplum/fhirtypes";
+import type { Observation, ObservationComponent } from "@medplum/fhirtypes";
 
 import type { ListRecordsParameters } from "./record-filter";
 import type { RecordSearch } from "./record-list-tab";
@@ -10,3 +10,7 @@ export type VitalSignPage = SearchPage<WithId<Observation>>;
 export type VitalSignSearch = RecordSearch<WithId<Observation>, VitalSignPage>;
 
 export type ListVitalSignsParameters = ListRecordsParameters<VitalSignPage>;
+
+export type Measurement = (
+  Omit<Observation, "component"> | ObservationComponent
+) & { component?: never };
