@@ -13,6 +13,7 @@ import {
   buildHealthRecordsTabSearch,
   readHealthRecordsTabKey,
 } from "./health-records-address";
+import { formatMeasurementValue } from "./measurement-text";
 import { isSameRecordFilter } from "./record-filter";
 
 export {
@@ -20,6 +21,7 @@ export {
   buildHealthRecordsTabSearch,
   describeActiveCarePlans,
   describeCount,
+  formatMeasurementValue,
   formatRecordDate,
   formatRecordDateTime,
   humanizeCode,

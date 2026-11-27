@@ -3,6 +3,7 @@ import type {
   Annotation,
   CodeableConcept,
   Immunization,
+  Observation,
   Procedure,
 } from "@medplum/fhirtypes";
 import { HomerSimpson } from "@medplum/mock";
@@ -17,6 +18,7 @@ import {
   IMMUNIZATION_STATUS,
   OBSERVATION_STATUS,
   PROCEDURE_STATUS,
+  QUANTITY_COMPARATOR,
   RESOURCE_TYPE,
 } from "../../constants/fhir";
 import { codeFrom, oakDermatology, RECEIVED_AT } from "../../test-medplum";
@@ -113,6 +115,18 @@ const summarizeInfluenzaVaccine = (overrides: Partial<Immunization>) =>
     },
     noSourceNames,
   );
+
+const summarizeVitalSignValue = (overrides: Partial<Observation>) =>
+  summarizeVitalSign(
+    {
+      resourceType: RESOURCE_TYPE.OBSERVATION,
+      id: "vital-sign",
+      status: OBSERVATION_STATUS.FINAL,
+      code: { text: "Vital sign" },
+      ...overrides,
+    },
+    noSourceNames,
+  ).value;
 
 const allergyClinical = (code: string) =>
   codeFrom(CODE_SYSTEM.ALLERGY_INTOLERANCE_CLINICAL, code);
@@ -237,6 +251,330 @@ describe("summarizeVitalSign", () => {
         noSourceNames,
       ).status,
     ).toBe(words);
+  });
+
+  it.each([
+    [
+      "a quantity with its unit",
+      { valueQuantity: { value: 72, unit: "/min" } },
+      "72 /min",
+    ],
+    [
+      "a quantity of zero",
+      { valueQuantity: { value: 0, unit: "/min" } },
+      "0 /min",
+    ],
+    [
+      "a quantity with a comparator",
+      {
+        valueQuantity: {
+          value: 5,
+          comparator: QUANTITY_COMPARATOR.LESS_THAN,
+          unit: "mg/dL",
+        },
+      },
+      "< 5 mg/dL",
+    ],
+    ["a percentage", { valueQuantity: { value: 97, unit: "%" } }, "97%"],
+    ["a coded value", { valueCodeableConcept: { text: "Regular" } }, "Regular"],
+    ["text", { valueString: "Taken after exercise" }, "Taken after exercise"],
+    ["a whole number, such as a pain score", { valueInteger: 4 }, "4"],
+    ["a whole number of zero", { valueInteger: 0 }, "0"],
+    ["yes", { valueBoolean: true }, "Yes"],
+    ["no", { valueBoolean: false }, "No"],
+    [
+      "a ratio",
+      { valueRatio: { numerator: { value: 1 }, denominator: { value: 64 } } },
+      "1:64",
+    ],
+    [
+      "a ratio with a number on one side only",
+      { valueRatio: { numerator: { value: 5, unit: "mg" } } },
+      "5 mg:",
+    ],
+    [
+      "a ratio with its units",
+      {
+        valueRatio: {
+          numerator: { value: 5, unit: "mg" },
+          denominator: { value: 1, unit: "mL" },
+        },
+      },
+      "5 mg:1 mL",
+    ],
+    [
+      "a range",
+      {
+        valueRange: {
+          low: { value: 2, unit: "mg/dL" },
+          high: { value: 4, unit: "mg/dL" },
+        },
+      },
+      "2 - 4 mg/dL",
+    ],
+    [
+      "a range with only a low end",
+      { valueRange: { low: { value: 2, unit: "mg/dL" } } },
+      ">= 2 mg/dL",
+    ],
+    [
+      "a range with only a high end",
+      { valueRange: { high: { value: 4, unit: "mg/dL" } } },
+      "<= 4 mg/dL",
+    ],
+    [
+      "a period of calendar days, on the days written",
+      { valuePeriod: { start: "2026-10-18", end: "2026-10-20" } },
+      "October 18, 2026 - October 20, 2026",
+    ],
+    [
+      "a period of instants, on the patient's own calendar days",
+      {
+        valuePeriod: {
+          start: "2026-10-19T02:00:00Z",
+          end: "2026-10-20T02:00:00Z",
+        },
+      },
+      "October 18, 2026 - October 19, 2026",
+    ],
+    [
+      "a period with only a start",
+      { valuePeriod: { start: "2026-10-18" } },
+      "From October 18, 2026",
+    ],
+    [
+      "a period with only an end",
+      { valuePeriod: { end: "2026-10-20" } },
+      "Until October 20, 2026",
+    ],
+    ["a date", { valueDateTime: "2026-10-18" }, "October 18, 2026"],
+    [
+      "a date known only to its month",
+      { valueDateTime: "2026-10" },
+      "October 2026",
+    ],
+    ["a date known only to its year", { valueDateTime: "2026" }, "2026"],
+    [
+      "an instant, on the patient's own calendar day",
+      { valueDateTime: "2026-10-19T02:00:00Z" },
+      "October 18, 2026",
+    ],
+    [
+      "an instant written in another time zone, on the patient's own calendar day",
+      { valueDateTime: "2026-10-19T03:00:00+10:00" },
+      "October 18, 2026",
+    ],
+    ["a time of day, as written", { valueTime: "07:30:00" }, "7:30 AM"],
+    [
+      "a device recording, as not shown",
+      {
+        valueSampledData: {
+          origin: { value: 0, unit: "mV" },
+          period: 10,
+          dimensions: 1,
+          data: "2 4 3",
+        },
+      },
+      "Device recording, not shown here",
+    ],
+  ])(
+    "words a measurement recorded as %s, without repeating the name its title gives",
+    (_, overrides, value) => {
+      showDatesInChicago();
+
+      expect(summarizeVitalSignValue(overrides)).toBe(value);
+    },
+  );
+
+  it.each([
+    ["no value at all", {}],
+    ["a ratio with no number on either side", { valueRatio: {} }],
+    [
+      "a ratio with a note standing in for both numbers",
+      {
+        valueRatio: {
+          extension: [
+            {
+              url: "http://example.org/titer-note",
+              valueString: "Below detection",
+            },
+          ],
+        },
+      },
+    ],
+    [
+      "a ratio whose sides have no number",
+      { valueRatio: { numerator: {}, denominator: {} } },
+    ],
+  ])("words nothing for a measurement recorded with %s", (_, overrides) => {
+    expect(summarizeVitalSignValue(overrides)).toBe("");
+  });
+
+  it("words a measurement's own value without a name, and a part with no name without one", () => {
+    expect(
+      summarizeVitalSignValue({
+        code: { coding: [{ code: "72514-3" }] },
+        valueInteger: 4,
+        component: [
+          { code: { coding: [{ code: "8480-6" }] }, valueInteger: 3 },
+          { code: { text: "Readings taken" }, valueInteger: 2 },
+        ],
+      }),
+    ).toBe("4 / 3 / Readings taken: 2");
+  });
+
+  it("words each part of a measurement, whatever its kind, in the clinic's order", () => {
+    showDatesInChicago();
+
+    expect(
+      summarizeVitalSignValue({
+        component: [
+          {
+            code: { text: "Systolic" },
+            valueQuantity: { value: 118, unit: "mmHg" },
+          },
+          {
+            code: { text: "Diastolic" },
+            valueQuantity: { value: 76, unit: "mmHg" },
+          },
+          { code: { text: "Readings taken" }, valueInteger: 3 },
+          { code: { text: "Irregular heartbeat" }, valueBoolean: false },
+          {
+            code: { text: "Cuff size" },
+            valueCodeableConcept: { text: "Adult" },
+          },
+          { code: { text: "Taken on" }, valueDateTime: "2026-10-18" },
+        ],
+      }),
+    ).toBe(
+      "Systolic: 118 mmHg / Diastolic: 76 mmHg / Readings taken: 3 / Irregular heartbeat: No / Cuff size: Adult / Taken on: October 18, 2026",
+    );
+  });
+
+  it("words parts recorded as a ratio, a range, a period, a moment, a time of day or a device recording", () => {
+    showDatesInChicago();
+
+    expect(
+      summarizeVitalSignValue({
+        component: [
+          {
+            code: { text: "Dilution" },
+            valueRatio: {
+              numerator: { value: 1 },
+              denominator: { value: 64 },
+            },
+          },
+          {
+            code: { text: "Target" },
+            valueRange: {
+              low: { value: 2, unit: "mg/dL" },
+              high: { value: 4, unit: "mg/dL" },
+            },
+          },
+          {
+            code: { text: "Series" },
+            valuePeriod: { start: "2026-10-18", end: "2026-10-20" },
+          },
+          {
+            code: { text: "Taken at" },
+            valueDateTime: "2026-10-19T02:00:00Z",
+          },
+          { code: { text: "First reading" }, valueTime: "07:30:00" },
+          {
+            code: { text: "Trace" },
+            valueSampledData: {
+              origin: { value: 0, unit: "mV" },
+              period: 10,
+              dimensions: 1,
+              data: "2 4 3",
+            },
+          },
+        ],
+      }),
+    ).toBe(
+      "Dilution: 1:64 / Target: 2 - 4 mg/dL / Series: October 18, 2026 - October 20, 2026 / Taken at: October 18, 2026 / First reading: 7:30 AM / Trace: Device recording, not shown here",
+    );
+  });
+
+  it("words a part recorded as no when it is the only part", () => {
+    expect(
+      summarizeVitalSignValue({
+        component: [
+          { code: { text: "Irregular heartbeat" }, valueBoolean: false },
+        ],
+      }),
+    ).toBe("Irregular heartbeat: No");
+  });
+
+  it("words two parts with the same value each, since each is a measurement of its own", () => {
+    expect(
+      summarizeVitalSignValue({
+        component: [
+          {
+            code: { text: "First reading" },
+            valueQuantity: { value: 118, unit: "mmHg" },
+          },
+          {
+            code: { text: "Second reading" },
+            valueQuantity: { value: 118, unit: "mmHg" },
+          },
+        ],
+      }),
+    ).toBe("First reading: 118 mmHg / Second reading: 118 mmHg");
+  });
+
+  it("words a part recorded as zero", () => {
+    expect(
+      summarizeVitalSignValue({
+        component: [
+          {
+            code: { text: "Systolic" },
+            valueQuantity: { value: 118, unit: "mmHg" },
+          },
+          { code: { text: "Missed beats" }, valueInteger: 0 },
+        ],
+      }),
+    ).toBe("Systolic: 118 mmHg / Missed beats: 0");
+  });
+
+  it("leaves out a part with no value, with no separator left behind", () => {
+    expect(
+      summarizeVitalSignValue({
+        component: [
+          {
+            code: { text: "Systolic" },
+            valueQuantity: { value: 118, unit: "mmHg" },
+          },
+          {
+            code: { text: "Diastolic" },
+            dataAbsentReason: { text: "Cuff slipped" },
+          },
+          { code: { text: "Pulse" } },
+        ],
+      }),
+    ).toBe("Systolic: 118 mmHg");
+  });
+
+  it("words the measurement's own value before its parts, and each only once", () => {
+    expect(
+      summarizeVitalSignValue({
+        valueInteger: 7,
+        component: [
+          {
+            code: { text: "Colony count" },
+            valueQuantity: { value: 100000, unit: "CFU/mL" },
+          },
+        ],
+      }),
+    ).toBe("7 / Colony count: 100000 CFU/mL");
+  });
+
+  it("words nothing when neither the measurement nor its parts have a value", () => {
+    expect(
+      summarizeVitalSignValue({
+        component: [{ code: { text: "Systolic" } }],
+      }),
+    ).toBe("");
   });
 });
 

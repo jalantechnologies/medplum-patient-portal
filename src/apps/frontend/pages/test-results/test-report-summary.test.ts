@@ -658,6 +658,28 @@ describe("summarizeDiagnosticReport", () => {
       "Not performed",
     ],
     ["that there is none", {}, "No value"],
+    [
+      "that there is none for a ratio with a note standing in for both numbers",
+      {
+        valueRatio: {
+          extension: [
+            {
+              url: "http://example.org/titer-note",
+              valueString: "Below detection",
+            },
+          ],
+        },
+      },
+      "No value",
+    ],
+    [
+      "why there is none for a ratio with no number on either side",
+      {
+        valueRatio: {},
+        dataAbsentReason: { coding: [{ display: "Not performed" }] },
+      },
+      "Not performed",
+    ],
   ])("shows %s as the value", (_, overrides, value) => {
     showDatesInChicago();
 

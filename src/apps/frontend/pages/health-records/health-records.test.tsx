@@ -1500,8 +1500,8 @@ describe("Health records", () => {
     const dialog = await screen.findByTestId("health-record-dialog");
     expect(dialog).toHaveRole("dialog");
     expect(dialog).toHaveAccessibleName("Blood pressure");
-    expect(within(dialog).getByTestId("health-record-value")).toHaveTextContent(
-      "118 mmHg / 76 mmHg",
+    expect(within(dialog).getByTestId("health-record-value").textContent).toBe(
+      "Systolic: 118 mmHg / Diastolic: 76 mmHg",
     );
     expect(
       within(dialog).getByTestId("health-record-details"),
@@ -1516,6 +1516,91 @@ describe("Health records", () => {
       ).not.toBeInTheDocument(),
     );
     expect(viewRecord).toHaveFocus();
+  });
+
+  it.each([
+    [
+      "a whole number",
+      "Pain score",
+      { valueInteger: 4, component: undefined },
+      "4",
+    ],
+    [
+      "parts of several kinds",
+      "Blood pressure",
+      {
+        component: [
+          {
+            code: { text: "Systolic" },
+            valueQuantity: { value: 118, unit: "mmHg" },
+          },
+          { code: { text: "Readings taken" }, valueInteger: 3 },
+          { code: { text: "Irregular heartbeat" }, valueBoolean: false },
+        ],
+      },
+      "Systolic: 118 mmHg / Readings taken: 3 / Irregular heartbeat: No",
+    ],
+  ])(
+    "shows the value of a measurement recorded as %s in its record, under the title that names it",
+    async (_, name, overrides, value) => {
+      const user = userEvent.setup();
+      const medplum = new MockClient({ profile: HomerSimpson });
+      await createObservation(medplum, OBSERVATION_CATEGORY.VITAL_SIGNS, name, {
+        effectiveDateTime: "2026-10-20",
+        ...overrides,
+      });
+
+      renderHealthRecords(medplum);
+      await screen.findByTestId("conditions-empty");
+      const panel = await openTab(user, "measurements");
+      await user.click(
+        await within(panel).findByRole("button", {
+          name: `View record: ${name}`,
+        }),
+      );
+
+      const dialog = await screen.findByTestId("health-record-dialog");
+      expect(
+        within(dialog).getByTestId("health-record-value").textContent,
+      ).toBe(value);
+    },
+  );
+
+  it("shows no value in the record of a measurement recorded as a ratio with no number on either side", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createObservation(
+      medplum,
+      OBSERVATION_CATEGORY.VITAL_SIGNS,
+      "Titer",
+      {
+        effectiveDateTime: "2026-10-20",
+        component: undefined,
+        valueRatio: {
+          extension: [
+            {
+              url: "http://example.org/titer-note",
+              valueString: "Below detection",
+            },
+          ],
+        },
+      },
+    );
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "measurements");
+    await user.click(
+      await within(panel).findByRole("button", { name: "View record: Titer" }),
+    );
+
+    const dialog = await screen.findByTestId("health-record-dialog");
+    expect(
+      within(dialog).queryByTestId("health-record-value"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByTestId("health-record-details"),
+    ).toBeInTheDocument();
   });
 
   it("shows an error and marks the kind of record that could not be read, keeping the others", async () => {
