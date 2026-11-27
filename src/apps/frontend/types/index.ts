@@ -25,6 +25,11 @@ import type {
   ResultsByIdentifier,
 } from "./diagnostic-report";
 import type { Fact } from "./fact";
+import type {
+  ImmunizationPage,
+  ImmunizationSearch,
+  ListImmunizationsParameters,
+} from "./immunization";
 import {
   PrescribedMedicine,
   type ListMedicationRequestsParameters,
@@ -86,10 +91,13 @@ export {
   type DiagnosticReportSearch,
   type Fact,
   type FindLastReceivedParameters,
+  type ImmunizationPage,
+  type ImmunizationSearch,
   type ListAllergyIntolerancesParameters,
   type ListCarePlanPreviewParameters,
   type ListConditionsParameters,
   type ListDiagnosticReportsParameters,
+  type ListImmunizationsParameters,
   type ListMedicationRequestsParameters,
   type ListProceduresParameters,
   type ListRecordsParameters,

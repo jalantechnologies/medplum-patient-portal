@@ -307,12 +307,17 @@ export default class MedplumService {
       );
   }
 
-  protected static toRecordFilters(recordFilter: RecordFilter): Filter[] {
+  protected static toRecordFilters(
+    recordFilter: RecordFilter,
+    textSearchParameter:
+      | typeof SEARCH_PARAMETER.CODE
+      | typeof SEARCH_PARAMETER.VACCINE_CODE = SEARCH_PARAMETER.CODE,
+  ): Filter[] {
     const { text } = recordFilter;
     const textFilters: Filter[] = text
       ? [
           {
-            code: SEARCH_PARAMETER.CODE,
+            code: textSearchParameter,
             operator: Operator.TEXT,
             value: escapeSearchValue(text),
           },

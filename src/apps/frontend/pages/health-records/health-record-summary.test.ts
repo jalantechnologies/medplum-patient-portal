@@ -2,6 +2,7 @@ import { createReference } from "@medplum/core";
 import type {
   Annotation,
   CodeableConcept,
+  Immunization,
   Procedure,
 } from "@medplum/fhirtypes";
 import { HomerSimpson } from "@medplum/mock";
@@ -13,6 +14,7 @@ import {
   CODE_SYSTEM,
   CONDITION_CLINICAL_STATUS,
   CONDITION_VERIFICATION_STATUS,
+  IMMUNIZATION_STATUS,
   OBSERVATION_STATUS,
   PROCEDURE_STATUS,
   RESOURCE_TYPE,
@@ -23,6 +25,7 @@ import { RecordSourceNames } from "../../types";
 import {
   summarizeAllergyIntolerance,
   summarizeCondition,
+  summarizeImmunization,
   summarizeProcedure,
   summarizeVitalSign,
 } from "./health-record-summary";
@@ -92,6 +95,20 @@ const summarizeSkinBiopsy = (overrides: Partial<Procedure>) =>
       status: PROCEDURE_STATUS.COMPLETED,
       subject: homer,
       code: { text: "Skin biopsy" },
+      ...overrides,
+    },
+    noSourceNames,
+  );
+
+const summarizeInfluenzaVaccine = (overrides: Partial<Immunization>) =>
+  summarizeImmunization(
+    {
+      resourceType: RESOURCE_TYPE.IMMUNIZATION,
+      id: "influenza-vaccine",
+      status: IMMUNIZATION_STATUS.COMPLETED,
+      patient: homer,
+      vaccineCode: { text: "Influenza vaccine" },
+      occurrenceDateTime: "2025-10-06",
       ...overrides,
     },
     noSourceNames,
@@ -175,6 +192,22 @@ describe("naming a health record", () => {
           noSourceNames,
         ),
       "Procedure",
+    ],
+    [
+      "an immunization",
+      (vaccineCode: CodeableConcept) =>
+        summarizeImmunization(
+          {
+            resourceType: RESOURCE_TYPE.IMMUNIZATION,
+            id: "influenza-vaccine",
+            status: IMMUNIZATION_STATUS.COMPLETED,
+            patient: homer,
+            vaccineCode,
+            occurrenceDateTime: "2025-10-06",
+          },
+          noSourceNames,
+        ),
+      "Immunization",
     ],
   ])(
     "names %s by its text, else its first coding that has a name, else a plain word",
@@ -323,6 +356,189 @@ describe("summarizeProcedure", () => {
 
   it("has no verification or value, which a procedure does not record", () => {
     expect(summarizeSkinBiopsy({})).toMatchObject({
+      value: "",
+      verification: "",
+    });
+  });
+});
+
+describe("summarizeImmunization", () => {
+  const statusWords = {
+    [IMMUNIZATION_STATUS.COMPLETED]: "Completed",
+    [IMMUNIZATION_STATUS.ENTERED_IN_ERROR]: "Entered in error",
+    [IMMUNIZATION_STATUS.NOT_DONE]: "Not given",
+  } satisfies Record<Immunization["status"], string>;
+
+  it.each(Object.entries(statusWords))(
+    "words the status %s as %s, so a vaccine not given never reads as given",
+    (status, words) => {
+      expect(
+        summarizeInfluenzaVaccine({
+          status: status as Immunization["status"],
+        }).status,
+      ).toBe(words);
+    },
+  );
+
+  it.each([
+    [IMMUNIZATION_STATUS.COMPLETED, true, "Subpotent dose"],
+    [IMMUNIZATION_STATUS.COMPLETED, false, "Completed"],
+    [IMMUNIZATION_STATUS.COMPLETED, undefined, "Completed"],
+    [IMMUNIZATION_STATUS.NOT_DONE, true, "Not given"],
+    [IMMUNIZATION_STATUS.ENTERED_IN_ERROR, true, "Entered in error"],
+  ])(
+    "words a dose with the status %s that is subpotent %s as %s",
+    (status, isSubpotent, words) => {
+      expect(summarizeInfluenzaVaccine({ status, isSubpotent }).status).toBe(
+        words,
+      );
+    },
+  );
+
+  it("names everyone who gave or ordered a vaccine, in the clinic's order, leaving out one recorded with no name", () => {
+    expect(
+      summarizeInfluenzaVaccine({
+        performer: [
+          { actor: { display: "Dr. Mira Synthetic" } },
+          { actor: { reference: `${RESOURCE_TYPE.PRACTITIONER}/unnamed` } },
+          { actor: { display: "" } },
+          { actor: { display: "Nurse Ana Synthetic" } },
+        ],
+      }).author,
+    ).toBe("Dr. Mira Synthetic, Nurse Ana Synthetic");
+  });
+
+  it("names someone listed more than once, in several roles or through their role, only once", () => {
+    expect(
+      summarizeInfluenzaVaccine({
+        performer: [
+          {
+            function: { text: "Ordering Provider" },
+            actor: {
+              reference: `${RESOURCE_TYPE.PRACTITIONER}/mira-synthetic`,
+              display: "Dr. Mira Synthetic",
+            },
+          },
+          { actor: { display: "Nurse Ana Synthetic" } },
+          {
+            function: { text: "Administering Provider" },
+            actor: {
+              reference: `${RESOURCE_TYPE.PRACTITIONER}/mira-synthetic`,
+              display: "Dr. Mira Synthetic",
+            },
+          },
+          {
+            actor: {
+              reference: `${RESOURCE_TYPE.PRACTITIONER_ROLE}/mira-synthetic-nurse`,
+              display: "Dr. Mira Synthetic",
+            },
+          },
+        ],
+      }).author,
+    ).toBe("Dr. Mira Synthetic, Nurse Ana Synthetic");
+  });
+
+  it("names a clinic recorded as giving the vaccine", () => {
+    expect(
+      summarizeInfluenzaVaccine({
+        performer: [
+          {
+            actor: {
+              reference: `${RESOURCE_TYPE.ORGANIZATION}/pine-family-clinic`,
+              display: "Immunization service",
+            },
+          },
+        ],
+      }).author,
+    ).toBe("Immunization service");
+  });
+
+  it("names no one when the clinic recorded no one giving the vaccine", () => {
+    expect(summarizeInfluenzaVaccine({ performer: undefined }).author).toBe("");
+  });
+
+  it.each([
+    ["a day", { occurrenceDateTime: "2025-10-06" }, "October 6, 2025"],
+    ["a month", { occurrenceDateTime: "2025-10" }, "October 2025"],
+    [
+      "a time, on the patient's own calendar day",
+      { occurrenceDateTime: "2025-10-07T03:30:00Z" },
+      "October 6, 2025",
+    ],
+    [
+      "a time written in another time zone, on the patient's own calendar day",
+      { occurrenceDateTime: "2025-10-07T09:30:00+09:00" },
+      "October 6, 2025",
+    ],
+    [
+      "words alone, as no date",
+      { occurrenceDateTime: undefined, occurrenceString: "Spring 2019" },
+      "",
+    ],
+    [
+      "a year written as text",
+      { occurrenceDateTime: undefined, occurrenceString: "2019" },
+      "2019",
+    ],
+    [
+      "a month written as text",
+      { occurrenceDateTime: undefined, occurrenceString: "2019-05" },
+      "May 2019",
+    ],
+    [
+      "a time written as text, on the patient's own calendar day",
+      {
+        occurrenceDateTime: undefined,
+        occurrenceString: "2025-10-07T03:30:00Z",
+      },
+      "October 6, 2025",
+    ],
+  ])("dates a vaccine given at %s", (_, occurrence, date) => {
+    showDatesInChicago();
+
+    expect(summarizeInfluenzaVaccine(occurrence).date).toBe(date);
+  });
+
+  it("keeps each note the clinic wrote on a vaccine, in order, with its author and date where the note records them", () => {
+    showDatesInChicago();
+
+    expect(
+      summarizeInfluenzaVaccine({
+        note: [
+          { text: "One historical influenza dose is recorded." },
+          {
+            authorString: "Nurse Ana Synthetic",
+            time: "2025-10-06T15:00:00Z",
+            text: "Taken from a written record.",
+          },
+        ],
+      }).notes,
+    ).toEqual([
+      {
+        author: "",
+        date: "",
+        text: "One historical influenza dose is recorded.",
+      },
+      {
+        author: "Nurse Ana Synthetic",
+        date: "October 6, 2025",
+        text: "Taken from a written record.",
+      },
+    ]);
+  });
+
+  it.each([
+    ["no note at all", undefined],
+    ["an empty list of notes", []],
+  ])(
+    "keeps no notes for a vaccine the clinic wrote none on, given %s",
+    (_, note) => {
+      expect(summarizeInfluenzaVaccine({ note }).notes).toEqual([]);
+    },
+  );
+
+  it("has no verification or value, which an immunization does not record", () => {
+    expect(summarizeInfluenzaVaccine({})).toMatchObject({
       value: "",
       verification: "",
     });
@@ -785,6 +1001,25 @@ describe("where a health record came from", () => {
             id: "skin-biopsy",
             status: PROCEDURE_STATUS.COMPLETED,
             subject: homer,
+            meta: withMeta,
+          },
+          recordSourceNames,
+        ),
+    ],
+    [
+      "an immunization",
+      (
+        withMeta: typeof meta | undefined,
+        recordSourceNames: RecordSourceNames,
+      ) =>
+        summarizeImmunization(
+          {
+            resourceType: RESOURCE_TYPE.IMMUNIZATION,
+            id: "influenza-vaccine",
+            status: IMMUNIZATION_STATUS.COMPLETED,
+            patient: homer,
+            vaccineCode: { text: "Influenza vaccine" },
+            occurrenceDateTime: "2025-10-06",
             meta: withMeta,
           },
           recordSourceNames,

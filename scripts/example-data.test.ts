@@ -16,6 +16,7 @@ import { readJson } from "@medplum/definitions";
 import type {
   Bundle,
   BundleEntry,
+  Immunization,
   List,
   OperationOutcome,
   Organization,
@@ -30,6 +31,7 @@ import {
   BUNDLE_REQUEST_METHOD,
   BUNDLE_TYPE,
   IDENTIFIER_SYSTEM,
+  IMMUNIZATION_STATUS,
   MEDICATION_REQUEST_INTENT,
   MEDICATION_REQUEST_STATUS,
   OBSERVATION_STATUS,
@@ -192,6 +194,26 @@ describe("example data", () => {
     expect(findByReference(onBehalfOf?.reference)).toMatchObject({
       name: "Oak Dermatology",
     });
+  });
+
+  it("records the influenza vaccine as the prototype shows it: from Pine Family Clinic, on October 6, 2025, completed, given by the immunization service, with its note", () => {
+    const influenzaVaccine = resources.find((resource) =>
+      isResource<Immunization>(resource, RESOURCE_TYPE.IMMUNIZATION),
+    ) as Immunization;
+
+    expect(influenzaVaccine.vaccineCode.text).toBe("Influenza vaccine");
+    expect(influenzaVaccine.meta?.source).toBe(
+      "https://fhir.pine-family-clinic.example",
+    );
+    expect(influenzaVaccine.occurrenceDateTime).toBe("2025-10-06");
+    expect(influenzaVaccine.status).toBe(IMMUNIZATION_STATUS.COMPLETED);
+    expect(influenzaVaccine.isSubpotent).toBeUndefined();
+    expect(influenzaVaccine.performer).toEqual([
+      { actor: { display: "Immunization service" } },
+    ]);
+    expect(influenzaVaccine.note).toEqual([
+      { text: "One historical influenza dose is recorded." },
+    ]);
   });
 
   it("gives every record the address of the source it came from and its identifier there", () => {

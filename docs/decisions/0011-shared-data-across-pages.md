@@ -10,7 +10,7 @@ Pages read the patient's record through providers and contexts ([AGENTS.md](../.
 Facts that shape it:
 
 - Three providers wrap the whole signed-in layout, because Home reads them and must not show "Loading…" on every return: `CarePlanProvider`, `AppointmentProvider` and `RecordSourceProvider`. They outlive the pages that read them, and other pages read them too, such as Health profile.
-- The other providers (`ConditionProvider`, `AllergyIntoleranceProvider`, `ProcedureProvider`, `ObservationProvider`, `MedicationRequestProvider` and `DiagnosticReportProvider`) sit on their page's route, so they mount and unmount with it.
+- The other providers (`ConditionProvider`, `AllergyIntoleranceProvider`, `ProcedureProvider`, `ImmunizationProvider`, `ObservationProvider`, `MedicationRequestProvider` and `DiagnosticReportProvider`) sit on their page's route, so they mount and unmount with it.
 - React renders a page before it runs that page's effects, and runs the leaving page's effect cleanups after the next page's first render. Anything decided in an effect is one render too late for what the page shows first.
 - A failure is not always a new error object: `AsynchronousOperationError.fromUnknown` passes an `AsynchronousOperationError` through unchanged, so a request that fails with an error object already seen looks like the earlier failure. Only the request tells two failures apart.
 

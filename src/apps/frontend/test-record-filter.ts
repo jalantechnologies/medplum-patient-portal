@@ -15,7 +15,7 @@ import {
   addListedOrganizations,
   interceptSearches,
   readSearchRequest,
-  searchCodeTextAsServer,
+  searchAsServer,
 } from "./test-medplum";
 
 type User = ReturnType<typeof userEvent.setup>;
@@ -34,6 +34,9 @@ export const isSourceFilter = ({ code }: Filter) =>
 export const isTextFilter = ({ code, operator }: Filter) =>
   code === SEARCH_PARAMETER.CODE && operator === Operator.TEXT;
 
+export const isVaccineCodeTextFilter = ({ code, operator }: Filter) =>
+  code === SEARCH_PARAMETER.VACCINE_CODE && operator === Operator.TEXT;
+
 export const answerAsServer = (
   medplum: MockClient,
   waitBefore: (
@@ -48,7 +51,7 @@ export const answerAsServer = (
     );
     return addListedOrganizations(
       medplum,
-      await searchCodeTextAsServer(medplum, resourceType, query, options),
+      await searchAsServer(medplum, resourceType, query, options),
       resourceType,
     );
   });

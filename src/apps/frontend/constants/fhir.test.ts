@@ -18,6 +18,7 @@ import type {
   CodeSystemConcept,
   Condition,
   DiagnosticReport,
+  Immunization,
   List,
   Medication,
   MedicationRequest,
@@ -45,6 +46,7 @@ import {
   DIAGNOSTIC_REPORT_STATUS,
   IMAGING_SERVICE_SECTION,
   IDENTIFIER_SYSTEM,
+  IMMUNIZATION_STATUS,
   LABORATORY_SERVICE_SECTION,
   LIST_MODE,
   LIST_STATUS,
@@ -256,6 +258,13 @@ describe("patient access policy", () => {
       status: PROCEDURE_STATUS.COMPLETED,
       code: { text: "Skin biopsy" },
       subject: patient,
+    }),
+    [RESOURCE_TYPE.IMMUNIZATION]: (patient): Immunization => ({
+      resourceType: RESOURCE_TYPE.IMMUNIZATION,
+      status: IMMUNIZATION_STATUS.COMPLETED,
+      vaccineCode: { text: "Influenza vaccine" },
+      patient,
+      occurrenceDateTime: "2025-10-06",
     }),
   };
 

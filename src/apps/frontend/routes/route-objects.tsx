@@ -21,6 +21,7 @@ import {
   CarePlanProvider,
   ConditionProvider,
   DiagnosticReportProvider,
+  ImmunizationProvider,
   MedicationRequestProvider,
   ObservationProvider,
   ProcedureProvider,
@@ -94,9 +95,11 @@ export const routeObjects = [
                       <ConditionProvider>
                         <AllergyIntoleranceProvider>
                           <ProcedureProvider>
-                            <ObservationProvider>
-                              <HealthRecords />
-                            </ObservationProvider>
+                            <ImmunizationProvider>
+                              <ObservationProvider>
+                                <HealthRecords />
+                              </ObservationProvider>
+                            </ImmunizationProvider>
                           </ProcedureProvider>
                         </AllergyIntoleranceProvider>
                       </ConditionProvider>

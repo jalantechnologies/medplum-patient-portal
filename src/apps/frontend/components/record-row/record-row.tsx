@@ -61,6 +61,9 @@ const RecordRow: FC<RecordRowProperties> = ({
               closeable={false}
               kind={TAG_KIND.neutral}
               size={TAG_SIZE.small}
+              overrides={{
+                Root: { props: { "data-testid": `${testIdentifier}-status` } },
+              }}
             >
               {status}
             </Tag>
