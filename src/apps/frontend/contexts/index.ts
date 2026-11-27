@@ -17,6 +17,10 @@ import {
   useDiagnosticReportContext,
 } from "./diagnostic-report.context";
 import {
+  ImmunizationContext,
+  useImmunizationContext,
+} from "./immunization.context";
+import {
   MedicationRequestContext,
   useMedicationRequestContext,
 } from "./medication-request.context";
@@ -37,6 +41,7 @@ export {
   CarePlanContext,
   ConditionContext,
   DiagnosticReportContext,
+  ImmunizationContext,
   MedicationRequestContext,
   ObservationContext,
   ProcedureContext,
@@ -47,6 +52,7 @@ export {
   useCarePlanContext,
   useConditionContext,
   useDiagnosticReportContext,
+  useImmunizationContext,
   useMedicationRequestContext,
   useObservationContext,
   useProcedureContext,

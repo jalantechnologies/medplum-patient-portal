@@ -8,12 +8,14 @@ import type {
   CarePlan,
   DiagnosticReport,
   HumanName,
+  Immunization,
   List,
   Medication,
   MedicationRequest,
   Observation,
   Procedure,
   ResourceType,
+  SearchParameter,
   TimingRepeat,
   User,
 } from "@medplum/fhirtypes";
@@ -25,6 +27,7 @@ export const RESOURCE_TYPE = {
   CARE_PLAN: "CarePlan",
   CONDITION: "Condition",
   DIAGNOSTIC_REPORT: "DiagnosticReport",
+  IMMUNIZATION: "Immunization",
   LIST: "List",
   MEDICATION: "Medication",
   MEDICATION_REQUEST: "MedicationRequest",
@@ -89,6 +92,12 @@ export const DIAGNOSTIC_REPORT_STATUS = {
   REGISTERED: "registered",
   UNKNOWN: "unknown",
 } as const satisfies Record<string, DiagnosticReport["status"]>;
+
+export const IMMUNIZATION_STATUS = {
+  COMPLETED: "completed",
+  ENTERED_IN_ERROR: "entered-in-error",
+  NOT_DONE: "not-done",
+} as const satisfies Record<string, Immunization["status"]>;
 
 export const MEDICATION_STATUS = {
   ENTERED_IN_ERROR: "entered-in-error",
@@ -378,8 +387,13 @@ export const SEARCH_PARAMETER = {
   SOURCE: "_source",
   STATUS: "status",
   SUBJECT: "subject",
+  VACCINE_CODE: "vaccine-code",
   VERIFICATION_STATUS: "verification-status",
 } as const;
+
+export const SEARCH_PARAMETER_TYPE = {
+  DATE: "date",
+} as const satisfies Record<string, SearchParameter["type"]>;
 
 export const TIMING_PERIOD_UNIT = {
   DAY: "d",
@@ -454,6 +468,10 @@ export const PATIENT_RECORD_SEARCHES = [
   },
   {
     resourceType: RESOURCE_TYPE.DIAGNOSTIC_REPORT,
+    patientParameter: SEARCH_PARAMETER.PATIENT,
+  },
+  {
+    resourceType: RESOURCE_TYPE.IMMUNIZATION,
     patientParameter: SEARCH_PARAMETER.PATIENT,
   },
   {

@@ -1061,11 +1061,18 @@ describe("Health profile", () => {
     const healthHistory = await screen.findByTestId("health-history");
     expect(
       Array.from(healthHistory.children, ({ textContent }) => textContent),
-    ).toEqual(["Conditions", "Allergies", "Procedures", "Measurements"]);
+    ).toEqual([
+      "Conditions",
+      "Allergies",
+      "Procedures",
+      "Immunizations",
+      "Measurements",
+    ]);
     for (const tabKey of [
       "conditions",
       "allergies",
       "procedures",
+      "immunizations",
       "measurements",
     ]) {
       const link = within(healthHistory).getByTestId(

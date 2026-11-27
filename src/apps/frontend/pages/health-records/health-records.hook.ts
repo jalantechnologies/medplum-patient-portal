@@ -2,6 +2,7 @@ import { getReferenceString, type WithId } from "@medplum/core";
 import type {
   AllergyIntolerance,
   Condition,
+  Immunization,
   Observation,
   Procedure,
 } from "@medplum/fhirtypes";
@@ -13,6 +14,7 @@ import { HEALTH_RECORDS_TAB } from "../../constants/routes";
 import {
   useAllergyIntoleranceContext,
   useConditionContext,
+  useImmunizationContext,
   useObservationContext,
   useProcedureContext,
   useRecordSourceContext,
@@ -30,6 +32,7 @@ import {
 import {
   summarizeAllergyIntolerance,
   summarizeCondition,
+  summarizeImmunization,
   summarizeProcedure,
   summarizeVitalSign,
 } from "./health-record-summary";
@@ -49,6 +52,11 @@ const HEALTH_RECORD_TAB_TEXT = {
     ...HEALTH_RECORDS_TAB.PROCEDURES,
     emptyDescription: "No procedure information has been shared.",
     emptyTitle: "No procedures available",
+  },
+  IMMUNIZATIONS: {
+    ...HEALTH_RECORDS_TAB.IMMUNIZATIONS,
+    emptyDescription: "No immunization information has been shared.",
+    emptyTitle: "No immunizations available",
   },
   MEASUREMENTS: {
     ...HEALTH_RECORDS_TAB.MEASUREMENTS,
@@ -112,6 +120,22 @@ const useProcedureTab = ({
     text: HEALTH_RECORD_TAB_TEXT.PROCEDURES,
   });
 
+const useImmunizationTab = ({
+  activeTabKey,
+  patientReference,
+  recordListFilter,
+  recordSourceNames,
+}: HealthRecordTabSource) =>
+  useRecordListTab({
+    ...useImmunizationContext().immunizations,
+    ...recordListFilter,
+    activeTabKey,
+    patientReference,
+    summarize: (immunization: WithId<Immunization>) =>
+      summarizeImmunization(immunization, recordSourceNames),
+    text: HEALTH_RECORD_TAB_TEXT.IMMUNIZATIONS,
+  });
+
 const useVitalSignTab = ({
   activeTabKey,
   patientReference,
@@ -155,6 +179,7 @@ const useHealthRecords = () => {
     useConditionTab(tabSource),
     useAllergyIntoleranceTab(tabSource),
     useProcedureTab(tabSource),
+    useImmunizationTab(tabSource),
     useVitalSignTab(tabSource),
   ];
 

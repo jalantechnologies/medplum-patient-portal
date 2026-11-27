@@ -1,11 +1,16 @@
 import {
   createReference,
+  evalFhirPath,
   formatSearchQuery,
+  getExpressionForResourceType,
+  getSearchParameter,
   isResource,
   Operator,
   parseSearchRequest,
   splitSearchOnComma,
+  toPeriod,
   tryParseReference,
+  type Filter,
   type QueryTypes,
   type SearchRequest,
   type WithId,
@@ -14,6 +19,7 @@ import type {
   AllergyIntolerance,
   Appointment,
   Bundle,
+  BundleEntry,
   CarePlan,
   CodeableConcept,
   DiagnosticReport,
@@ -45,7 +51,7 @@ import {
   OBSERVATION_STATUS,
   RESOURCE_TYPE,
   SEARCH_ENTRY_MODE,
-  SEARCH_PARAMETER,
+  SEARCH_PARAMETER_TYPE,
 } from "./constants/fhir";
 
 export const doctor = { display: "Dr. Mira Synthetic" };
@@ -231,18 +237,75 @@ export const interceptSearches = (
 
 const EVERY_CANDIDATE_COUNT = 1000;
 
-const listCodeNames = (resource: Resource | undefined): string[] => {
-  const code =
-    resource && "code" in resource
-      ? (resource.code as CodeableConcept | undefined)
-      : undefined;
-  return [code?.text, ...(code?.coding ?? []).map(({ display }) => display)]
-    .filter((name): name is string => Boolean(name))
-    .map((name) => name.toLowerCase());
+const listSearchedValues = (
+  resource: Resource,
+  searchParameterName: string,
+): unknown[] => {
+  const expression = getSearchParameter(
+    resource.resourceType,
+    searchParameterName,
+  )?.expression;
+  const resourceExpression =
+    expression &&
+    getExpressionForResourceType(resource.resourceType, expression);
+  return resourceExpression ? evalFhirPath(resourceExpression, resource) : [];
 };
 
-// MockClient compares a code exactly and ignores :text, while Medplum's server matches any part of code.text or of a coding's display, ignoring case and the spaces around each value (buildTokenColumnsWhereConditionTextAndContains in token-column.ts).
-export const searchCodeTextAsServer = async (
+const listCodeNames = (
+  resource: Resource,
+  searchParameterName: string,
+): string[] =>
+  (listSearchedValues(resource, searchParameterName) as CodeableConcept[])
+    .flatMap(({ coding = [], text }) => [
+      text,
+      ...coding.map(({ display }) => display),
+    ])
+    .filter((name): name is string => Boolean(name))
+    .map((name) => name.toLowerCase());
+
+// MockClient compares a code exactly and ignores :text, while Medplum's server matches any part of the coded element's text or of a coding's display, ignoring case and the spaces around each value (buildTokenColumnsWhereConditionTextAndContains in token-column.ts).
+const matchesCodeTextAsServer = (resource: Resource, { code, value }: Filter) =>
+  listCodeNames(resource, code).some((name) =>
+    splitSearchOnComma(value).some((text) =>
+      name.includes(text.trim().toLowerCase()),
+    ),
+  );
+
+const hasDateAsServer = (resource: Resource, searchParameterName: string) =>
+  listSearchedValues(resource, searchParameterName).some(
+    (value) => toPeriod(value) !== undefined,
+  );
+
+const matchesMissingDateAsServer = (
+  resource: Resource,
+  { code, value }: Filter,
+) => hasDateAsServer(resource, code) !== (value === String(true));
+
+const isDateParameter = (resourceType: ResourceType, code: string) =>
+  getSearchParameter(resourceType, code)?.type === SEARCH_PARAMETER_TYPE.DATE;
+
+const isAnsweredByServerOnly =
+  (resourceType: ResourceType) =>
+  ({ code, operator }: Filter) =>
+    operator === Operator.TEXT ||
+    (operator === Operator.MISSING && isDateParameter(resourceType, code));
+
+const matchesAsServer = (resource: Resource, filter: Filter) =>
+  filter.operator === Operator.TEXT
+    ? matchesCodeTextAsServer(resource, filter)
+    : matchesMissingDateAsServer(resource, filter);
+
+const matchesEveryFilterAsServer = (
+  resource: Resource | undefined,
+  filters: Filter[],
+) =>
+  resource !== undefined &&
+  filters.every((filter) => matchesAsServer(resource, filter));
+
+const isIncludedEntry = ({ search }: BundleEntry) =>
+  search?.mode === SEARCH_ENTRY_MODE.INCLUDE;
+
+export const searchAsServer = async (
   medplum: MockClient,
   resourceType: string,
   query: QueryTypes,
@@ -253,11 +316,10 @@ export const searchCodeTextAsServer = async (
     resourceType as ResourceType,
     query,
   );
-  const textFilter = searchRequest.filters?.find(
-    ({ code, operator }) =>
-      code === SEARCH_PARAMETER.CODE && operator === Operator.TEXT,
+  const serverOnlyFilters = (searchRequest.filters ?? []).filter(
+    isAnsweredByServerOnly(resourceType as ResourceType),
   );
-  if (!textFilter) {
+  if (serverOnlyFilters.length === 0) {
     return MockClient.prototype.search.call(
       medplum,
       resourceType as ResourceType,
@@ -270,28 +332,31 @@ export const searchCodeTextAsServer = async (
     resourceType as ResourceType,
     formatSearchQuery({
       ...searchRequest,
-      filters: searchRequest.filters?.filter((filter) => filter !== textFilter),
+      filters: searchRequest.filters?.filter(
+        (filter) => !serverOnlyFilters.includes(filter),
+      ),
       offset: 0,
       count: EVERY_CANDIDATE_COUNT,
     }),
     options,
   );
-  const searchedTexts = splitSearchOnComma(textFilter.value).map((text) =>
-    text.trim().toLowerCase(),
-  );
-  const matches = (everyCandidate.entry ?? []).filter(({ resource }) =>
-    listCodeNames(resource).some((name) =>
-      searchedTexts.some((text) => name.includes(text)),
-    ),
+  const everyEntry = everyCandidate.entry ?? [];
+  const matches = everyEntry.filter(
+    (entry) =>
+      !isIncludedEntry(entry) &&
+      matchesEveryFilterAsServer(entry.resource, serverOnlyFilters),
   );
   const offset = searchRequest.offset ?? 0;
   return {
     ...everyCandidate,
     total: matches.length,
-    entry: matches.slice(
-      offset,
-      offset + (searchRequest.count ?? matches.length),
-    ),
+    entry: [
+      ...matches.slice(
+        offset,
+        offset + (searchRequest.count ?? matches.length),
+      ),
+      ...everyEntry.filter(isIncludedEntry),
+    ],
   };
 };
 

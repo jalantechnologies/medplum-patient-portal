@@ -780,6 +780,7 @@
         },
         "occurrenceDateTime": "2025-10-06",
         "primarySource": false,
+        "performer": [{ "actor": { "display": "Immunization service" } }],
         "reportOrigin": {
           "coding": [
             {

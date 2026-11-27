@@ -54,6 +54,11 @@
       "resourceType": "Procedure",
       "criteria": "Procedure?patient=%patient",
       "interaction": ["search"]
+    },
+    {
+      "resourceType": "Immunization",
+      "criteria": "Immunization?patient=%patient",
+      "interaction": ["search"]
     }
   ]
 }

@@ -12,6 +12,7 @@ import type {
   Annotation,
   Bundle,
   Condition,
+  Immunization,
   List,
   Observation,
   Organization,
@@ -45,6 +46,7 @@ import {
   CONDITION_CLINICAL_STATUS,
   CONDITION_VERIFICATION_STATUS,
   IDENTIFIER_SYSTEM,
+  IMMUNIZATION_STATUS,
   LIST_MODE,
   LIST_STATUS,
   OBSERVATION_CATEGORY,
@@ -59,6 +61,7 @@ import routes from "../../constants/routes";
 import {
   AllergyIntoleranceProvider,
   ConditionProvider,
+  ImmunizationProvider,
   ObservationProvider,
   ProcedureProvider,
   RecordSourceProvider,
@@ -89,6 +92,7 @@ import {
   getSourceMenu,
   isSourceFilter,
   isTextFilter,
+  isVaccineCodeTextFilter,
   listFilterValues,
   listSourceOptionNames,
   searchRecords,
@@ -108,9 +112,11 @@ const renderHealthRecords = (
           <ConditionProvider>
             <AllergyIntoleranceProvider>
               <ProcedureProvider>
-                <ObservationProvider>
-                  <HealthRecords />
-                </ObservationProvider>
+                <ImmunizationProvider>
+                  <ObservationProvider>
+                    <HealthRecords />
+                  </ObservationProvider>
+                </ImmunizationProvider>
               </ProcedureProvider>
             </AllergyIntoleranceProvider>
           </ConditionProvider>
@@ -266,6 +272,22 @@ const createProcedure = (
     ...overrides,
   });
 
+const createImmunization = (
+  medplum: MockClient,
+  name: string,
+  occurrenceDateTime: string | undefined,
+  overrides: Partial<Immunization> = {},
+): Promise<Immunization> =>
+  medplum.createResource<Immunization>({
+    resourceType: RESOURCE_TYPE.IMMUNIZATION,
+    status: IMMUNIZATION_STATUS.COMPLETED,
+    patient: homer,
+    vaccineCode: { text: name },
+    occurrenceDateTime,
+    performer: [{ actor: doctor }],
+    ...overrides,
+  });
+
 const showDatesInChicago = () => {
   vi.stubEnv("TZ", "America/Chicago");
   onTestFinished(() => {
@@ -349,6 +371,7 @@ describe("Health records", () => {
       "Conditions",
       "Allergies",
       "Procedures",
+      "Immunizations",
       "Measurements",
     ]);
     expect(screen.getByTestId("conditions-tab")).toHaveAttribute(
@@ -1275,6 +1298,13 @@ describe("Health records", () => {
       "2024-03-13",
       { status: PROCEDURE_STATUS.ENTERED_IN_ERROR },
     );
+    await createImmunization(medplum, "Influenza vaccine", "2025-10-06");
+    await createImmunization(
+      medplum,
+      "Tetanus vaccine, entered by mistake",
+      "2025-10-07",
+      { status: IMMUNIZATION_STATUS.ENTERED_IN_ERROR },
+    );
 
     renderHealthRecords(medplum);
 
@@ -1298,6 +1328,13 @@ describe("Health records", () => {
         "procedures",
       ),
     ).toEqual(["Skin biopsy"]);
+    const immunizations = await openTab(user, "immunizations");
+    expect(
+      listRecordTitles(
+        await within(immunizations).findByTestId("immunizations-list"),
+        "immunizations",
+      ),
+    ).toEqual(["Influenza vaccine"]);
     const measurements = await openTab(user, "measurements");
     expect(
       listRecordTitles(
@@ -1327,6 +1364,13 @@ describe("Health records", () => {
       ),
     ).toHaveTextContent(
       "No procedures availableNo procedure information has been shared.",
+    );
+    expect(
+      await within(await openTab(user, "immunizations")).findByTestId(
+        "immunizations-empty",
+      ),
+    ).toHaveTextContent(
+      "No immunizations availableNo immunization information has been shared.",
     );
     expect(
       await within(await openTab(user, "measurements")).findByTestId(
@@ -1588,6 +1632,17 @@ describe("Health records", () => {
       "aria-selected",
       "true",
     );
+
+    fireEvent.keyDown(screen.getByTestId("procedures-tab"), {
+      key: "ArrowRight",
+      keyCode: 39,
+    });
+
+    expect(screen.getByTestId("immunizations-tab")).toHaveFocus();
+    expect(screen.getByTestId("immunizations-tab")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
   it("reads a kind of record only once its tab is opened", async () => {
@@ -1629,6 +1684,9 @@ describe("Health records", () => {
     await within(await openTab(user, "procedures")).findByTestId(
       "procedures-empty",
     );
+    await within(await openTab(user, "immunizations")).findByTestId(
+      "immunizations-empty",
+    );
     await within(await openTab(user, "measurements")).findByTestId(
       "measurements-empty",
     );
@@ -1640,6 +1698,7 @@ describe("Health records", () => {
         RESOURCE_TYPE.CONDITION,
         RESOURCE_TYPE.ALLERGY_INTOLERANCE,
         RESOURCE_TYPE.PROCEDURE,
+        RESOURCE_TYPE.IMMUNIZATION,
         RESOURCE_TYPE.OBSERVATION,
         RESOURCE_TYPE.LIST,
       ]),
@@ -1657,6 +1716,58 @@ describe("Health records", () => {
         expect(
           getSearchParameter(resourceType, searchParameterName),
           `${resourceType} ${searchParameterName}`,
+        ).toBeDefined();
+      }
+    }
+  });
+
+  it("searches each kind of record by the coded element its own resource type names", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const search = vi.spyOn(medplum, "search");
+
+    renderHealthRecords(medplum, "/health-records?search=influenza");
+    await screen.findByTestId("conditions-no-match");
+    for (const tabKey of [
+      "allergies",
+      "procedures",
+      "immunizations",
+      "measurements",
+    ]) {
+      await within(await openTab(user, tabKey)).findByTestId(
+        `${tabKey}-no-match`,
+      );
+    }
+
+    const textSearches = search.mock.calls
+      .filter(([resourceType]) => resourceType !== RESOURCE_TYPE.LIST)
+      .map(([resourceType, query]) => ({
+        resourceType,
+        textFilters: (
+          parseSearchRequest(`${resourceType}${String(query)}`).filters ?? []
+        ).filter(({ operator }) => operator === Operator.TEXT),
+      }));
+    const textSearchParameters: Record<string, string> = {
+      [RESOURCE_TYPE.CONDITION]: SEARCH_PARAMETER.CODE,
+      [RESOURCE_TYPE.ALLERGY_INTOLERANCE]: SEARCH_PARAMETER.CODE,
+      [RESOURCE_TYPE.PROCEDURE]: SEARCH_PARAMETER.CODE,
+      [RESOURCE_TYPE.IMMUNIZATION]: SEARCH_PARAMETER.VACCINE_CODE,
+      [RESOURCE_TYPE.OBSERVATION]: SEARCH_PARAMETER.CODE,
+    };
+    expect(
+      new Set(textSearches.map(({ resourceType }) => resourceType)),
+    ).toEqual(new Set(Object.keys(textSearchParameters)));
+    for (const { resourceType, textFilters } of textSearches) {
+      expect(
+        textFilters.map(({ code, value }) => [code, value]),
+        resourceType,
+      ).toEqual([[textSearchParameters[resourceType], "influenza"]]);
+    }
+    for (const { resourceType, textFilters } of textSearches) {
+      for (const { code } of textFilters) {
+        expect(
+          getSearchParameter(resourceType, code),
+          `${resourceType} ${code}`,
         ).toBeDefined();
       }
     }
@@ -3162,6 +3273,571 @@ describe("Health records, procedures", () => {
         "procedures",
       ),
     ).toEqual(["Skin biopsy"]);
+    expect(
+      screen.queryByTestId("health-records-error"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("Health records, immunizations", () => {
+  const givenByPine = { actor: { display: "Immunization service" } };
+
+  it("lists the patient's immunizations newest first, with the clinic, the day, who gave each and its status", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [pineFamilyClinic]);
+    includeListedOrganizations(medplum);
+    await createImmunization(medplum, "Tetanus vaccine", "2023-04-11", {
+      meta: { source: pineFamilyClinic.address },
+      performer: [givenByPine],
+    });
+    await createImmunization(medplum, "Influenza vaccine", "2025-10-06", {
+      meta: { source: pineFamilyClinic.address },
+      performer: [givenByPine],
+    });
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "immunizations");
+
+    await waitFor(() =>
+      expect(listRecordTexts(panel, "immunizations")).toEqual([
+        "Influenza vaccinePine Synthetic Family Clinic · October 6, 2025Immunization serviceCompletedView record",
+        "Tetanus vaccinePine Synthetic Family Clinic · April 11, 2023Immunization serviceCompletedView record",
+      ]),
+    );
+    expect(
+      within(panel)
+        .getAllByTestId("immunizations-record-status")
+        .map(({ textContent }) => textContent),
+    ).toEqual(["Completed", "Completed"]);
+  });
+
+  it("names the clinic once when the clinic itself is recorded as giving the vaccine", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [pineFamilyClinic]);
+    includeListedOrganizations(medplum);
+    await createImmunization(medplum, "Influenza vaccine", "2025-10-06", {
+      meta: { source: pineFamilyClinic.address },
+      performer: [{ actor: { display: pineFamilyClinic.name } }],
+    });
+
+    renderHealthRecords(medplum, "/health-records?tab=immunizations");
+    const panel = screen.getByTestId("immunizations-panel");
+
+    await waitFor(() =>
+      expect(listRecordTexts(panel, "immunizations")).toEqual([
+        "Influenza vaccinePine Synthetic Family Clinic · October 6, 2025CompletedView record",
+      ]),
+    );
+  });
+
+  it("asks Medplum for the patient's own immunizations, newest first, leaving out those entered in error", async () => {
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const search = vi.spyOn(medplum, "search");
+
+    renderHealthRecords(medplum, "/health-records?tab=immunizations");
+    await within(screen.getByTestId("immunizations-panel")).findByTestId(
+      "immunizations-empty",
+    );
+
+    const [resourceType, query] =
+      search.mock.calls.find(
+        ([searchedResourceType]) =>
+          searchedResourceType === RESOURCE_TYPE.IMMUNIZATION,
+      ) ?? [];
+    const { filters, sortRules } = parseSearchRequest(
+      `${resourceType}${String(query)}`,
+    );
+    expect(filters).toEqual(
+      expect.arrayContaining([
+        {
+          code: SEARCH_PARAMETER.PATIENT,
+          operator: Operator.EQUALS,
+          value: getReferenceString(HomerSimpson),
+        },
+        {
+          code: SEARCH_PARAMETER.STATUS,
+          operator: Operator.NOT,
+          value: IMMUNIZATION_STATUS.ENTERED_IN_ERROR,
+        },
+      ]),
+    );
+    expect(sortRules).toEqual([
+      { code: SEARCH_PARAMETER.DATE, descending: true },
+    ]);
+  });
+
+  it("names everyone who gave or ordered a vaccine, each once", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createImmunization(medplum, "Influenza vaccine", "2025-10-06", {
+      performer: [
+        { function: { text: "Ordering Provider" }, actor: doctor },
+        { actor: { display: "Nurse Ana Synthetic" } },
+        { function: { text: "Administering Provider" }, actor: doctor },
+        { actor: { reference: `${RESOURCE_TYPE.PRACTITIONER}/unnamed` } },
+      ],
+    });
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "immunizations");
+
+    expect(
+      await within(panel).findByTestId("immunizations-record"),
+    ).toHaveTextContent(
+      "Influenza vaccineOctober 6, 2025Dr. Mira Synthetic, Nurse Ana SyntheticCompletedView record",
+    );
+  });
+
+  it("tags a vaccine recorded as not given as not given, in the list and in its record, never as completed", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createImmunization(medplum, "Influenza vaccine", "2025-10-06", {
+      status: IMMUNIZATION_STATUS.NOT_DONE,
+    });
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "immunizations");
+    const row = await within(panel).findByTestId("immunizations-record");
+    expect(row).toHaveTextContent(
+      "Influenza vaccineOctober 6, 2025Dr. Mira SyntheticNot givenView record",
+    );
+    expect(
+      within(row).getByTestId("immunizations-record-status").textContent,
+    ).toBe("Not given");
+    await user.click(
+      within(row).getByRole("button", {
+        name: "View record: Influenza vaccine",
+      }),
+    );
+
+    const dialog = await screen.findByTestId("health-record-dialog");
+    expect(within(dialog).getByTestId("health-record-status").textContent).toBe(
+      "Not given",
+    );
+    expect(dialog).not.toHaveTextContent("Completed");
+  });
+
+  it("tags a dose the clinic marked subpotent as a subpotent dose, in the list and in its record, never as completed", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createImmunization(medplum, "Influenza vaccine", "2025-10-06", {
+      isSubpotent: true,
+    });
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "immunizations");
+    const row = await within(panel).findByTestId("immunizations-record");
+    expect(row).toHaveTextContent(
+      "Influenza vaccineOctober 6, 2025Dr. Mira SyntheticSubpotent doseView record",
+    );
+    expect(
+      within(row).getByTestId("immunizations-record-status").textContent,
+    ).toBe("Subpotent dose");
+    await user.click(
+      within(row).getByRole("button", {
+        name: "View record: Influenza vaccine",
+      }),
+    );
+
+    const dialog = await screen.findByTestId("health-record-dialog");
+    expect(within(dialog).getByTestId("health-record-status").textContent).toBe(
+      "Subpotent dose",
+    );
+    expect(dialog).not.toHaveTextContent("Completed");
+  });
+
+  it("dates an immunization whose date is written as text when the text is a date", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createImmunization(medplum, "Childhood measles vaccine", undefined, {
+      occurrenceString: "2019-05",
+    });
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "immunizations");
+
+    expect(
+      await within(panel).findByTestId("immunizations-record"),
+    ).toHaveTextContent(
+      "Childhood measles vaccineMay 2019Dr. Mira SyntheticCompletedView record",
+    );
+  });
+
+  it("lists immunizations with no date after the dated ones", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    answerAsServer(medplum);
+    await createImmunization(medplum, "Tetanus vaccine", "2023-04-11");
+    await createImmunization(medplum, "Childhood measles vaccine", undefined, {
+      occurrenceString: "Spring 2019",
+    });
+    await createImmunization(medplum, "Influenza vaccine", "2025-10-06");
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "immunizations");
+
+    expect(
+      listRecordTitles(
+        await within(panel).findByTestId("immunizations-list"),
+        "immunizations",
+      ),
+    ).toEqual([
+      "Influenza vaccine",
+      "Tetanus vaccine",
+      "Childhood measles vaccine",
+    ]);
+  });
+
+  it("shows only the signed-in patient's immunizations", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const otherPatient = await medplum.createResource<Patient>({
+      resourceType: RESOURCE_TYPE.PATIENT,
+      name: [{ given: ["Harper"], family: "Synthetic" }],
+    });
+    await createImmunization(
+      medplum,
+      "Another patient's vaccine",
+      "2025-10-07",
+      { patient: createReference(otherPatient) },
+    );
+    await createImmunization(medplum, "Influenza vaccine", "2025-10-06");
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-empty");
+    const panel = await openTab(user, "immunizations");
+
+    expect(
+      listRecordTitles(
+        await within(panel).findByTestId("immunizations-list"),
+        "immunizations",
+      ),
+    ).toEqual(["Influenza vaccine"]);
+  });
+
+  it("opens an immunization in a dialog with its status, the clinic's notes in order, the clinic, the day and who gave it", async () => {
+    receiveRecordsAt(RECEIVED_AT);
+    showDatesInChicago();
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createRecordSources(medplum, [pineFamilyClinic]);
+    includeListedOrganizations(medplum);
+    await createImmunization(medplum, "Influenza vaccine", "2025-10-06", {
+      meta: { source: pineFamilyClinic.address },
+      performer: [givenByPine],
+      note: [
+        { text: "One historical influenza dose is recorded." },
+        { text: "Taken from a written record." },
+      ],
+    });
+
+    renderHealthRecords(medplum, "/health-records?tab=immunizations");
+    const panel = screen.getByTestId("immunizations-panel");
+    await waitFor(() =>
+      expect(
+        within(panel).getByTestId("immunizations-record"),
+      ).toHaveTextContent(pineFamilyClinic.name),
+    );
+    await user.click(
+      within(panel).getByRole("button", {
+        name: "View record: Influenza vaccine",
+      }),
+    );
+
+    const dialog = await screen.findByTestId("health-record-dialog");
+    expect(dialog).toHaveAccessibleName("Influenza vaccine");
+    expect(within(dialog).getByTestId("health-record-status").textContent).toBe(
+      "Completed",
+    );
+    expect(listNoteTexts(dialog)).toEqual([
+      "One historical influenza dose is recorded.",
+      "Taken from a written record.",
+    ]);
+    expect(
+      within(dialog).getByTestId("health-record-details"),
+    ).toHaveTextContent(
+      "PatientHomer SimpsonSourcePine Synthetic Family ClinicDateOctober 6, 2025ReceivedOctober 28, 2026 · 4:10 PM Central TimeAuthorImmunization service",
+    );
+  });
+
+  it("lists only the chosen source's immunizations", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const pine = await createClinic(medplum, pineFamilyClinic);
+    const oak = await createClinic(medplum, oakDermatology);
+    await listClinics(medplum, [pine, oak]);
+    await createImmunization(medplum, "Influenza vaccine", "2025-10-06", {
+      meta: { source: pineFamilyClinic.address },
+    });
+    await createImmunization(medplum, "Tetanus vaccine", "2023-04-11", {
+      meta: { source: oakDermatology.address },
+    });
+    const search = answerAsServer(medplum);
+    renderHealthRecords(medplum, "/health-records?tab=immunizations");
+    const panel = screen.getByTestId("immunizations-panel");
+    await within(panel).findByTestId("immunizations-list");
+
+    await chooseRecordSource(user, pineFamilyClinic.name);
+
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "immunizations")).toEqual([
+        "Influenza vaccine",
+      ]),
+    );
+
+    await chooseRecordSource(user, oakDermatology.name);
+
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "immunizations")).toEqual([
+        "Tetanus vaccine",
+      ]),
+    );
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.IMMUNIZATION,
+        isSourceFilter,
+      ).filter((value) => value !== undefined),
+    ).toEqual(
+      expect.arrayContaining([
+        escapeSearchValue(pineFamilyClinic.address),
+        escapeSearchValue(oakDermatology.address),
+      ]),
+    );
+  });
+
+  it("finds an immunization by any part of the vaccine's name or of a coding's display, ignoring case", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createImmunization(medplum, "Influenza vaccine", "2025-10-06");
+    await createImmunization(medplum, "Tetanus vaccine", "2023-04-11");
+    await createImmunization(medplum, "Coded only", "2024-10-01", {
+      vaccineCode: {
+        coding: [{ code: "88", display: "influenza, unspecified formulation" }],
+      },
+    });
+    const search = answerAsServer(medplum);
+    renderHealthRecords(medplum, "/health-records?tab=immunizations");
+    const panel = screen.getByTestId("immunizations-panel");
+    await within(panel).findByTestId("immunizations-list");
+
+    await searchRecords(user, "INFLU");
+
+    await waitFor(() =>
+      expect(listRecordTitles(panel, "immunizations")).toEqual([
+        "Influenza vaccine",
+        "influenza, unspecified formulation",
+      ]),
+    );
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.IMMUNIZATION,
+        isVaccineCodeTextFilter,
+      ).filter((value) => value !== undefined),
+    ).toEqual(["INFLU", "INFLU"]);
+    expect(
+      listFilterValues(
+        medplum,
+        search,
+        RESOURCE_TYPE.IMMUNIZATION,
+        isTextFilter,
+      ).filter((value) => value !== undefined),
+    ).toEqual([]);
+  });
+
+  it("keeps the chosen source and search when the patient asks for more immunizations", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const pine = await createClinic(medplum, pineFamilyClinic);
+    const oak = await createClinic(medplum, oakDermatology);
+    await listClinics(medplum, [pine, oak]);
+    const immunizationCount = constant.SEARCH_PAGE_SIZE + 1;
+    for (let index = 0; index < immunizationCount; index += 1) {
+      await createImmunization(
+        medplum,
+        `Influenza vaccine ${index + 1}`,
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+        { meta: { source: pineFamilyClinic.address } },
+      );
+    }
+    await createImmunization(medplum, "Tetanus vaccine", "2026-10-20", {
+      meta: { source: pineFamilyClinic.address },
+    });
+    await createImmunization(
+      medplum,
+      "Influenza vaccine at the dermatologist",
+      "2026-10-21",
+      { meta: { source: oakDermatology.address } },
+    );
+    const search = answerAsServer(medplum);
+    renderHealthRecords(
+      medplum,
+      `/health-records?tab=immunizations&source=${pine.id}&search=influ`,
+    );
+    const panel = screen.getByTestId("immunizations-panel");
+    await waitFor(() =>
+      expect(within(panel).getAllByTestId("immunizations-record")).toHaveLength(
+        constant.SEARCH_PAGE_SIZE,
+      ),
+    );
+
+    await user.click(within(panel).getByTestId("immunizations-more"));
+
+    await waitFor(() =>
+      expect(within(panel).getAllByTestId("immunizations-record")).toHaveLength(
+        immunizationCount,
+      ),
+    );
+    expect(listRecordTitles(panel, "immunizations")).not.toEqual(
+      expect.arrayContaining(["Tetanus vaccine"]),
+    );
+    expect(listRecordTitles(panel, "immunizations")).not.toEqual(
+      expect.arrayContaining(["Influenza vaccine at the dermatologist"]),
+    );
+    const nextPageRequest = readSearchRequest(
+      medplum,
+      RESOURCE_TYPE.IMMUNIZATION,
+      search.mock.calls.filter(
+        ([resourceType]) => resourceType === RESOURCE_TYPE.IMMUNIZATION,
+      )[1][1] as string,
+    );
+    expect(nextPageRequest.offset).toBe(constant.SEARCH_PAGE_SIZE);
+    expect(nextPageRequest.filters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: SEARCH_PARAMETER.SOURCE,
+          value: pineFamilyClinic.address,
+        }),
+        expect.objectContaining({
+          code: SEARCH_PARAMETER.VACCINE_CODE,
+          operator: Operator.TEXT,
+          value: "influ",
+        }),
+      ]),
+    );
+  });
+
+  it("shows the newest page of immunizations first, and the older ones when the patient asks for more", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const immunizationCount = constant.SEARCH_PAGE_SIZE + 1;
+    for (let index = 0; index < immunizationCount; index += 1) {
+      await createImmunization(
+        medplum,
+        `Vaccine ${index + 1}`,
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+      );
+    }
+
+    renderHealthRecords(medplum, "/health-records?tab=immunizations");
+    const list = await screen.findByTestId("immunizations-list");
+    expect(within(list).getAllByTestId("immunizations-record")).toHaveLength(
+      constant.SEARCH_PAGE_SIZE,
+    );
+    await user.click(screen.getByTestId("immunizations-more"));
+
+    await waitFor(() =>
+      expect(within(list).getAllByTestId("immunizations-record")).toHaveLength(
+        immunizationCount,
+      ),
+    );
+    expect(listRecordTitles(list, "immunizations").at(-1)).toBe("Vaccine 1");
+  });
+
+  it("keeps the immunizations already listed when the next page cannot be read, and reads that page when the patient tries again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    const immunizationCount = constant.SEARCH_PAGE_SIZE + 1;
+    for (let index = 0; index < immunizationCount; index += 1) {
+      await createImmunization(
+        medplum,
+        `Vaccine ${index + 1}`,
+        new Date(Date.UTC(2020, 0, 1 + index)).toISOString().slice(0, 10),
+      );
+    }
+    let isImmunizationReachable = true;
+    failSearches(
+      medplum,
+      (resourceType) =>
+        resourceType === RESOURCE_TYPE.IMMUNIZATION && !isImmunizationReachable,
+    );
+
+    renderHealthRecords(medplum, "/health-records?tab=immunizations");
+    const list = await screen.findByTestId("immunizations-list");
+    isImmunizationReachable = false;
+    await user.click(screen.getByTestId("immunizations-more"));
+
+    const error = await screen.findByTestId("health-records-error");
+    expect(within(list).getAllByTestId("immunizations-record")).toHaveLength(
+      constant.SEARCH_PAGE_SIZE,
+    );
+    expect(
+      screen.queryByTestId("immunizations-unavailable"),
+    ).not.toBeInTheDocument();
+    isImmunizationReachable = true;
+    await user.click(within(error).getByRole("button"));
+
+    await waitFor(() =>
+      expect(within(list).getAllByTestId("immunizations-record")).toHaveLength(
+        immunizationCount,
+      ),
+    );
+    expect(
+      screen.queryByTestId("health-records-error"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows an error and marks Immunizations when they could not be read, keeping the others, and lists them once the patient tries again", async () => {
+    const user = userEvent.setup();
+    const medplum = new MockClient({ profile: HomerSimpson });
+    await createCondition(medplum, "Eczema", "2026-10-20");
+    await createImmunization(medplum, "Influenza vaccine", "2025-10-06");
+    let isImmunizationReachable = false;
+    failSearches(
+      medplum,
+      (resourceType) =>
+        resourceType === RESOURCE_TYPE.IMMUNIZATION && !isImmunizationReachable,
+    );
+
+    renderHealthRecords(medplum);
+    await screen.findByTestId("conditions-list");
+    const panel = await openTab(user, "immunizations");
+
+    const error = await screen.findByTestId("health-records-error");
+    expect(error).toHaveTextContent(constant.DEFAULT_ERROR_MESSAGE);
+    expect(
+      within(panel).getByTestId("immunizations-unavailable"),
+    ).toHaveTextContent("Could not load");
+    const conditions = await openTab(user, "conditions");
+    expect(
+      listRecordTitles(
+        within(conditions).getByTestId("conditions-list"),
+        "conditions",
+      ),
+    ).toEqual(["Eczema"]);
+
+    isImmunizationReachable = true;
+    await openTab(user, "immunizations");
+    await user.click(
+      within(screen.getByTestId("health-records-error")).getByRole("button"),
+    );
+
+    expect(
+      listRecordTitles(
+        await within(panel).findByTestId("immunizations-list"),
+        "immunizations",
+      ),
+    ).toEqual(["Influenza vaccine"]);
     expect(
       screen.queryByTestId("health-records-error"),
     ).not.toBeInTheDocument();

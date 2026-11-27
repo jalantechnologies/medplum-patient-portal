@@ -9,8 +9,11 @@ import type {
   Annotation,
   CodeableConcept,
   Condition,
+  Immunization,
+  ImmunizationPerformer,
   Observation,
   Procedure,
+  ProcedurePerformer,
 } from "@medplum/fhirtypes";
 
 import {
@@ -19,6 +22,7 @@ import {
   CODE_SYSTEM,
   CONDITION_CLINICAL_STATUS,
   CONDITION_VERIFICATION_STATUS,
+  IMMUNIZATION_STATUS,
 } from "../../constants/fhir";
 import type { RecordSourceNames } from "../../types";
 import {
@@ -58,8 +62,10 @@ interface ClinicalRecordStatus {
   verificationSystem: string;
 }
 
+const NOT_GIVEN_STATUS = "Not given";
 const PERFORMER_SEPARATOR = ", ";
 const RULED_OUT_STATUS = "Ruled out";
+const SUBPOTENT_STATUS = "Subpotent dose";
 const UNCONFIRMED_STATUS = "Unconfirmed";
 
 const ENDED_CONDITION_CODES: string[] = [
@@ -94,10 +100,12 @@ const summarizeNote = ({
   text,
 });
 
-const namePerformers = ({ performer = [] }: Procedure): string =>
+const namePerformers = (
+  performers: (ImmunizationPerformer | ProcedurePerformer)[] = [],
+): string =>
   [
     ...new Set(
-      performer.flatMap(({ actor }) => (actor.display ? [actor.display] : [])),
+      performers.flatMap(({ actor }) => (actor.display ? [actor.display] : [])),
     ),
   ].join(PERFORMER_SEPARATOR);
 
@@ -109,6 +117,25 @@ const findPerformedDate = ({
   performedDateTime ??
   performedPeriod?.start ??
   (isDateTimeString(performedString) ? performedString : undefined);
+
+const findOccurrenceDate = ({
+  occurrenceDateTime,
+  occurrenceString,
+}: Immunization): string | undefined =>
+  occurrenceDateTime ??
+  (isDateTimeString(occurrenceString) ? occurrenceString : undefined);
+
+const describeImmunizationStatus = ({
+  isSubpotent,
+  status,
+}: Immunization): string => {
+  if (status === IMMUNIZATION_STATUS.NOT_DONE) {
+    return NOT_GIVEN_STATUS;
+  }
+  return status === IMMUNIZATION_STATUS.COMPLETED && isSubpotent
+    ? SUBPOTENT_STATUS
+    : humanizeCode(status);
+};
 
 const humanizeStatus = (
   status: CodeableConcept | undefined,
@@ -200,7 +227,7 @@ export const summarizeProcedure = (
   procedure: WithId<Procedure>,
   recordSourceNames: RecordSourceNames,
 ): HealthRecordSummary => ({
-  author: namePerformers(procedure),
+  author: namePerformers(procedure.performer),
   date: formatRecordDate(findPerformedDate(procedure)),
   identifier: procedure.id,
   notes: [],
@@ -208,6 +235,22 @@ export const summarizeProcedure = (
   source: recordSourceNames.findName(procedure.meta?.source),
   status: humanizeCode(procedure.status),
   title: nameCodeableConcept(procedure.code) || "Procedure",
+  value: "",
+  verification: "",
+});
+
+export const summarizeImmunization = (
+  immunization: WithId<Immunization>,
+  recordSourceNames: RecordSourceNames,
+): HealthRecordSummary => ({
+  author: namePerformers(immunization.performer),
+  date: formatRecordDate(findOccurrenceDate(immunization)),
+  identifier: immunization.id,
+  notes: immunization.note?.map(summarizeNote) ?? [],
+  received: formatRecordDateTime(immunization.meta?.lastUpdated),
+  source: recordSourceNames.findName(immunization.meta?.source),
+  status: describeImmunizationStatus(immunization),
+  title: nameCodeableConcept(immunization.vaccineCode) || "Immunization",
   value: "",
   verification: "",
 });

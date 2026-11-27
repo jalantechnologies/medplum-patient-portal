@@ -18,6 +18,7 @@ export const HEALTH_RECORDS_TAB = {
   CONDITIONS: { key: "conditions", title: "Conditions" },
   ALLERGIES: { key: "allergies", title: "Allergies" },
   PROCEDURES: { key: "procedures", title: "Procedures" },
+  IMMUNIZATIONS: { key: "immunizations", title: "Immunizations" },
   MEASUREMENTS: { key: "measurements", title: "Measurements" },
 } as const;
 

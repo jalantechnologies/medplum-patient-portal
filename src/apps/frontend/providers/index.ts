@@ -4,6 +4,7 @@ import { AuthenticationProvider } from "./authentication.provider";
 import { CarePlanProvider } from "./care-plan.provider";
 import { ConditionProvider } from "./condition.provider";
 import { DiagnosticReportProvider } from "./diagnostic-report.provider";
+import { ImmunizationProvider } from "./immunization.provider";
 import { MedicationRequestProvider } from "./medication-request.provider";
 import { ObservationProvider } from "./observation.provider";
 import { ProcedureProvider } from "./procedure.provider";
@@ -16,6 +17,7 @@ export {
   CarePlanProvider,
   ConditionProvider,
   DiagnosticReportProvider,
+  ImmunizationProvider,
   MedicationRequestProvider,
   ObservationProvider,
   ProcedureProvider,
